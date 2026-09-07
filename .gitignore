@@ -1,0 +1,5 @@
+*.patch
+*.orig
+*~
+autom4te.cache/*
+/wine/

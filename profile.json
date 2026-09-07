@@ -1,0 +1,12 @@
+{
+    "type": "Wine",
+    "versionName": "10.17-x86_64",
+    "versionCode": 0,
+    "description": "Wine 10.17 x86_64 - Windows compatibility layer with improved gaming support",
+    "files": [],
+    "wine": {
+        "binPath": "bin",
+        "libPath": "lib",
+        "prefixPack": "prefixPack.tzst"
+    }
+}
