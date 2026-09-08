@@ -314,6 +314,8 @@ DECL_HANDLER(d3dkmt_object_query);
 DECL_HANDLER(d3dkmt_object_open);
 DECL_HANDLER(d3dkmt_share_objects);
 DECL_HANDLER(d3dkmt_object_open_name);
+DECL_HANDLER(d3dkmt_mutex_acquire);
+DECL_HANDLER(d3dkmt_mutex_release);
 DECL_HANDLER(get_esync_apc_fd);
 
 typedef void (*req_handler)( const void *req, void *reply );
@@ -626,6 +628,8 @@ static const req_handler req_handlers[REQ_NB_REQUESTS] =
     (req_handler)req_d3dkmt_object_open,
     (req_handler)req_d3dkmt_share_objects,
     (req_handler)req_d3dkmt_object_open_name,
+    (req_handler)req_d3dkmt_mutex_acquire,
+    (req_handler)req_d3dkmt_mutex_release,
     (req_handler)req_get_esync_apc_fd,
 };
 
@@ -2380,4 +2384,19 @@ C_ASSERT( offsetof(struct d3dkmt_object_open_name_request, rootdir) == 24 );
 C_ASSERT( sizeof(struct d3dkmt_object_open_name_request) == 32 );
 C_ASSERT( offsetof(struct d3dkmt_object_open_name_reply, handle) == 8 );
 C_ASSERT( sizeof(struct d3dkmt_object_open_name_reply) == 16 );
+C_ASSERT( offsetof(struct d3dkmt_mutex_acquire_request, mutex) == 12 );
+C_ASSERT( offsetof(struct d3dkmt_mutex_acquire_request, key_value) == 16 );
+C_ASSERT( offsetof(struct d3dkmt_mutex_acquire_request, wait_handle) == 20 );
+C_ASSERT( offsetof(struct d3dkmt_mutex_acquire_request, wait_status) == 24 );
+C_ASSERT( sizeof(struct d3dkmt_mutex_acquire_request) == 32 );
+C_ASSERT( offsetof(struct d3dkmt_mutex_acquire_reply, fence_value) == 8 );
+C_ASSERT( offsetof(struct d3dkmt_mutex_acquire_reply, runtime_size) == 16 );
+C_ASSERT( offsetof(struct d3dkmt_mutex_acquire_reply, wait_handle) == 20 );
+C_ASSERT( sizeof(struct d3dkmt_mutex_acquire_reply) == 24 );
+C_ASSERT( offsetof(struct d3dkmt_mutex_release_request, mutex) == 12 );
+C_ASSERT( offsetof(struct d3dkmt_mutex_release_request, abandon) == 16 );
+C_ASSERT( offsetof(struct d3dkmt_mutex_release_request, key_value) == 20 );
+C_ASSERT( offsetof(struct d3dkmt_mutex_release_request, fence_value) == 24 );
+C_ASSERT( offsetof(struct d3dkmt_mutex_release_request, runtime_size) == 32 );
+C_ASSERT( sizeof(struct d3dkmt_mutex_release_request) == 40 );
 C_ASSERT( sizeof(struct get_esync_apc_fd_request) == 16 );

@@ -3516,6 +3516,32 @@ static void dump_d3dkmt_object_open_name_reply( const struct d3dkmt_object_open_
     fprintf( stderr, " handle=%04x", req->handle );
 }
 
+static void dump_d3dkmt_mutex_acquire_request( const struct d3dkmt_mutex_acquire_request *req )
+{
+    fprintf( stderr, " mutex=%08x", req->mutex );
+    fprintf( stderr, ", key_value=%08x", req->key_value );
+    fprintf( stderr, ", wait_handle=%04x", req->wait_handle );
+    fprintf( stderr, ", wait_status=%08x", req->wait_status );
+}
+
+static void dump_d3dkmt_mutex_acquire_reply( const struct d3dkmt_mutex_acquire_reply *req )
+{
+    dump_uint64( " fence_value=", &req->fence_value );
+    fprintf( stderr, ", runtime_size=%u", req->runtime_size );
+    fprintf( stderr, ", wait_handle=%04x", req->wait_handle );
+    dump_varargs_bytes( ", runtime=", cur_size );
+}
+
+static void dump_d3dkmt_mutex_release_request( const struct d3dkmt_mutex_release_request *req )
+{
+    fprintf( stderr, " mutex=%08x", req->mutex );
+    fprintf( stderr, ", abandon=%d", req->abandon );
+    fprintf( stderr, ", key_value=%08x", req->key_value );
+    dump_uint64( ", fence_value=", &req->fence_value );
+    fprintf( stderr, ", runtime_size=%u", req->runtime_size );
+    dump_varargs_bytes( ", runtime=", cur_size );
+}
+
 static void dump_get_esync_apc_fd_request( const struct get_esync_apc_fd_request *req )
 {
 }
@@ -3831,6 +3857,8 @@ static const dump_func req_dumpers[REQ_NB_REQUESTS] =
     (dump_func)dump_d3dkmt_object_open_request,
     (dump_func)dump_d3dkmt_share_objects_request,
     (dump_func)dump_d3dkmt_object_open_name_request,
+    (dump_func)dump_d3dkmt_mutex_acquire_request,
+    (dump_func)dump_d3dkmt_mutex_release_request,
     (dump_func)dump_get_esync_apc_fd_request,
 };
 
@@ -4143,6 +4171,7 @@ static const dump_func reply_dumpers[REQ_NB_REQUESTS] =
     (dump_func)dump_d3dkmt_object_open_reply,
     (dump_func)dump_d3dkmt_share_objects_reply,
     (dump_func)dump_d3dkmt_object_open_name_reply,
+    (dump_func)dump_d3dkmt_mutex_acquire_reply,
     NULL,
 };
 
@@ -4455,6 +4484,8 @@ static const char * const req_names[REQ_NB_REQUESTS] =
     "d3dkmt_object_open",
     "d3dkmt_share_objects",
     "d3dkmt_object_open_name",
+    "d3dkmt_mutex_acquire",
+    "d3dkmt_mutex_release",
     "get_esync_apc_fd",
 };
 
@@ -4464,6 +4495,7 @@ static const struct
     unsigned int value;
 } status_names[] =
 {
+    { "ABANDONED",                   STATUS_ABANDONED },
     { "ABANDONED_WAIT_0",            STATUS_ABANDONED_WAIT_0 },
     { "ACCESS_DENIED",               STATUS_ACCESS_DENIED },
     { "ACCESS_VIOLATION",            STATUS_ACCESS_VIOLATION },
