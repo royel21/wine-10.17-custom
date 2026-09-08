@@ -2997,7 +2997,7 @@ struct get_msg_queue_handle_reply
 {
     struct reply_header __header;
     obj_handle_t handle;
-    char __pad_12[4];
+    obj_handle_t idle_event;
 };
 
 
@@ -7114,6 +7114,6 @@ union generic_reply
     struct get_esync_apc_fd_reply get_esync_apc_fd_reply;
 };
 
-#define SERVER_PROTOCOL_VERSION 922
+#define SERVER_PROTOCOL_VERSION 923
 
 #endif /* __WINE_WINE_SERVER_PROTOCOL_H */

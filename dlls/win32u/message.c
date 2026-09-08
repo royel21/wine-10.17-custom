@@ -3122,11 +3122,11 @@ static HANDLE get_server_queue_handle(void)
         SERVER_START_REQ( get_msg_queue_handle )
         {
             wine_server_call( req );
-            ret = wine_server_ptr_handle( reply->handle );
+            thread_info->server_queue = wine_server_ptr_handle( reply->handle );
+            thread_info->idle_event = wine_server_ptr_handle( reply->idle_event );
         }
         SERVER_END_REQ;
-        thread_info->server_queue = ret;
-        if (!ret) ERR( "Cannot get server thread queue\n" );
+        if (!(ret = thread_info->server_queue)) ERR( "Cannot get server thread queue\n" );
     }
     return ret;
 }
@@ -3164,6 +3164,7 @@ static DWORD wait_message( DWORD count, const HANDLE *handles, DWORD timeout, DW
     struct thunk_lock_params params = {.dispatch.callback = thunk_lock_callback};
     LARGE_INTEGER time;
     DWORD ret;
+    HANDLE event;
     void *ret_ptr;
     ULONG ret_len;
 
