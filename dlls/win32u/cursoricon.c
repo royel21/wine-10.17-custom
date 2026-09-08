@@ -102,6 +102,21 @@ INT WINAPI NtUserShowCursor( BOOL show )
     return count;
 }
 
+static void check_for_events( UINT flags )
+{
+    struct peek_message_filter filter =
+    {
+        .internal = TRUE,
+        .flags = PM_REMOVE,
+    };
+    MSG msg;
+
+    if (!user_driver->pProcessEvents( flags ))
+        flush_window_surfaces( TRUE );
+
+    peek_message( &msg, &filter, FALSE );
+}
+
 /***********************************************************************
  *	     NtUserSetCursor (win32u.@)
  */
@@ -122,6 +137,8 @@ HCURSOR WINAPI NtUserSetCursor( HCURSOR cursor )
     }
     SERVER_END_REQ;
     if (!ret) return 0;
+
+    check_for_events( QS_INPUT );
 
     if (!(obj = get_icon_ptr( old_cursor ))) return 0;
     release_user_handle_ptr( obj );
