@@ -6064,8 +6064,8 @@ struct d3dkmt_object_create_request
     struct request_header __header;
     unsigned int        type;
     int                 fd;
+    unsigned int        value;
     /* VARARG(runtime,bytes); */
-    char __pad_20[4];
 };
 struct d3dkmt_object_create_reply
 {
@@ -7114,6 +7114,6 @@ union generic_reply
     struct get_esync_apc_fd_reply get_esync_apc_fd_reply;
 };
 
-#define SERVER_PROTOCOL_VERSION 923
+#define SERVER_PROTOCOL_VERSION 924
 
 #endif /* __WINE_WINE_SERVER_PROTOCOL_H */
