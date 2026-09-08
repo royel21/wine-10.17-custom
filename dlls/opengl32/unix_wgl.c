@@ -133,11 +133,13 @@ struct context
     HGLRC share;                 /* context to be shared with */
     int *attribs;                /* creation attributes */
     DWORD tid;                   /* thread that the context is current in */
+    int major_version;           /* major GL version */
+    int minor_version;           /* minor GL version */
     UINT64 debug_callback;       /* client pointer */
     UINT64 debug_user;           /* client pointer */
     GLubyte *extensions;         /* extension string */
     GLuint *disabled_exts;       /* indices of disabled extensions */
-    GLubyte *wow64_version;      /* wow64 GL version override */
+    char *wow64_version;         /* wow64 GL version override */
     struct buffers *buffers;     /* wow64 buffers map */
     GLenum gl_error;             /* wrapped GL error */
 
@@ -790,9 +792,8 @@ static const GLuint *disabled_extensions_index( TEB *teb )
 }
 
 /* Check if a GL extension is supported */
-static BOOL check_extension_support( TEB *teb, const char *extension, const char *available_extensions )
+static BOOL check_extension_support( struct context *ctx, const char *extension, const char *available_extensions )
 {
-    const struct opengl_funcs *funcs = teb->glTable;
     size_t len;
 
     TRACE( "Checking for extension '%s'\n", extension );
@@ -814,21 +815,15 @@ static BOOL check_extension_support( TEB *teb, const char *extension, const char
          * Check if we are searching for a core GL function */
         if (!strncmp( extension, "GL_VERSION_", 11 ))
         {
-            const GLubyte *gl_version = funcs->p_glGetString( GL_VERSION );
-            const char *version = extension + 11; /* Move past 'GL_VERSION_' */
-
-            if (!gl_version)
-            {
-                ERR( "No OpenGL version found!\n" );
-                return FALSE;
-            }
+            int major = extension[11] - '0'; /* Move past 'GL_VERSION_' */
+            int minor = extension[13] - '0';
 
             /* Compare the major/minor version numbers of the native OpenGL library and what is required by the function.
              * The gl_version string is guaranteed to have at least a major/minor and sometimes it has a release number as well. */
-            if ((gl_version[0] > version[0]) || ((gl_version[0] == version[0]) && (gl_version[2] >= version[2]))) return TRUE;
+            if (ctx->major_version > major || (ctx->major_version == major && ctx->minor_version >= minor)) return TRUE;
 
-            WARN( "The function requires OpenGL version '%c.%c' while your drivers only provide '%c.%c'\n",
-                  version[0], version[2], gl_version[0], gl_version[2] );
+            WARN( "The function requires OpenGL version '%d.%d' while your drivers only provide '%d.%d'\n",
+                  major, minor, ctx->major_version, ctx->minor_version );
         }
 
         if (extension[len] == ' ') len++;
@@ -888,41 +883,27 @@ static BOOL get_integer( TEB *teb, GLenum pname, GLint *data )
         return TRUE;
     }
 
-    if (is_win64 && is_wow64())
+    if (!(ctx = get_current_context( teb, &draw, &read ))) return FALSE;
+
+    switch (pname)
     {
-        /* 4.4 depends on ARB_buffer_storage, which we don't support on wow64. */
-        if (pname == GL_MAJOR_VERSION)
-        {
-            funcs->p_glGetIntegerv( pname, data );
-            if (*data > 4) *data = 4;
-            return TRUE;
-        }
-        if (pname == GL_MINOR_VERSION)
-        {
-            GLint major;
-            funcs->p_glGetIntegerv( GL_MAJOR_VERSION, &major );
-            funcs->p_glGetIntegerv( pname, data );
-            if (major == 4 && *data > 3) *data = 3;
-            return TRUE;
-        }
+    case GL_MAJOR_VERSION:
+        *data = ctx->major_version;
+        return TRUE;
+    case GL_MINOR_VERSION:
+        *data = ctx->minor_version;
+        return TRUE;
+    case GL_DRAW_FRAMEBUFFER_BINDING:
+        if (!draw->draw_fbo) break;
+        *data = ctx->draw_fbo;
+        return TRUE;
+    case GL_READ_FRAMEBUFFER_BINDING:
+        if (!read->read_fbo) break;
+        *data = ctx->read_fbo;
+        return TRUE;
     }
 
-    if ((ctx = get_current_context( teb, &draw, &read )))
-    {
-        if (pname == GL_DRAW_FRAMEBUFFER_BINDING && draw->draw_fbo)
-        {
-            *data = ctx->draw_fbo;
-            return TRUE;
-        }
-        if (pname == GL_READ_FRAMEBUFFER_BINDING && read->read_fbo)
-        {
-            *data = ctx->read_fbo;
-            return TRUE;
-        }
-        if (get_default_fbo_integer( ctx, draw, read, pname, data )) return TRUE;
-    }
-
-    return FALSE;
+    return get_default_fbo_integer( ctx, draw, read, pname, data );
 }
 
 const GLubyte *wrap_glGetString( TEB *teb, GLenum name )
@@ -939,21 +920,10 @@ const GLubyte *wrap_glGetString( TEB *teb, GLenum name )
             GLuint **disabled = &ctx->disabled_exts;
             if (*extensions || filter_extensions( teb, (const char *)ret, extensions, disabled )) return *extensions;
         }
-        else if (name == GL_VERSION && is_win64 && is_wow64())
+        else if (name == GL_VERSION)
         {
             struct context *ctx = get_current_context( teb, NULL, NULL );
-            GLubyte **str = &ctx->wow64_version;
-            int major, minor;
-
-            if (!*str)
-            {
-                const char *rest = parse_gl_version( (const char *)ret, &major, &minor );
-                /* 4.4 depends on ARB_buffer_storage, which we don't support on wow64. */
-                if (major > 4 || (major == 4 && minor >= 4)) asprintf( (char **)str, "4.3%s", rest );
-                else *str = (GLubyte *)strdup( (char *)ret );
-            }
-
-            return *str;
+            if (ctx->wow64_version) return (const GLubyte *)ctx->wow64_version;
         }
     }
 
@@ -1008,28 +978,17 @@ static char *build_extension_list( TEB *teb )
     return available_extensions;
 }
 
-static UINT get_context_major_version( TEB *teb )
-{
-    struct context *ctx;
-
-    if (!(ctx = get_current_context( teb, NULL, NULL ))) return TRUE;
-    for (const int *attr = ctx->attribs; attr && attr[0]; attr += 2)
-        if (attr[0] == WGL_CONTEXT_MAJOR_VERSION_ARB) return attr[1];
-
-    return 1;
-}
-
 /* Check if a GL extension is supported */
-static BOOL is_extension_supported( TEB *teb, const char *extension )
+static BOOL is_extension_supported( TEB *teb, struct context *ctx, const char *extension )
 {
     char *available_extensions = NULL;
     BOOL ret = FALSE;
 
-    if (get_context_major_version( teb ) < 3) available_extensions = strdup( (const char *)wrap_glGetString( teb, GL_EXTENSIONS ) );
+    if (ctx->major_version < 3) available_extensions = strdup( (const char *)wrap_glGetString( teb, GL_EXTENSIONS ) );
     if (!available_extensions) available_extensions = build_extension_list( teb );
 
     if (!available_extensions) ERR( "No OpenGL extensions found, check if your OpenGL setup is correct!\n" );
-    else ret = check_extension_support( teb, extension, available_extensions );
+    else ret = check_extension_support( ctx, extension, available_extensions );
 
     free( available_extensions );
     return ret;
@@ -1046,11 +1005,12 @@ PROC wrap_wglGetProcAddress( TEB *teb, LPCSTR name )
     const struct registry_entry entry = {.name = name}, *found;
     struct opengl_funcs *funcs = teb->glTable;
     const void **func_ptr;
+    struct context *ctx;
 
     /* Without an active context opengl32 doesn't know to what
      * driver it has to dispatch wglGetProcAddress.
      */
-    if (!get_current_context( teb, NULL, NULL ))
+    if (!(ctx = get_current_context( teb, NULL, NULL )))
     {
         WARN( "No active WGL context found\n" );
         return (void *)-1;
@@ -1067,7 +1027,7 @@ PROC wrap_wglGetProcAddress( TEB *teb, LPCSTR name )
     {
         void *driver_func = funcs->p_wglGetProcAddress( name );
 
-        if (!is_extension_supported( teb, found->extension ))
+        if (!is_extension_supported( teb, ctx, found->extension ))
         {
             unsigned int i;
             static const struct { const char *name, *alt; } alternatives[] =
@@ -1117,6 +1077,38 @@ BOOL wrap_wglCopyContext( TEB *teb, HGLRC hglrcSrc, HGLRC hglrcDst, UINT mask )
     return ret;
 }
 
+static void make_context_current( TEB *teb, const struct opengl_funcs *funcs, HDC draw_hdc, HDC read_hdc,
+                                  HGLRC hglrc, struct context *ctx )
+{
+    DWORD tid = HandleToULong(teb->ClientId.UniqueThread);
+    const char *version, *rest = "";
+
+    ctx->tid = tid;
+    teb->glReserved1[0] = draw_hdc;
+    teb->glReserved1[1] = read_hdc;
+    teb->glCurrentRC = hglrc;
+    teb->glTable = (void *)funcs;
+    pop_default_fbo( teb );
+
+    if (ctx->major_version) return; /* already synced */
+
+    version = (const char *)funcs->p_glGetString( GL_VERSION );
+    if (version) parse_gl_version( version, &ctx->major_version, &ctx->minor_version );
+    if (!ctx->major_version) ctx->major_version = 1;
+    TRACE( "context %p version %d.%d\n", ctx, ctx->major_version, ctx->minor_version );
+
+    if (is_win64 && is_wow64())
+    {
+        if (ctx->major_version > 4 || (ctx->major_version == 4 && ctx->minor_version > 3))
+        {
+            FIXME( "GL version %d.%d is not supported on wow64, using 4.3\n", ctx->major_version, ctx->minor_version );
+            ctx->major_version = 4;
+            ctx->minor_version = 3;
+            asprintf( &ctx->wow64_version, "4.3%s", rest );
+        }
+    }
+}
+
 BOOL wrap_wglMakeCurrent( TEB *teb, HDC hdc, HGLRC hglrc )
 {
     DWORD tid = HandleToULong(teb->ClientId.UniqueThread);
@@ -1134,12 +1126,7 @@ BOOL wrap_wglMakeCurrent( TEB *teb, HDC hdc, HGLRC hglrc )
 
         if (!funcs->p_wglMakeCurrent( hdc, &ctx->base )) return FALSE;
         if (prev) prev->tid = 0;
-        ctx->tid = tid;
-        teb->glReserved1[0] = hdc;
-        teb->glReserved1[1] = hdc;
-        teb->glCurrentRC = hglrc;
-        teb->glTable = (void *)funcs;
-        pop_default_fbo( teb );
+        make_context_current( teb, funcs, hdc, hdc, hglrc, ctx );
     }
     else if (prev)
     {
@@ -1394,12 +1381,7 @@ BOOL wrap_wglMakeContextCurrentARB( TEB *teb, HDC draw_hdc, HDC read_hdc, HGLRC 
         if (!funcs->p_wglMakeContextCurrentARB) return FALSE;
         if (!funcs->p_wglMakeContextCurrentARB( draw_hdc, read_hdc, &ctx->base )) return FALSE;
         if (prev) prev->tid = 0;
-        ctx->tid = tid;
-        teb->glReserved1[0] = draw_hdc;
-        teb->glReserved1[1] = read_hdc;
-        teb->glCurrentRC = hglrc;
-        teb->glTable = (void *)funcs;
-        pop_default_fbo( teb );
+        make_context_current( teb, funcs, draw_hdc, read_hdc, hglrc, ctx );
     }
     else if (prev)
     {
