@@ -172,6 +172,7 @@ extern int no_add_queue( struct object *obj, struct wait_queue_entry *entry );
 extern void no_satisfied( struct object *obj, struct wait_queue_entry *entry );
 extern int no_signal( struct object *obj, unsigned int access );
 extern struct fd *no_get_fd( struct object *obj );
+extern struct object *default_get_sync( struct object *obj );
 extern unsigned int default_map_access( struct object *obj, unsigned int access );
 extern struct security_descriptor *default_get_sd( struct object *obj );
 extern int default_set_sd( struct object *obj, const struct security_descriptor *sd, unsigned int set_info );

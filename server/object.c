@@ -642,6 +642,11 @@ struct fd *no_get_fd( struct object *obj )
     return NULL;
 }
 
+struct object *default_get_sync( struct object *obj )
+{
+    return grab_object( obj );
+}
+
 unsigned int default_map_access( struct object *obj, unsigned int access )
 {
     return map_access( access, &obj->ops->type->mapping );
