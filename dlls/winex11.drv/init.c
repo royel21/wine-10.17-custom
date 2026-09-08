@@ -387,29 +387,39 @@ static void x11drv_client_surface_update( struct client_surface *client )
 static void X11DRV_client_surface_present( struct client_surface *client, HDC hdc )
 {
     struct x11drv_client_surface *surface = impl_from_client_surface( client );
-    HWND hwnd = client->hwnd, toplevel = client->toplevel;
-    RECT rect_dst = client->monitor_rect, rect_src = client->virtual_rect, rect;
+    HWND hwnd = client->hwnd, toplevel = NtUserGetAncestor( hwnd, GA_ROOT );
+    struct x11drv_win_data *data;
+    RECT rect_dst, rect;
     Drawable window;
     HRGN region;
 
+    TRACE( "%s\n", debugstr_client_surface( client ) );
+
+    client_surface_update_size( hwnd, surface );
+    client_surface_update_offscreen( hwnd, surface );
+
     if (!hdc) return;
     window = X11DRV_get_whole_window( toplevel );
+    region = get_dc_monitor_region( hwnd, hdc );
 
-    /* if window is exclusive fullscreen, ignore the window region clipping rules */
-    if (hwnd == toplevel && NtUserGetPresentRect( toplevel, &rect, -1 /* raw dpi */ )) region = 0;
-    else region = get_dc_monitor_region( hwnd, hdc );
+    if (!NtUserGetClientRect( hwnd, &rect_dst, NtUserGetWinMonitorDpi( hwnd, MDT_RAW_DPI ) )) goto done;
+    NtUserMapWindowPoints( hwnd, toplevel, (POINT *)&rect_dst, 2, NtUserGetWinMonitorDpi( hwnd, MDT_RAW_DPI ) );
 
-    TRACE( "hwnd %p %s to toplevel %p %s region %p\n", hwnd, wine_dbgstr_rect(&rect_src),
-           toplevel, wine_dbgstr_rect(&rect_dst), region );
+    if ((data = get_win_data( toplevel )))
+    {
+        OffsetRect( &rect_dst, data->rects.client.left - data->rects.visible.left,
+                    data->rects.client.top - data->rects.visible.top );
+        release_win_data( data );
+    }
 
     if (get_dc_drawable( surface->hdc_dst, &rect ) != window || !EqualRect( &rect, &rect_dst ))
         set_dc_drawable( surface->hdc_dst, window, &rect_dst, IncludeInferiors );
     if (region) NtGdiExtSelectClipRgn( surface->hdc_dst, region, RGN_COPY );
 
     NtGdiStretchBlt( surface->hdc_dst, 0, 0, rect_dst.right - rect_dst.left, rect_dst.bottom - rect_dst.top,
-                     surface->hdc_src, 0, 0, rect_src.right - rect_src.left, rect_src.bottom - rect_src.top, SRCCOPY, 0 );
-    XFlush( gdi_display );
+                     surface->hdc_src, 0, 0, surface->rect.right, surface->rect.bottom, SRCCOPY, 0 );
 
+done:
     if (region) NtGdiDeleteObjectApp( region );
 }
 
