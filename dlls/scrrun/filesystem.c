@@ -25,6 +25,7 @@
 
 #include "windef.h"
 #include "winbase.h"
+#include "pathcch.h"
 #include "ole2.h"
 #include "olectl.h"
 #include "dispex.h"

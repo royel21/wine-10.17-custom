@@ -1805,6 +1805,14 @@ static void test_sink_writer_add_stream(void)
         ATTR_RATIO(MF_MT_FRAME_RATE, 30000, 1001),
         {0},
     };
+    static const struct attribute_desc video_input_type_nv12_desc[] =
+    {
+        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Video),
+        ATTR_GUID(MF_MT_SUBTYPE, MFVideoFormat_NV12),
+        ATTR_RATIO(MF_MT_FRAME_SIZE, 96, 96),
+        ATTR_RATIO(MF_MT_FRAME_RATE, 30000, 1001),
+        {0},
+    };
     WCHAR temp_path[MAX_PATH], temp_file[MAX_PATH];
     IMFMediaType *stream_type, *input_type;
     IMFSinkWriter *writer;
@@ -1845,15 +1853,15 @@ static void test_sink_writer_add_stream(void)
     init_media_type(input_type, video_input_type_desc, -1);
 
     hr = IMFSinkWriter_SetInputMediaType(writer, 0xdeadbeef, NULL, NULL);
-    todo_wine
+
     ok(hr == E_INVALIDARG, "SetInputMediaType returned %#lx.\n", hr);
 
     hr = IMFSinkWriter_SetInputMediaType(writer, 0, NULL, NULL);
-    todo_wine
+
     ok(hr == E_INVALIDARG, "SetInputMediaType returned %#lx.\n", hr);
 
     hr = IMFSinkWriter_SetInputMediaType(writer, 0xdeadbeef, input_type, NULL);
-    todo_wine
+
     ok(hr == MF_E_INVALIDSTREAMNUMBER, "SetInputMediaType returned %#lx.\n", hr);
 
     hr = IMFSinkWriter_SetInputMediaType(writer, 0, input_type, NULL);
