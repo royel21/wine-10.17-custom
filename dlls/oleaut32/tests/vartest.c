@@ -4426,7 +4426,7 @@ static HRESULT (WINAPI *pVarXor)(LPVARIANT,LPVARIANT,LPVARIANT);
         V_VT(&left) = VT_##vt1; V_##vt1(&left) = val1;   \
         V_VT(&right) = VT_CY; V_CY(&right).int64 = val2; \
         V_VT(&exp) = VT_##rvt; V_##rvt(&exp) = rval;     \
-        test_var_call2( __LINE__, pVarXor, &left, &right, &exp )
+        test_var_call2_commutative( __LINE__, pVarXor, &left, &right, &exp )
 
 static void test_VarXor(void)
 {
@@ -5154,13 +5154,13 @@ static HRESULT (WINAPI *pVarOr)(LPVARIANT,LPVARIANT,LPVARIANT);
         V_VT(&left) = VT_##vt1; V_##vt1(&left) = val1;   \
         V_VT(&right) = VT_##vt2; V_##vt2(&right) = val2; \
         V_VT(&exp) = VT_##rvt; V_##rvt(&exp) = rval;     \
-        test_var_call2( __LINE__, pVarOr, &left, &right, &exp )
+        test_var_call2_commutative( __LINE__, pVarOr, &left, &right, &exp )
 
 #define VARORCY(vt1,val1,val2,rvt,rval)                  \
         V_VT(&left) = VT_##vt1; V_##vt1(&left) = val1;   \
         V_VT(&right) = VT_CY; V_CY(&right).int64 = val2; \
         V_VT(&exp) = VT_##rvt; V_##rvt(&exp) = rval;     \
-        test_var_call2( __LINE__, pVarOr, &left, &right, &exp )
+        test_var_call2_commutative( __LINE__, pVarOr, &left, &right, &exp )
 
 static void test_VarOr(void)
 {
@@ -6205,7 +6205,7 @@ static HRESULT (WINAPI *pVarAdd)(LPVARIANT,LPVARIANT,LPVARIANT);
         V_VT(&left) = VT_##vt1; V_##vt1(&left) = val1;   \
         V_VT(&right) = VT_##vt2; V_##vt2(&right) = val2; \
         V_VT(&exp) = VT_##rvt; V_##rvt(&exp) = rval;     \
-        test_var_call2( __LINE__, pVarAdd, &left, &right, &exp )
+        test_var_call2_commutative( __LINE__, pVarAdd, &left, &right, &exp )
 
 static void test_VarAdd(void)
 {
@@ -7485,7 +7485,19 @@ static void test_cmp( int line, LCID lcid, UINT flags, VARIANT *left, VARIANT *r
     hres = VarCmp(left,right,lcid,flags);
     ok_(__FILE__,line)(hres == result, "VarCmp(%s,%s): expected 0x%lx, got hres=0x%lx\n",
                        wine_dbgstr_variant(left), wine_dbgstr_variant(right), result, hres );
+
+    /* Invert and run once more. */
+    if (result == VARCMP_LT) result = VARCMP_GT;
+    else if (result == VARCMP_GT) result = VARCMP_LT;
+
+    /* Unfortunately VT_INT is special and is only accepted for the left operand. */
+    if ((V_VT(left) & VT_TYPEMASK) == VT_INT) return;
+
+    hres = VarCmp(right, left, lcid, flags);
+    ok_(__FILE__,line)(hres == result, "VarCmp(%s,%s): expected 0x%lx, got hres=0x%lx\n",
+                       wine_dbgstr_variant(right), wine_dbgstr_variant(left), result, hres );
 }
+
 static void test_cmpex( int line, LCID lcid, VARIANT *left, VARIANT *right,
                         HRESULT res1, HRESULT res2, HRESULT res3, HRESULT res4 )
 {

@@ -53,6 +53,8 @@
 enum message_kind { SEND_MESSAGE, POST_MESSAGE };
 #define NB_MSG_KINDS (POST_MESSAGE+1)
 
+#define QS_HARDWARE     0x40000000
+
 /* list of processes registered for rawinput in the input desktop */
 static struct list rawinput_processes = LIST_INIT(rawinput_processes);
 
@@ -2808,7 +2810,7 @@ static int get_hardware_message( struct thread *thread, unsigned int hw_id, user
     }
 
     if (ptr == list_head( &input->msg_list ))
-        clear_bits = QS_INPUT;
+        clear_bits = QS_INPUT | QS_HARDWARE;
     else
         clear_bits = 0;  /* don't clear bits if we don't go through the whole list */
 
@@ -4236,6 +4238,7 @@ DECL_HANDLER(get_rawinput_buffer)
 
         if (!next_size)
         {
+            clear_queue_bits( current->queue, QS_RAWINPUT );
             if (count) next_size = sizeof(RAWINPUT);
             else reply->next_size = 0;
         }
