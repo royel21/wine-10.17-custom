@@ -1387,6 +1387,7 @@ enum
     NtUserCallHwndParam_GetWindowLongPtrA,
     NtUserCallHwndParam_GetWindowLongPtrW,
     NtUserCallHwndParam_GetWindowRects,
+    NtUserCallHwndParam_GetPresentRect,
     NtUserCallHwndParam_GetWindowRelative,
     NtUserCallHwndParam_GetWindowThread,
     NtUserCallHwndParam_GetWindowWord,
@@ -1451,6 +1452,11 @@ static inline BOOL NtUserGetClientRect( HWND hwnd, RECT *rect, UINT dpi )
     return NtUserCallHwndParam( hwnd, (UINT_PTR)&params, NtUserCallHwndParam_GetWindowRects );
 }
 
+static inline BOOL NtUserGetPresentRect( HWND hwnd, RECT *rect, UINT dpi )
+{
+    struct get_window_rects_params params = {.rect = rect, .dpi = dpi};
+    return NtUserCallHwndParam( hwnd, (UINT_PTR)&params, NtUserCallHwndParam_GetPresentRect );
+}
 struct get_scroll_info_params
 {
     int bar;

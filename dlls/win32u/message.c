@@ -3159,7 +3159,7 @@ static inline LARGE_INTEGER *get_nt_timeout( LARGE_INTEGER *time, DWORD timeout 
 }
 
 /* wait for message or signaled handle */
-static DWORD wait_message( DWORD count, const HANDLE *handles, DWORD timeout, DWORD mask, DWORD flags )
+static DWORD wait_message( DWORD count, const HANDLE *handles, DWORD timeout, DWORD wake_mask, DWORD changed_mask, DWORD flags )
 {
     struct thunk_lock_params params = {.dispatch.callback = thunk_lock_callback};
     LARGE_INTEGER time;
@@ -3174,12 +3174,12 @@ static DWORD wait_message( DWORD count, const HANDLE *handles, DWORD timeout, DW
         params.restore = TRUE;
     }
 
-    if (user_driver->pProcessEvents( mask )) ret = count - 1;
+    if (user_driver->pProcessEvents( changed_mask )) ret = count - 1;
     else
     {
         ret = NtWaitForMultipleObjects( count, handles, !(flags & MWMO_WAITALL),
                                         !!(flags & MWMO_ALERTABLE), get_nt_timeout( &time, timeout ));
-        if (ret == count - 1) user_driver->pProcessEvents( mask );
+        if (ret == count - 1) user_driver->pProcessEvents( changed_mask );
         else if (HIWORD(ret)) /* is it an error code? */
         {
             RtlSetLastWin32Error( RtlNtStatusToDosError(ret) );
@@ -3220,23 +3220,9 @@ static BOOL check_queue_masks( UINT wake_mask, UINT changed_mask )
 static DWORD wait_objects( DWORD count, const HANDLE *handles, DWORD timeout,
                            DWORD wake_mask, DWORD changed_mask, DWORD flags )
 {
-    assert( count );  /* we must have at least the server queue */
-
     flush_window_surfaces( TRUE );
 
-    if (!check_queue_masks( wake_mask, changed_mask ))
-    {
-        SERVER_START_REQ( set_queue_mask )
-        {
-            req->wake_mask    = wake_mask;
-            req->changed_mask = changed_mask;
-            req->skip_wait    = 0;
-            wine_server_call( req );
-        }
-        SERVER_END_REQ;
-    }
-
-    return wait_message( count, handles, timeout, changed_mask, flags );
+    return wait_message( count, handles, timeout, wake_mask, changed_mask, flags );
 }
 
 static HANDLE normalize_std_handle( HANDLE handle )
@@ -3565,7 +3551,7 @@ static void wait_message_reply( UINT flags )
             continue;
         }
 
-        wait_message( 1, &server_queue, INFINITE, wake_mask, 0 );
+        wait_message( 1, &server_queue, INFINITE, wake_mask, wake_mask, 0 );
     }
 }
 
