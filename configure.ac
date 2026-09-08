@@ -9,9 +9,10 @@ AC_PREREQ(2.63b)
 AC_INIT([Wine],[WINE_VERSION],[wine-devel@winehq.org],[wine],[https://www.winehq.org])
 AC_CONFIG_SRCDIR(server/atom.c)
 AC_CONFIG_HEADERS(include/config.h)
-AC_CONFIG_AUX_DIR(tools)
 
-libwine_version="1.0"
+dnl Work around install-sh requirement in autoconf <= 2.69
+AC_PREREQ([2.69d],[AC_CONFIG_AUX_DIR(tools)],
+                  [AC_PROVIDE([AC_CONFIG_AUX_DIR_DEFAULT])ac_aux_dir="${srcdir}/tools"])
 
 dnl **** Command-line arguments ****
 
@@ -3352,6 +3353,8 @@ WINE_CONFIG_MAKEFILE(dlls/windows.system.profile.systemid)
 WINE_CONFIG_MAKEFILE(dlls/windows.system.profile.systemid/tests)
 WINE_CONFIG_MAKEFILE(dlls/windows.system.profile.systemmanufacturers)
 WINE_CONFIG_MAKEFILE(dlls/windows.system.profile.systemmanufacturers/tests)
+WINE_CONFIG_MAKEFILE(dlls/windows.ui.core.textinput)
+WINE_CONFIG_MAKEFILE(dlls/windows.ui.core.textinput/tests)
 WINE_CONFIG_MAKEFILE(dlls/windows.ui.xaml)
 WINE_CONFIG_MAKEFILE(dlls/windows.ui.xaml/tests)
 WINE_CONFIG_MAKEFILE(dlls/windows.ui)

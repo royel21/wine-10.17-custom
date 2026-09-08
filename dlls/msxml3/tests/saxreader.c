@@ -791,38 +791,6 @@ static struct call_entry content_handler_test_attributes_alt_no_ns[] = {
     { CH_ENDTEST }
 };
 
-static struct attribute_entry ch_attributes_alt_6[] = {
-    { "prefix_test", "arg1", "test:arg1", "arg1" },
-    { "", "arg2", "arg2", "arg2" },
-    { "prefix_test", "ar3", "test:ar3", "arg3" },
-    { "http://www.w3.org/2000/xmlns/", "", "xmlns:test", "prefix_test" },
-    { "http://www.w3.org/2000/xmlns/", "", "xmlns", "prefix" },
-    { NULL }
-};
-
-static struct attribute_entry ch_attributes2_6[] = {
-    { "http://www.w3.org/2000/xmlns/", "", "xmlns:p", "test" },
-    { NULL }
-};
-
-static struct call_entry content_handler_test_attributes_alternate_6[] = {
-    { CH_PUTDOCUMENTLOCATOR, 1, 0, S_OK },
-    { CH_STARTDOCUMENT, 1, 22, S_OK },
-    { CH_STARTPREFIXMAPPING, 2, 95, S_OK, "test", "prefix_test" },
-    { CH_STARTPREFIXMAPPING, 2, 95, S_OK, "", "prefix" },
-    { CH_STARTELEMENT, 2, 95, S_OK, "prefix", "document", "document", ch_attributes_alt_6 },
-    { CH_CHARACTERS, 3, 1, S_OK, "\n" },
-    { CH_STARTPREFIXMAPPING, 3, 24, S_OK, "p", "test" },
-    { CH_STARTELEMENT, 3, 24, S_OK, "prefix", "node1", "node1", ch_attributes2_6 },
-    { CH_ENDELEMENT, 3, 24, S_OK, "prefix", "node1", "node1" },
-    { CH_ENDPREFIXMAPPING, 3, 24, S_OK, "p" },
-    { CH_ENDELEMENT, 3, 35, S_OK, "prefix", "document", "document" },
-    { CH_ENDPREFIXMAPPING, 3, 35, S_OK, "test" },
-    { CH_ENDPREFIXMAPPING, 3, 35, S_OK, "" },
-    { CH_ENDDOCUMENT, 4, 0, S_OK },
-    { CH_ENDTEST }
-};
-
 /* 'namespaces' is on, 'namespace-prefixes' if off */
 static struct attribute_entry ch_attributes_no_prefix[] = {
     { "prefix_test", "arg1", "test:arg1", "arg1" },
@@ -2115,7 +2083,6 @@ static struct msxmlsupported_data_t reader_support_data[] =
     { &CLSID_SAXXMLReader,   "SAXReader"   },
     { &CLSID_SAXXMLReader30, "SAXReader30" },
     { &CLSID_SAXXMLReader40, "SAXReader40" },
-    { &CLSID_SAXXMLReader60, "SAXReader60" },
     { NULL }
 };
 
@@ -2177,14 +2144,11 @@ static void test_saxreader(void)
 
         if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40))
             msxml_version = 4;
-        else if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader60))
-            msxml_version = 6;
         else
             msxml_version = 0;
 
         /* crashes on old versions */
-        if (!IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40) &&
-            !IsEqualGUID(table->clsid, &CLSID_SAXXMLReader60))
+        if (!IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40))
         {
             hr = ISAXXMLReader_getContentHandler(reader, NULL);
             ok(hr == E_POINTER, "Unexpected hr %#lx.\n", hr);
@@ -2217,8 +2181,7 @@ static void test_saxreader(void)
         V_VT(&var) = VT_BSTR;
         V_BSTR(&var) = SysAllocString(szSimpleXML);
 
-        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40) ||
-            IsEqualGUID(table->clsid, &CLSID_SAXXMLReader60))
+        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40))
             test_seq = content_handler_test1_alternate;
         else
             test_seq = content_handler_test1;
@@ -2272,8 +2235,6 @@ static void test_saxreader(void)
 
         if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40))
             test_seq = content_handler_test_attributes_alternate_4;
-        else if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader60))
-            test_seq = content_handler_test_attributes_alternate_6;
         else
             test_seq = content_handler_test_attributes;
 
@@ -2281,8 +2242,7 @@ static void test_saxreader(void)
         hr = ISAXXMLReader_parse(reader, var);
         ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
 
-        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40) ||
-            IsEqualGUID(table->clsid, &CLSID_SAXXMLReader60))
+        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40))
             ok_sequence(sequences, CONTENT_HANDLER_INDEX, test_seq, "content test attributes", FALSE);
         else
             ok_sequence(sequences, CONTENT_HANDLER_INDEX, test_seq, "content test attributes", TRUE);
@@ -2303,8 +2263,7 @@ static void test_saxreader(void)
         V_VT(&var) = VT_BSTR;
         V_BSTR(&var) = SysAllocString(carriage_ret_test);
 
-        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40) ||
-            IsEqualGUID(table->clsid, &CLSID_SAXXMLReader60))
+        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40))
             test_seq = content_handler_test2_alternate;
         else
             test_seq = content_handler_test2;
@@ -2338,8 +2297,7 @@ static void test_saxreader(void)
             IVBSAXXMLReader_Release(vb_reader);
         }
 
-        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40) ||
-            IsEqualGUID(table->clsid, &CLSID_SAXXMLReader60))
+        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40))
             test_seq = content_handler_test1_alternate;
         else
             test_seq = content_handler_test1;
@@ -2349,8 +2307,7 @@ static void test_saxreader(void)
         ok_sequence(sequences, CONTENT_HANDLER_INDEX, test_seq, "content test 1: from file url", FALSE);
 
         /* error handler */
-        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40) ||
-            IsEqualGUID(table->clsid, &CLSID_SAXXMLReader60))
+        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40))
             test_seq = content_handler_testerror_alternate;
         else
             test_seq = content_handler_testerror;
@@ -2360,8 +2317,7 @@ static void test_saxreader(void)
         ok_sequence(sequences, CONTENT_HANDLER_INDEX, test_seq, "content test error", FALSE);
 
         /* callback ret values */
-        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40) ||
-            IsEqualGUID(table->clsid, &CLSID_SAXXMLReader60))
+        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40))
         {
             test_seq = content_handler_test_callback_rets_alt;
             set_expected_seq(test_seq);
@@ -2392,8 +2348,7 @@ static void test_saxreader(void)
         V_VT(&var) = VT_UNKNOWN;
         V_UNKNOWN(&var) = (IUnknown*)doc;
 
-        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40) ||
-            IsEqualGUID(table->clsid, &CLSID_SAXXMLReader60))
+        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40))
             test_seq = content_handler_test2_alternate;
         else
             test_seq = content_handler_test2;
@@ -2405,8 +2360,7 @@ static void test_saxreader(void)
         IXMLDOMDocument_Release(doc);
 
         /* xml:space test */
-        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40) ||
-            IsEqualGUID(table->clsid, &CLSID_SAXXMLReader60))
+        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40))
         {
             test_seq = xmlspaceattr_test_alternate;
         }
@@ -2419,8 +2373,7 @@ static void test_saxreader(void)
         hr = ISAXXMLReader_parse(reader, var);
         ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
 
-        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40) ||
-            IsEqualGUID(table->clsid, &CLSID_SAXXMLReader60))
+        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40))
         {
             ok_sequence(sequences, CONTENT_HANDLER_INDEX, test_seq, "xml:space handling", TRUE);
         }
@@ -2435,8 +2388,7 @@ static void test_saxreader(void)
         V_VT(&var) = VT_UNKNOWN;
         V_UNKNOWN(&var) = (IUnknown*)stream;
 
-        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40) ||
-            IsEqualGUID(table->clsid, &CLSID_SAXXMLReader60))
+        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40))
         {
             test_seq = content_handler_test_attributes_alt_no_ns;
         }
@@ -2459,8 +2411,7 @@ static void test_saxreader(void)
         V_VT(&var) = VT_UNKNOWN;
         V_UNKNOWN(&var) = (IUnknown*)stream;
 
-        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40) ||
-            IsEqualGUID(table->clsid, &CLSID_SAXXMLReader60))
+        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40))
         {
             test_seq = content_handler_test_attributes_alt_no_prefix;
         }
@@ -2481,8 +2432,7 @@ static void test_saxreader(void)
         V_VT(&var) = VT_UNKNOWN;
         V_UNKNOWN(&var) = (IUnknown*)stream;
 
-        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40) ||
-            IsEqualGUID(table->clsid, &CLSID_SAXXMLReader60))
+        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40))
         {
             test_seq = attribute_norm_alt;
         }
@@ -2515,8 +2465,7 @@ static void test_saxreader(void)
         V_VT(&var) = VT_UNKNOWN;
         V_UNKNOWN(&var) = (IUnknown*)stream;
 
-        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader60) ||
-            IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40))
+        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40))
             test_seq = cdata_test_alt;
         else
             test_seq = cdata_test;
@@ -2534,8 +2483,7 @@ static void test_saxreader(void)
         V_VT(&var) = VT_UNKNOWN;
         V_UNKNOWN(&var) = (IUnknown*)stream;
 
-        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader60) ||
-            IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40))
+        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40))
             test_seq = cdata_test2_alt;
         else
             test_seq = cdata_test2;
@@ -2553,8 +2501,7 @@ static void test_saxreader(void)
         V_VT(&var) = VT_UNKNOWN;
         V_UNKNOWN(&var) = (IUnknown*)stream;
 
-        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader60) ||
-            IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40))
+        if (IsEqualGUID(table->clsid, &CLSID_SAXXMLReader40))
             test_seq = cdata_test3_alt;
         else
             test_seq = cdata_test3;
@@ -2802,7 +2749,6 @@ static const struct feature_ns_entry_t feature_ns_entry_data[] = {
     { &CLSID_SAXXMLReader,   "CLSID_SAXXMLReader",   VARIANT_TRUE, VARIANT_FALSE },
     { &CLSID_SAXXMLReader30, "CLSID_SAXXMLReader30", VARIANT_TRUE, VARIANT_FALSE },
     { &CLSID_SAXXMLReader40, "CLSID_SAXXMLReader40", VARIANT_TRUE, VARIANT_TRUE },
-    { &CLSID_SAXXMLReader60, "CLSID_SAXXMLReader60", VARIANT_TRUE, VARIANT_TRUE },
     { 0 }
 };
 
@@ -2831,8 +2777,7 @@ static void test_saxreader_features(void)
             continue;
         }
 
-        if (IsEqualGUID(entry->guid, &CLSID_SAXXMLReader40) ||
-                IsEqualGUID(entry->guid, &CLSID_SAXXMLReader60))
+        if (IsEqualGUID(entry->guid, &CLSID_SAXXMLReader40))
         {
             value = VARIANT_TRUE;
             hr = ISAXXMLReader_getFeature(reader, _bstr_("exhaustive-errors"), &value);
