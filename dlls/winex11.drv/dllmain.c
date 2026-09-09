@@ -37,22 +37,6 @@ BOOL WINAPI DllMain( HINSTANCE instance, DWORD reason, void *reserved )
 }
 
 /***********************************************************************
- *           AttachEventQueueToTablet (winex11.@)
- */
-int CDECL X11DRV_AttachEventQueueToTablet( HWND owner )
-{
-    return X11DRV_CALL( tablet_attach_queue, owner );
-}
-
-/***********************************************************************
- *           GetCurrentPacket (winex11.@)
- */
-int CDECL X11DRV_GetCurrentPacket( void *packet )
-{
-    return X11DRV_CALL( tablet_get_packet, packet );
-}
-
-/***********************************************************************
  *           LoadTabletInfo (winex11.@)
  */
 BOOL CDECL X11DRV_LoadTabletInfo( HWND hwnd )

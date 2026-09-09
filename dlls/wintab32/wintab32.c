@@ -24,7 +24,7 @@
 #include "winbase.h"
 #include "winreg.h"
 #include "wingdi.h"
-#include "winuser.h"
+#include "ntuser.h"
 #include "winerror.h"
 #define NOFIX32
 #include "wintab.h"
@@ -43,9 +43,6 @@ static CRITICAL_SECTION_DEBUG csTablet_debug =
 CRITICAL_SECTION csTablet = { &csTablet_debug, -1, 0, 0, 0, 0 };
 
 int  (CDECL *pLoadTabletInfo)(HWND hwnddefault) = NULL;
-int  (CDECL *pGetCurrentPacket)(LPWTPACKET packet) = NULL;
-int  (CDECL *pAttachEventQueueToTablet)(HWND hOwner) = NULL;
-UINT (CDECL *pWTInfoW)(UINT wCategory, UINT nIndex, LPVOID lpOutput) = NULL;
 
 static LRESULT WINAPI TABLET_WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam,
                                           LPARAM lParam);
@@ -108,9 +105,6 @@ BOOL WINAPI DllMain(HINSTANCE hInstDLL, DWORD fdwReason, LPVOID lpReserved)
             {
                 HMODULE module = load_graphics_driver();
                 pLoadTabletInfo = (void *)GetProcAddress(module, "LoadTabletInfo");
-                pAttachEventQueueToTablet = (void *)GetProcAddress(module, "AttachEventQueueToTablet");
-                pGetCurrentPacket = (void *)GetProcAddress(module, "GetCurrentPacket");
-                pWTInfoW = (void *)GetProcAddress(module, "WTInfoW");
             }
             else
                 return FALSE;
@@ -145,9 +139,8 @@ static LRESULT WINAPI TABLET_WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam,
             {
                 WTPACKET packet;
                 LPOPENCONTEXT handler;
-                if (pGetCurrentPacket)
+                if (NtUserMessageCall(hwnd, NtUserWintabPacket, 0, 0, &packet, NtUserWintabDriverCall, FALSE))
                 {
-                    pGetCurrentPacket(&packet);
                     handler = AddPacketToContextQueue(&packet,(HWND)lParam);
                     if (handler && handler->context.lcOptions & CXO_MESSAGES)
                        TABLET_PostTabletMessage(handler, _WT_PACKET(handler->context.lcMsgBase),
@@ -160,9 +153,8 @@ static LRESULT WINAPI TABLET_WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam,
             {
                 WTPACKET packet;
                 LPOPENCONTEXT handler;
-                if (pGetCurrentPacket)
+                if (NtUserMessageCall(hwnd, NtUserWintabPacket, 0, 0, &packet, NtUserWintabDriverCall, FALSE))
                 {
-                    pGetCurrentPacket(&packet);
                     handler = AddPacketToContextQueue(&packet,(HWND)wParam);
                     if (handler)
                         TABLET_PostTabletMessage(handler, WT_PROXIMITY,
