@@ -41,8 +41,6 @@
 #include "winnls.h"
 #include "commctrl.h"
 #include "comctl32.h"
-#include "uxtheme.h"
-#include "vssym32.h"
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(statusbar);
@@ -124,7 +122,7 @@ STATUSBAR_DrawSizeGrip (HTHEME theme, HDC hdc, LPRECT lpRect)
     if (theme)
     {
         SIZE gripperSize;
-        if (SUCCEEDED (GetThemePartSize (theme, hdc, SP_GRIPPER, 0, lpRect, 
+        if (SUCCEEDED (GetThemePartSize (theme, hdc, SP_GRIPPER, 0, lpRect,
             TS_DRAW, &gripperSize)))
         {
             rc.left = rc.right - gripperSize.cx;
@@ -891,7 +889,7 @@ STATUSBAR_WMCreate (HWND hwnd, const CREATESTRUCTA *lpCreate)
     infoPtr->parts[0].x = -1;
     infoPtr->parts[0].style = 0;
     infoPtr->parts[0].hIcon = 0;
-    
+
     OpenThemeData (hwnd, themeClass);
 
     if (lpCreate->lpszName && (len = lstrlenW ((LPCWSTR)lpCreate->lpszName)))

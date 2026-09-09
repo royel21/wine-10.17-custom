@@ -35,8 +35,6 @@
 #include "winnls.h"
 #include "commctrl.h"
 #include "comctl32.h"
-#include "uxtheme.h"
-#include "vssym32.h"
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(progress);
@@ -339,12 +337,12 @@ static LRESULT PROGRESS_Draw (PROGRESS_INFO *infoPtr, HDC hdc)
     {
         RECT cntRect;
         int part = (dwStyle & PBS_VERTICAL) ? PP_BARVERT : PP_BAR;
-        
-        GetThemeBackgroundContentRect (pdi.theme, hdc, part, 0, &pdi.rect, 
+
+        GetThemeBackgroundContentRect (pdi.theme, hdc, part, 0, &pdi.rect,
             &cntRect);
-        
+
         /* Exclude content rect - content background will be drawn later */
-        ExcludeClipRect (hdc, cntRect.left, cntRect.top, 
+        ExcludeClipRect (hdc, cntRect.left, cntRect.top,
             cntRect.right, cntRect.bottom);
         if (IsThemeBackgroundPartiallyTransparent (pdi.theme, part, 0))
             DrawThemeParentBackground (infoPtr->Self, hdc, NULL);
@@ -376,7 +374,7 @@ static LRESULT PROGRESS_Draw (PROGRESS_INFO *infoPtr, HDC hdc)
 
         if (ledMEnd > leds)
         {
-            /* case 1: the marquee bar extends over the end and wraps around to 
+            /* case 1: the marquee bar extends over the end and wraps around to
              * the start */
             const int gapStart = max((ledMEnd - leds) * ledW, 0);
             const int gapEnd = min(infoPtr->MarqueePos * ledW, barSize);
@@ -631,18 +629,18 @@ static LRESULT WINAPI ProgressWindowProc(HWND hwnd, UINT message,
     case WM_THEMECHANGED:
     {
         DWORD dwExStyle = GetWindowLongW (hwnd, GWL_EXSTYLE);
-        
+
         theme = GetWindowTheme (hwnd);
         CloseThemeData (theme);
         theme = OpenThemeData (hwnd, themeClass);
-        
+
         /* WS_EX_STATICEDGE disappears when the control is themed */
         if (theme)
             dwExStyle &= ~WS_EX_STATICEDGE;
         else
             dwExStyle |= WS_EX_STATICEDGE;
         SetWindowLongW (hwnd, GWL_EXSTYLE, dwExStyle);
-        
+
         InvalidateRect (hwnd, NULL, TRUE);
         return 0;
     }

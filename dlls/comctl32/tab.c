@@ -63,8 +63,6 @@
 #include "winnls.h"
 #include "commctrl.h"
 #include "comctl32.h"
-#include "uxtheme.h"
-#include "vssym32.h"
 #include "wine/debug.h"
 #include <math.h>
 
@@ -954,7 +952,7 @@ static LRESULT TAB_AdjustRect(const TAB_INFO *infoPtr, WPARAM fLarger, LPRECT pr
 			 ((infoPtr->dwStyle & TCS_BUTTONS)? 3 * (infoPtr->uNumRows - 1) : 0);
 
 	/* Inflate the rectangle for the padding */
-	InflateRect(prc, DISPLAY_AREA_PADDINGX, DISPLAY_AREA_PADDINGY); 
+	InflateRect(prc, DISPLAY_AREA_PADDINGX, DISPLAY_AREA_PADDINGY);
 
 	/* Inflate for the border */
 	InflateRect(prc, CONTROL_BORDER_SIZEX, CONTROL_BORDER_SIZEY);
@@ -1148,7 +1146,7 @@ static INT TAB_SetItemBounds (TAB_INFO *infoPtr)
 
   GetTextMetricsW(hdc, &text_metrics);
   default_min_tab_width = text_metrics.tmAveCharWidth * MIN_CHAR_LENGTH + infoPtr->uHItemPadding * 2;
-  
+
   /* The leftmost item will be "0" aligned */
   curItemLeftPos = 0;
   curItemRowCount = infoPtr->uNumItem ? 1 : 0;
@@ -1175,7 +1173,7 @@ static INT TAB_SetItemBounds (TAB_INFO *infoPtr)
      * Make sure there is enough space for the letters + icon + growing the
      * selected item + extra space for the selected item.
      */
-    infoPtr->tabHeight = item_height + 
+    infoPtr->tabHeight = item_height +
 	                 ((infoPtr->dwStyle & TCS_BUTTONS) ? 2 : 1) *
                           infoPtr->uVItemPadding;
 
@@ -1201,7 +1199,7 @@ static INT TAB_SetItemBounds (TAB_INFO *infoPtr)
   for (curItem = 0; curItem < infoPtr->uNumItem; curItem++)
   {
     TAB_ITEM *curr = TAB_GetItem(infoPtr, curItem);
-	
+
     /* Set the leftmost position of the tab. */
     curr->rect.left = curItemLeftPos;
 
@@ -1253,7 +1251,7 @@ static INT TAB_SetItemBounds (TAB_INFO *infoPtr)
      */
 
     if (((infoPtr->dwStyle & TCS_MULTILINE) || (infoPtr->dwStyle & TCS_VERTICAL)) &&
-        (curr->rect.right > 
+        (curr->rect.right >
 	(clientRect.right - CONTROL_BORDER_SIZEX - DISPLAY_AREA_PADDINGX)))
     {
         curr->rect.right -= curr->rect.left;
@@ -1331,7 +1329,7 @@ static INT TAB_SetItemBounds (TAB_INFO *infoPtr)
       {
           /* normalize the current rect */
           TAB_ITEM *curr = TAB_GetItem(infoPtr, iItm);
- 
+
           /* shift the item to the left side of the clientRect */
           curr->rect.right -= curr->rect.left;
           curr->rect.left = 0;
@@ -1554,7 +1552,7 @@ TAB_DrawItemInterior(const TAB_INFO *infoPtr, HDC hdc, INT iItem, RECT *drawRect
   HPEN   holdPen;
   INT    oldBkMode;
   HFONT  hOldFont;
-  
+
 /*  if (drawRect == NULL) */
   {
     BOOL isVisible;
@@ -1583,7 +1581,7 @@ TAB_DrawItemInterior(const TAB_INFO *infoPtr, HDC hdc, INT iItem, RECT *drawRect
       *drawRect = selectedRect;
     else
       *drawRect = itemRect;
-        
+
     if (infoPtr->dwStyle & TCS_BUTTONS)
     {
       if (iItem == infoPtr->iSelected)
@@ -1725,7 +1723,7 @@ TAB_DrawItemInterior(const TAB_INFO *infoPtr, HDC hdc, INT iItem, RECT *drawRect
     dis.itemState = 0;
     if ( iItem == infoPtr->iSelected )
       dis.itemState |= ODS_SELECTED;
-    if (infoPtr->uFocus == iItem) 
+    if (infoPtr->uFocus == iItem)
       dis.itemState |= ODS_FOCUS;
     dis.hwndItem = infoPtr->hwnd;
     dis.hDC      = hdc;
@@ -1775,7 +1773,7 @@ TAB_DrawItemInterior(const TAB_INFO *infoPtr, HDC hdc, INT iItem, RECT *drawRect
     {
       INT cx;
       INT cy;
-      
+
       ImageList_GetIconSize(infoPtr->himl, &cx, &cy);
 
       if(infoPtr->dwStyle & TCS_VERTICAL)
@@ -1800,7 +1798,7 @@ TAB_DrawItemInterior(const TAB_INFO *infoPtr, HDC hdc, INT iItem, RECT *drawRect
 
       if (center_offset_h < 2)
         center_offset_h = 2;
-	
+
       if (center_offset_v < 0)
         center_offset_v = 0;
 
@@ -2008,7 +2006,7 @@ static void TAB_DrawItem(const TAB_INFO *infoPtr, HDC  hdc, INT  iItem)
       if (iItem == infoPtr->iSelected)
       {
 	DrawEdge(hdc, &r, EDGE_SUNKEN, BF_SOFT|BF_RECT);
-	
+
 	OffsetRect(&r, 1, 1);
       }
       else  /* ! selected */
@@ -2048,7 +2046,7 @@ static void TAB_DrawItem(const TAB_INFO *infoPtr, HDC  hdc, INT  iItem)
        * Windows draws even side or bottom tabs themed, with wacky results.
        * However, since in Wine apps may get themed that did not opt in via
        * a manifest avoid theming when we know the result will be wrong */
-      if ((theme = GetWindowTheme (infoPtr->hwnd)) 
+      if ((theme = GetWindowTheme (infoPtr->hwnd))
           && ((infoPtr->dwStyle & (TCS_VERTICAL | TCS_BOTTOM)) == 0))
       {
           static const int partIds[8] = {
@@ -2533,13 +2531,13 @@ static void TAB_InvalidateTabArea(const TAB_INFO *infoPtr)
     if (infoPtr->uNumRows == 1)
       rInvalidate.right = clientRect.left + rect.right + 2 * SELECTED_TAB_OFFSET;
   }
-  else 
+  else
   {
     rInvalidate.bottom = rAdjClient.top;
     if (infoPtr->uNumRows == 1)
       rInvalidate.right = clientRect.left + rect.right + 2 * SELECTED_TAB_OFFSET;
   }
-  
+
   /* Punch out the updown control */
   if (infoPtr->needsScrolling && (rInvalidate.right > 0)) {
     RECT r;
@@ -2691,7 +2689,7 @@ static inline LRESULT TAB_SetMinTabWidth (TAB_INFO *infoPtr, INT cx)
   return (prevMinWidth < 0) ? default_min_tab_width : prevMinWidth;
 }
 
-static inline LRESULT 
+static inline LRESULT
 TAB_HighlightItem (TAB_INFO *infoPtr, INT iItem, BOOL fHighlight)
 {
   LPDWORD lpState;
@@ -3031,7 +3029,7 @@ static LRESULT TAB_Create (HWND hwnd, LPARAM lParam)
   }
 
   OpenThemeData (infoPtr->hwnd, themeClass);
-  
+
   /*
    * We need to get text information so we need a DC and we need to select
    * a font.

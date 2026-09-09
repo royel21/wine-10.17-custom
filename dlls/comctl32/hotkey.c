@@ -21,7 +21,7 @@
  *
  * This code was audited for completeness against the documented features
  * of Comctl32.dll version 6.0 on Sep. 21, 2004, by Robert Shearman.
- * 
+ *
  * Unless otherwise noted, we believe this code to be complete, as per
  * the specification mentioned above.
  * If you discover missing features or bugs please note them below.
@@ -38,7 +38,6 @@
 #include "winnls.h"
 #include "commctrl.h"
 #include "comctl32.h"
-#include "uxtheme.h"
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(hotkey);
@@ -76,15 +75,15 @@ HOTKEY_IsCombInv(const HOTKEY_INFO *infoPtr)
 	return TRUE;
     if((infoPtr->InvComb & HKCOMB_A) && IsOnlySet(HOTKEYF_ALT))
 	return TRUE;
-    if((infoPtr->InvComb & HKCOMB_SC) && 
+    if((infoPtr->InvComb & HKCOMB_SC) &&
        IsOnlySet(HOTKEYF_SHIFT | HOTKEYF_CONTROL))
 	return TRUE;
     if((infoPtr->InvComb & HKCOMB_SA) && IsOnlySet(HOTKEYF_SHIFT | HOTKEYF_ALT))
 	return TRUE;
-    if((infoPtr->InvComb & HKCOMB_CA) && 
+    if((infoPtr->InvComb & HKCOMB_CA) &&
        IsOnlySet(HOTKEYF_CONTROL | HOTKEYF_ALT))
 	return TRUE;
-    if((infoPtr->InvComb & HKCOMB_SCA) && 
+    if((infoPtr->InvComb & HKCOMB_SCA) &&
        IsOnlySet(HOTKEYF_SHIFT | HOTKEYF_CONTROL | HOTKEYF_ALT))
 	return TRUE;
 
@@ -132,7 +131,7 @@ HOTKEY_DrawHotKey(HOTKEY_INFO *infoPtr, HDC hdc, LPCWSTR KeyName, WORD NameLen)
 }
 
 /* Draw the names of the keys in the control */
-static void 
+static void
 HOTKEY_Refresh(HOTKEY_INFO *infoPtr, HDC hdc)
 {
     WCHAR KeyName[64];
@@ -145,10 +144,10 @@ HOTKEY_Refresh(HOTKEY_INFO *infoPtr, HDC hdc)
 	HOTKEY_DrawHotKey (infoPtr, hdc, infoPtr->strNone, lstrlenW(infoPtr->strNone));
 	return;
     }
-	
+
     if(infoPtr->HotKey)
 	Modifier = HIBYTE(infoPtr->HotKey);
-    else if(HOTKEY_IsCombInv(infoPtr)) 
+    else if(HOTKEY_IsCombInv(infoPtr))
 	Modifier = infoPtr->InvMod;
     else
 	Modifier = infoPtr->CurrMod;
@@ -201,7 +200,7 @@ HOTKEY_Paint(HOTKEY_INFO *infoPtr, HDC hdc)
 static LRESULT
 HOTKEY_GetHotKey(const HOTKEY_INFO *infoPtr)
 {
-    TRACE("(infoPtr=%p) Modifiers: 0x%x, Virtual Key: %d\n", infoPtr, 
+    TRACE("(infoPtr=%p) Modifiers: 0x%x, Virtual Key: %d\n", infoPtr,
           HIBYTE(infoPtr->HotKey), LOBYTE(infoPtr->HotKey));
     return (LRESULT)infoPtr->HotKey;
 }
@@ -210,14 +209,14 @@ static void
 HOTKEY_SetHotKey(HOTKEY_INFO *infoPtr, WORD hotKey)
 {
     infoPtr->HotKey = hotKey;
-    infoPtr->ScanCode = 
+    infoPtr->ScanCode =
         MAKELPARAM(0, MapVirtualKeyW(LOBYTE(infoPtr->HotKey), 0));
     TRACE("(infoPtr=%p hotKey=%x) Modifiers: 0x%x, Virtual Key: %d\n", infoPtr,
           hotKey, HIBYTE(infoPtr->HotKey), LOBYTE(infoPtr->HotKey));
     InvalidateRect(infoPtr->hwndSelf, NULL, TRUE);
 }
 
-static void 
+static void
 HOTKEY_SetRules(HOTKEY_INFO *infoPtr, WORD invComb, WORD invMod)
 {
     infoPtr->InvComb = invComb;
@@ -408,7 +407,7 @@ HOTKEY_NCCreate (HWND hwnd, const CREATESTRUCTW *lpcs)
 {
     HOTKEY_INFO *infoPtr;
     DWORD dwExStyle = GetWindowLongW (hwnd, GWL_EXSTYLE);
-    SetWindowLongW (hwnd, GWL_EXSTYLE, 
+    SetWindowLongW (hwnd, GWL_EXSTYLE,
                     dwExStyle | WS_EX_CLIENTEDGE);
 
     /* allocate memory for info structure */

@@ -22,7 +22,7 @@
  *
  * This code was audited for completeness against the documented features
  * of Comctl32.dll version 6.0 on Oct. 19, 2004, by Robert Shearman.
- * 
+ *
  * Unless otherwise noted, we believe this code to be complete, as per
  * the specification mentioned above.
  * If you discover missing features or bugs please note them below.
@@ -89,8 +89,6 @@
 #include "winnls.h"
 #include "commctrl.h"
 #include "comctl32.h"
-#include "uxtheme.h"
-#include "vssym32.h"
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(rebar);
@@ -442,7 +440,7 @@ static void translate_rect(const REBAR_INFO *infoPtr, RECT *dest, const RECT *sr
         tmp = src->left;
         dest->left = src->top;
         dest->top = tmp;
-        
+
         tmp = src->right;
         dest->right = src->bottom;
         dest->bottom = tmp;
@@ -644,7 +642,7 @@ REBAR_DrawBand (HDC hdc, const REBAR_INFO *infoPtr, REBAR_BAND *lpBand)
     {
         if (theme)
         {
-            int stateId; 
+            int stateId;
             if (lpBand->fDraw & DRAW_CHEVRONPUSHED)
                 stateId = CHEVS_PRESSED;
             else if (lpBand->fDraw & DRAW_CHEVRONHOT)
@@ -1757,8 +1755,8 @@ REBAR_CommonSetupBand(HWND hwnd, const REBARBANDINFOW *lprbbi, REBAR_BAND *lpBan
               (lpBand->cyMaxChild != lprbbi->cyMaxChild ) ||
               (lpBand->cyIntegral != lprbbi->cyIntegral ) ) ) ||
           ( (lprbbi->cbSize < REBARBANDINFOA_V6_SIZE) &&
-            ( (lpBand->cyChild || 
-               lpBand->cyMaxChild || 
+            ( (lpBand->cyChild ||
+               lpBand->cyMaxChild ||
                lpBand->cyIntegral ) ) ) ) )
     {
 	lpBand->cxMinChild = lprbbi->cxMinChild;
@@ -2965,7 +2963,7 @@ REBAR_Destroy (REBAR_INFO *infoPtr)
     DestroyCursor (infoPtr->hcurDrag);
     if (infoPtr->hDefaultFont) DeleteObject (infoPtr->hDefaultFont);
     SetWindowLongPtrW (infoPtr->hwndSelf, 0, 0);
-    
+
     CloseThemeData (GetWindowTheme (infoPtr->hwndSelf));
 
     /* free rebar info data */
@@ -3492,7 +3490,7 @@ REBAR_Size (REBAR_INFO *infoPtr, WPARAM wParam, LPARAM lParam)
 	TRACE("SELF_RESIZE was set, reset, fStatus=%08x lparam %Ix\n", infoPtr->fStatus, lParam);
 	return 0;
     }
-    
+
     if (infoPtr->dwStyle & RBS_AUTOSIZE)
         REBAR_AutoSize(infoPtr, TRUE);
     else

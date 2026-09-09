@@ -54,8 +54,6 @@
 #include "winnls.h"
 #include "commctrl.h"
 #include "comctl32.h"
-#include "uxtheme.h"
-#include "vssym32.h"
 #include "wine/debug.h"
 #include "wine/exception.h"
 
@@ -2484,7 +2482,7 @@ TREEVIEW_DrawItemLines(const TREEVIEW_INFO *infoPtr, HDC hdc, const TREEVIEW_ITE
                 {
                     MoveToEx(hdc, centerx - plussize + 1, centery, NULL);
                     LineTo(hdc, centerx + plussize, centery);
-    
+
                     if (!(item->state & TVIS_EXPANDED) ||
                          (item->state & TVIS_EXPANDPARTIAL))
                     {
@@ -5244,7 +5242,7 @@ TREEVIEW_Create(HWND hwnd, const CREATESTRUCTW *lpcs)
     /* Make sure actual scrollbar state is consistent with uInternalStatus */
     ShowScrollBar(hwnd, SB_VERT, FALSE);
     ShowScrollBar(hwnd, SB_HORZ, FALSE);
-    
+
     OpenThemeData (hwnd, themeClass);
 
     return 0;

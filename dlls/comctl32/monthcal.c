@@ -24,7 +24,7 @@
  *
  * TODO:
  *    -- MCM_[GS]ETUNICODEFORMAT
- *    -- handle resources better (doesn't work now); 
+ *    -- handle resources better (doesn't work now);
  *    -- take care of internationalization.
  *    -- keyboard handling.
  *    -- search for FIXME
@@ -43,8 +43,6 @@
 #include "winnls.h"
 #include "commctrl.h"
 #include "comctl32.h"
-#include "uxtheme.h"
-#include "vssym32.h"
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(monthcal);
@@ -852,7 +850,7 @@ static void MONTHCAL_PaintButton(MONTHCAL_INFO *infoPtr, HDC hdc, enum nav_direc
         {
             if (infoPtr->dwStyle & WS_DISABLED) style |= DFCS_INACTIVE;
         }
-        
+
         DrawFrameControl(hdc, r, DFC_SCROLL, style);
     }
 }
@@ -2991,7 +2989,7 @@ MONTHCAL_WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
   case WM_TIMER:
     return MONTHCAL_Timer(infoPtr, wParam);
-    
+
   case WM_THEMECHANGED:
     return theme_changed (infoPtr);
 

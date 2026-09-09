@@ -43,8 +43,6 @@
 #include "winnls.h"
 #include "commctrl.h"
 #include "comctl32.h"
-#include "uxtheme.h"
-#include "vsstyle.h"
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(datetime);
@@ -707,11 +705,35 @@ static int DATETIME_GetFieldWidth (const DATETIME_INFO *infoPtr, HDC hdc, int co
     return size.cx;
 }
 
-static void 
-DATETIME_Refresh (DATETIME_INFO *infoPtr, HDC hdc)
+static void DATETIME_DrawBackground (DATETIME_INFO *infoPtr, HDC hdc)
 {
     HTHEME theme;
-    int state;
+    theme = GetWindowTheme(infoPtr->hwndSelf);
+    if (theme)
+    {
+        int state;
+
+        if (infoPtr->dwStyle & WS_DISABLED)
+            state = ABS_DOWNDISABLED;
+        else if (infoPtr->bCalDepressed)
+            state = ABS_DOWNPRESSED;
+        else if (infoPtr->bCalHot)
+            state = ABS_DOWNHOT;
+        else
+            state = ABS_DOWNNORMAL;
+
+        DrawThemeBackground(theme, hdc, SBP_ARROWBTN, state, &infoPtr->calbutton, NULL);
+        return;
+    }
+
+    DrawFrameControl(hdc, &infoPtr->calbutton, DFC_SCROLL, DFCS_SCROLLDOWN |
+                     (infoPtr->bCalDepressed ? DFCS_PUSHED : 0) |
+                     (infoPtr->dwStyle & WS_DISABLED ? DFCS_INACTIVE : 0));
+}
+
+static void
+DATETIME_Refresh (DATETIME_INFO *infoPtr, HDC hdc)
+{
 
     TRACE("\n");
 
@@ -779,26 +801,7 @@ DATETIME_Refresh (DATETIME_INFO *infoPtr, HDC hdc)
     if (infoPtr->dwStyle & DTS_UPDOWN)
         return;
 
-    theme = GetWindowTheme(infoPtr->hwndSelf);
-    if (theme)
-    {
-        if (infoPtr->dwStyle & WS_DISABLED)
-            state = ABS_DOWNDISABLED;
-        else if (infoPtr->bCalDepressed)
-            state = ABS_DOWNPRESSED;
-        else if (infoPtr->bCalHot)
-            state = ABS_DOWNHOT;
-        else
-            state = ABS_DOWNNORMAL;
-
-        DrawThemeBackground(theme, hdc, SBP_ARROWBTN, state, &infoPtr->calbutton, NULL);
-    }
-    else
-    {
-        DrawFrameControl(hdc, &infoPtr->calbutton, DFC_SCROLL,
-                         DFCS_SCROLLDOWN | (infoPtr->bCalDepressed ? DFCS_PUSHED : 0) |
-                         (infoPtr->dwStyle & WS_DISABLED ? DFCS_INACTIVE : 0) );
-    }
+   DATETIME_DrawBackground(infoPtr, hdc);
 }
 
 
@@ -997,7 +1000,7 @@ DATETIME_LButtonDown (DATETIME_INFO *infoPtr, INT x, INT y)
             DATETIME_SendSimpleNotify (infoPtr, DTN_CLOSEUP);
         } else {
             const SYSTEMTIME *lprgSysTimeArray = &infoPtr->date;
-            TRACE("update calendar %04d/%02d/%02d\n", 
+            TRACE("update calendar %04d/%02d/%02d\n",
             lprgSysTimeArray->wYear, lprgSysTimeArray->wMonth, lprgSysTimeArray->wDay);
             SendMessageW(infoPtr->hMonthCal, MCM_SETCURSEL, 0, (LPARAM)(&infoPtr->date));
 
@@ -1060,9 +1063,9 @@ DATETIME_Button_Command (DATETIME_INFO *infoPtr, WPARAM wParam, LPARAM lParam)
     }
     return 0;
 }
-          
-        
-        
+
+
+
 static LRESULT
 DATETIME_Command (DATETIME_INFO *infoPtr, WPARAM wParam, LPARAM lParam)
 {
@@ -1125,7 +1128,7 @@ DATETIME_Notify (DATETIME_INFO *infoPtr, const NMHDR *lpnmh)
         ShowWindow(infoPtr->hMonthCal, SW_HIDE);
         infoPtr->dateValid = TRUE;
         SendMessageW (infoPtr->hMonthCal, MCM_GETCURSEL, 0, (LPARAM)&infoPtr->date);
-        TRACE("got from calendar %04d/%02d/%02d day of week %d\n", 
+        TRACE("got from calendar %04d/%02d/%02d day of week %d\n",
         infoPtr->date.wYear, infoPtr->date.wMonth, infoPtr->date.wDay, infoPtr->date.wDayOfWeek);
         SendMessageW (infoPtr->hwndCheckbut, BM_SETCHECK, BST_CHECKED, 0);
         InvalidateRect(infoPtr->hwndSelf, NULL, TRUE);
@@ -1454,7 +1457,7 @@ DATETIME_Size (DATETIME_INFO *infoPtr, INT width, INT height)
     TRACE("Height %ld, Width %ld\n", infoPtr->rcClient.bottom, infoPtr->rcClient.right);
 
     infoPtr->rcDraw = infoPtr->rcClient;
-    
+
     if (infoPtr->dwStyle & DTS_UPDOWN) {
         SetWindowPos(infoPtr->hUpdown, NULL,
             infoPtr->rcClient.right-14, 0,
@@ -1499,18 +1502,18 @@ DATETIME_StyleChanging(DATETIME_INFO *infoPtr, WPARAM wStyleType, STYLESTRUCT *l
     return 0;
 }
 
-static LRESULT 
+static LRESULT
 DATETIME_StyleChanged(DATETIME_INFO *infoPtr, WPARAM wStyleType, const STYLESTRUCT *lpss)
 {
     TRACE("styletype %Ix, styleOld %#lx, styleNew %#lx\n", wStyleType, lpss->styleOld, lpss->styleNew);
 
     if (wStyleType != GWL_STYLE) return 0;
-  
+
     infoPtr->dwStyle = lpss->styleNew;
 
     if ( !(lpss->styleOld & DTS_SHOWNONE) && (lpss->styleNew & DTS_SHOWNONE) ) {
         infoPtr->hwndCheckbut = CreateWindowExW (0, WC_BUTTONW, 0, WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
-         					 2, 2, 13, 13, infoPtr->hwndSelf, 0, 
+         					 2, 2, 13, 13, infoPtr->hwndSelf, 0,
 						(HINSTANCE)GetWindowLongPtrW (infoPtr->hwndSelf, GWLP_HINSTANCE), 0);
         SendMessageW (infoPtr->hwndCheckbut, BM_SETCHECK, infoPtr->dateValid ? 1 : 0, 0);
     }
@@ -1519,7 +1522,7 @@ DATETIME_StyleChanged(DATETIME_INFO *infoPtr, WPARAM wStyleType, const STYLESTRU
         infoPtr->hwndCheckbut = 0;
     }
     if ( !(lpss->styleOld & DTS_UPDOWN) && (lpss->styleNew & DTS_UPDOWN) ) {
-	infoPtr->hUpdown = CreateUpDownControl (WS_CHILD | WS_BORDER | WS_VISIBLE, 120, 1, 20, 20, 
+	infoPtr->hUpdown = CreateUpDownControl (WS_CHILD | WS_BORDER | WS_VISIBLE, 120, 1, 20, 20,
 						infoPtr->hwndSelf, 1, 0, 0, UD_MAXVAL, UD_MINVAL, 0);
     }
     if ( (lpss->styleOld & DTS_UPDOWN) && !(lpss->styleNew & DTS_UPDOWN) ) {
@@ -1652,7 +1655,7 @@ DATETIME_Destroy (DATETIME_INFO *infoPtr)
 	DestroyWindow(infoPtr->hwndCheckbut);
     if (infoPtr->hUpdown)
 	DestroyWindow(infoPtr->hUpdown);
-    if (infoPtr->hMonthCal) 
+    if (infoPtr->hMonthCal)
         DestroyWindow(infoPtr->hMonthCal);
     SetWindowLongPtrW( infoPtr->hwndSelf, 0, 0 ); /* clear infoPtr */
     Free (infoPtr->buflen);

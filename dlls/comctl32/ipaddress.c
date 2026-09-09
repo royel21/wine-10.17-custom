@@ -35,9 +35,6 @@
 #include "winnls.h"
 #include "commctrl.h"
 #include "comctl32.h"
-#include "uxtheme.h"
-#include "vsstyle.h"
-#include "vssym32.h"
 #include "wine/debug.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(ipaddress);
@@ -175,7 +172,7 @@ static LRESULT IPADDRESS_Draw (const IPADDRESS_INFO *infoPtr, HDC hdc)
         FillRect (hdc, &rect, (HBRUSH)(DWORD_PTR)(bgCol+1));
         DrawEdge (hdc, &rect, EDGE_SUNKEN, BF_RECT | BF_ADJUST);
     }
-    
+
     SetBkColor  (hdc, bgCol);
     SetTextColor(hdc, fgCol);
 

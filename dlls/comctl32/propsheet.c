@@ -22,7 +22,7 @@
  *
  * This code was audited for completeness against the documented features
  * of Comctl32.dll version 6.0 on Sep. 12, 2004, by Filip Navara.
- * 
+ *
  * Unless otherwise noted, we believe this code to be complete, as per
  * the specification mentioned above.
  * If you discover missing features, or bugs, please note them below.
@@ -59,7 +59,6 @@
 #include "commctrl.h"
 #include "prsht.h"
 #include "comctl32.h"
-#include "uxtheme.h"
 
 #include "wine/debug.h"
 
@@ -160,7 +159,7 @@ static const WCHAR PropSheetInfoStr[] = L"PropertySheetInfo";
 /* Wizard metrics specified in DLUs */
 #define WIZARD_PADDING 7
 #define WIZARD_HEADER_HEIGHT 36
-                         	
+
 /******************************************************************************
  * Prototypes
  */
@@ -637,7 +636,7 @@ static VOID PROPSHEET_UnImplementedFlags(DWORD dwFlags)
 static void PROPSHEET_GetPageRect(const PropSheetInfo * psInfo, HWND hwndDlg,
                                   RECT *rc, HPROPSHEETPAGE hpsp)
 {
-    if (psInfo->ppshheader.dwFlags & INTRNL_ANY_WIZARD) {     
+    if (psInfo->ppshheader.dwFlags & INTRNL_ANY_WIZARD) {
         HWND hwndChild;
         RECT r;
 
@@ -1319,7 +1318,7 @@ static BOOL PROPSHEET_AdjustButtonsWizard(HWND hwndParent,
    * All buttons will be at this y coordinate.
    */
   y = rcSheet.bottom - (padding.y + buttonHeight);
-  
+
   /*
    * Position the Back button.
    */
@@ -1334,9 +1333,9 @@ static BOOL PROPSHEET_AdjustButtonsWizard(HWND hwndParent,
    * Position the Next button.
    */
   hwndButton = GetDlgItem(hwndParent, IDC_NEXT_BUTTON);
-  
+
   x += buttonWidth;
-  
+
   SetWindowPos(hwndButton, 0, x, y, 0, 0,
                SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
 
@@ -1344,7 +1343,7 @@ static BOOL PROPSHEET_AdjustButtonsWizard(HWND hwndParent,
    * Position the Finish button.
    */
   hwndButton = GetDlgItem(hwndParent, IDC_FINISH_BUTTON);
-  
+
   if (psInfo->hasFinish)
     x += padding.x + buttonWidth;
 
@@ -1380,7 +1379,7 @@ static BOOL PROPSHEET_AdjustButtonsWizard(HWND hwndParent,
     ShowWindow(hwndButton, SW_HIDE);
 
   if (psInfo->ppshheader.dwFlags &
-      (PSH_WIZARD97_OLD | PSH_WIZARD97_NEW | PSH_WIZARD_LITE)) 
+      (PSH_WIZARD97_OLD | PSH_WIZARD97_NEW | PSH_WIZARD_LITE))
       padding.x = 0;
 
   /*
@@ -1396,7 +1395,7 @@ static BOOL PROPSHEET_AdjustButtonsWizard(HWND hwndParent,
   /*
    * Position and resize the header sunken line.
    */
-  
+
   SetWindowPos(hwndLineHeader, 0, 0, 0, rcSheet.right, 2,
 	       SWP_NOZORDER | SWP_NOMOVE | SWP_NOACTIVATE);
   if (!(psInfo->ppshheader.dwFlags & (PSH_WIZARD97_OLD | PSH_WIZARD97_NEW)))
@@ -1583,7 +1582,7 @@ static BOOL PROPSHEET_CreatePage(HWND hwndParent,
   pTemplateCopy = Alloc(resSize);
   if (!pTemplateCopy)
     return FALSE;
-  
+
   TRACE("copying pTemplate %p into pTemplateCopy %p (%ld)\n", pTemplate, pTemplateCopy, resSize);
   memcpy(pTemplateCopy, pTemplate, resSize);
 
@@ -1646,8 +1645,8 @@ static VOID PROPSHEET_LoadWizardBitmaps(PropSheetInfo *psInfo)
 {
   if (psInfo->ppshheader.dwFlags & (PSH_WIZARD97_NEW | PSH_WIZARD97_OLD))
   {
-    /* if PSH_USEHBMWATERMARK is not set, load the resource from pszbmWatermark 
-       and put the HBITMAP in hbmWatermark. Thus all the rest of the code always 
+    /* if PSH_USEHBMWATERMARK is not set, load the resource from pszbmWatermark
+       and put the HBITMAP in hbmWatermark. Thus all the rest of the code always
        considers hbmWatermark as valid. */
     if ((psInfo->ppshheader.dwFlags & PSH_WATERMARK) &&
         !(psInfo->ppshheader.dwFlags & PSH_USEHBMWATERMARK))
@@ -1714,7 +1713,7 @@ static BOOL PROPSHEET_ShowPage(HWND hwndDlg, int index, PropSheetInfo * psInfo)
   if (psInfo->ppshheader.dwFlags & (PSH_WIZARD97_OLD | PSH_WIZARD97_NEW) )
   {
       hwndLineHeader = GetDlgItem(hwndDlg, IDC_SUNKEN_LINEHEADER);
-      
+
       if ((HPSP_get_flags(psInfo->proppage[index].hpage) & PSP_HIDEHEADER) ||
               (!(psInfo->ppshheader.dwFlags & PSH_HEADER)) )
 	  ShowWindow(hwndLineHeader, SW_HIDE);
@@ -2644,7 +2643,7 @@ static void PROPSHEET_SetWizButtons(HWND hwndDlg, DWORD dwFlags)
     {
       /* Hide the Next button */
       ShowWindow(hwndNext, SW_HIDE);
-      
+
       /* Show the Finish button */
       ShowWindow(hwndFinish, SW_SHOW);
     }
@@ -3392,7 +3391,7 @@ static LRESULT PROPSHEET_Paint(HWND hwnd, HDC hdcParam)
 
     hdcSrc = CreateCompatibleDC(0);
 
-    if (psInfo->ppshheader.dwFlags & PSH_USEHPLWATERMARK) 
+    if (psInfo->ppshheader.dwFlags & PSH_USEHPLWATERMARK)
 	hOldPal = SelectPalette(hdc, psInfo->ppshheader.hplWatermark, FALSE);
 
     if (psInfo->active_page < 0)
@@ -3403,7 +3402,7 @@ static LRESULT PROPSHEET_Paint(HWND hwnd, HDC hdcParam)
 
     if ( hpsp && !(flags & PSP_HIDEHEADER) &&
 	 (psInfo->ppshheader.dwFlags & (PSH_WIZARD97_OLD | PSH_WIZARD97_NEW)) &&
-	 (psInfo->ppshheader.dwFlags & PSH_HEADER) ) 
+	 (psInfo->ppshheader.dwFlags & PSH_HEADER) )
     {
 	HWND hwndLineHeader = GetDlgItem(hwnd, IDC_SUNKEN_LINEHEADER);
 	HFONT hOldFont;
@@ -3471,7 +3470,7 @@ static LRESULT PROPSHEET_Paint(HWND hwnd, HDC hdcParam)
         }
 
 	clrOld = SetTextColor (hdc, 0x00000000);
-	oldBkMode = SetBkMode (hdc, TRANSPARENT); 
+	oldBkMode = SetBkMode (hdc, TRANSPARENT);
 
 	if (flags & PSP_USEHEADERTITLE) {
 	    SetRect(&r, 20, 10, 0, 0);
@@ -3493,9 +3492,9 @@ static LRESULT PROPSHEET_Paint(HWND hwnd, HDC hdcParam)
 
     if ( (flags & PSP_HIDEHEADER) &&
 	 (psInfo->ppshheader.dwFlags & (PSH_WIZARD97_OLD | PSH_WIZARD97_NEW)) &&
-	 (psInfo->ppshheader.dwFlags & PSH_WATERMARK) ) 
+	 (psInfo->ppshheader.dwFlags & PSH_WATERMARK) )
     {
-	HWND hwndLine = GetDlgItem(hwnd, IDC_SUNKEN_LINE);	    
+	HWND hwndLine = GetDlgItem(hwnd, IDC_SUNKEN_LINE);
 
 	GetClientRect(hwndLine, &r);
 	MapWindowPoints(hwndLine, hwnd, (LPPOINT) &r, 2);
@@ -3524,10 +3523,10 @@ static LRESULT PROPSHEET_Paint(HWND hwnd, HDC hdcParam)
 	    DeleteObject(hbr);
 	}
 
-	SelectObject(hdcSrc, hbmp);	    
+	SelectObject(hdcSrc, hbmp);
     }
 
-    if (psInfo->ppshheader.dwFlags & PSH_USEHPLWATERMARK) 
+    if (psInfo->ppshheader.dwFlags & PSH_USEHPLWATERMARK)
 	SelectPalette(hdc, hOldPal, FALSE);
 
     DeleteDC(hdcSrc);
@@ -3580,7 +3579,7 @@ PROPSHEET_DialogProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
       psInfo->hFont = CreateFontIndirectW (&logFont);
       logFont.lfWeight = FW_BOLD;
       psInfo->hFontBold = CreateFontIndirectW (&logFont);
-      
+
       /*
        * Small icon in the title bar.
        */
@@ -3726,7 +3725,7 @@ PROPSHEET_DialogProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
       return FALSE;
     }
-  
+
     case WM_SYSCOLORCHANGE:
       COMCTL32_RefreshSysColors();
       return FALSE;

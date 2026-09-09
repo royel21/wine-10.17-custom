@@ -42,8 +42,6 @@
 #include "imm.h"
 #include "usp10.h"
 #include "commctrl.h"
-#include "uxtheme.h"
-#include "vsstyle.h"
 #include "comctl32.h"
 #include "wine/debug.h"
 
@@ -4445,7 +4443,7 @@ static LRESULT EDIT_WM_Create(EDITSTATE *es, const WCHAR *name)
 
     /* force scroll info update */
     EDIT_UpdateScrollInfo(es);
-    OpenThemeData(es->hwndSelf, WC_EDITW);
+    COMCTL32_OpenThemeForWindow(es->hwndSelf, WC_EDITW);
 
     /* The rule seems to return 1 here for success */
     /* Power Builder masked edit controls will crash  */
@@ -4996,7 +4994,7 @@ static LRESULT CALLBACK EDIT_WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPAR
 
     case WM_THEMECHANGED:
         CloseThemeData(GetWindowTheme(hwnd));
-        OpenThemeData(hwnd, WC_EDITW);
+        COMCTL32_OpenThemeForWindow(hwnd, WC_EDITW);
         InvalidateRect(hwnd, NULL, TRUE);
         break;
 

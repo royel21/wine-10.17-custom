@@ -2096,7 +2096,7 @@ done:
         clip_fullscreen_window( hwnd, FALSE );
     }
 
-    return ret;
+    return TRUE;
 }
 
 /**********************************************************************
