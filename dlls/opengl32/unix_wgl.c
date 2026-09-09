@@ -26,6 +26,7 @@
 
 #include <stdarg.h>
 #include <stdlib.h>
+#include <assert.h>
 
 #include <pthread.h>
 
@@ -41,6 +42,7 @@
 
 #include "wine/debug.h"
 #include "wine/rbtree.h"
+#include "wine/vulkan_driver.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(opengl);
 
@@ -123,25 +125,27 @@ struct buffers
 {
     unsigned int ref;
     struct rb_tree map;
+    struct vk_device *vk_device;
 };
 
 struct context
 {
     struct wgl_context base;
 
-    HDC hdc;                     /* context creation DC */
-    HGLRC share;                 /* context to be shared with */
-    int *attribs;                /* creation attributes */
-    DWORD tid;                   /* thread that the context is current in */
-    int major_version;           /* major GL version */
-    int minor_version;           /* minor GL version */
-    UINT64 debug_callback;       /* client pointer */
-    UINT64 debug_user;           /* client pointer */
-    GLubyte *extensions;         /* extension string */
-    GLuint *disabled_exts;       /* indices of disabled extensions */
-    char *wow64_version;         /* wow64 GL version override */
-    struct buffers *buffers;     /* wow64 buffers map */
-    GLenum gl_error;             /* wrapped GL error */
+    HDC hdc;                       /* context creation DC */
+    HGLRC share;                   /* context to be shared with */
+    int *attribs;                  /* creation attributes */
+    DWORD tid;                     /* thread that the context is current in */
+    int major_version;             /* major GL version */
+    int minor_version;             /* minor GL version */
+    UINT64 debug_callback;         /* client pointer */
+    UINT64 debug_user;             /* client pointer */
+    GLubyte *extensions;           /* extension string */
+    char *wow64_version;           /* wow64 GL version override */
+    struct buffers *buffers;       /* wow64 buffers map */
+    GLenum gl_error;               /* wrapped GL error */
+    const char **extension_array;  /* array of supported extensions */
+    size_t extension_count;        /* size of supported extensions */
 
     /* semi-stub state tracker for wglCopyContext */
     GLbitfield used;                            /* context state used bits */
@@ -167,6 +171,28 @@ struct buffer
     size_t copy_length;
     void *vm_ptr;
     SIZE_T vm_size;
+
+    /* members of Vulkan-backed buffer storages */
+    struct vk_device *vk_device;
+    VkDeviceMemory vk_memory;
+    GLuint gl_memory;
+    GLbitfield flags;
+};
+
+struct vk_device
+{
+    struct rb_entry entry;
+    VkDevice vk_device;
+    GUID uuid;
+    VkPhysicalDeviceMemoryProperties memory_properties;
+
+    PFN_vkAllocateMemory p_vkAllocateMemory;
+    PFN_vkDestroyDevice p_vkDestroyDevice;
+    PFN_vkFlushMappedMemoryRanges p_vkFlushMappedMemoryRanges;
+    PFN_vkFreeMemory p_vkFreeMemory;
+    PFN_vkGetMemoryFdKHR p_vkGetMemoryFdKHR;
+    PFN_vkMapMemory2KHR p_vkMapMemory2KHR;
+    PFN_vkUnmapMemory2KHR p_vkUnmapMemory2KHR;
 };
 
 struct wgl_handle
@@ -188,6 +214,18 @@ static struct wgl_handle *next_free;
 static unsigned int handle_count;
 
 static ULONG_PTR zero_bits;
+
+static const struct vulkan_funcs *vk_funcs;
+static VkInstance vk_instance;
+static PFN_vkDestroyInstance p_vkDestroyInstance;
+
+static int vk_device_cmp( const void *key, const struct rb_entry *entry )
+{
+    struct vk_device *vk_device = RB_ENTRY_VALUE( entry, struct vk_device, entry );
+    return memcmp( key, &vk_device->uuid, sizeof(vk_device->uuid) );
+}
+
+struct rb_tree vk_devices = { vk_device_cmp };
 
 static struct context *context_from_wgl_context( struct wgl_context *context )
 {
@@ -340,26 +378,46 @@ static BOOL copy_context_attributes( TEB *teb, const struct opengl_funcs *funcs,
     return dst->used != -1 && src->used != -1;
 }
 
+static void unmap_vk_buffer( struct buffer *buffer )
+{
+    VkMemoryUnmapInfoKHR unmap_info =
+    {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_UNMAP_INFO_KHR,
+        .memory = buffer->vk_memory,
+        .flags = VK_MEMORY_UNMAP_RESERVE_BIT_EXT,
+    };
+    VkResult vr;
+
+    vr = buffer->vk_device->p_vkUnmapMemory2KHR( buffer->vk_device->vk_device, &unmap_info );
+    if (vr) ERR( "VkMemoryUnmapInfoKHR failed: %x\n", vr);
+}
+
 static int compare_buffer_name( const void *key, const struct rb_entry *entry )
 {
     struct buffer *buffer = RB_ENTRY_VALUE( entry, struct buffer, entry );
     return memcmp( key, &buffer->name, sizeof(buffer->name) );
 }
 
-static void free_buffer( struct buffer *buffer )
+static void free_buffer( const struct opengl_funcs *funcs, struct buffer *buffer )
 {
+    if (buffer->vk_memory)
+    {
+        if (buffer->map_ptr) unmap_vk_buffer( buffer );
+        buffer->vk_device->p_vkFreeMemory( buffer->vk_device->vk_device, buffer->vk_memory, NULL );
+    }
+    if (buffer->gl_memory) funcs->p_glDeleteMemoryObjectsEXT( 1, &buffer->gl_memory );
     if (buffer->vm_ptr) NtFreeVirtualMemory( GetCurrentProcess(), &buffer->vm_ptr, &buffer->vm_size, MEM_RELEASE );
     free( buffer );
 }
 
-static void release_buffers( struct buffers *buffers )
+static void release_buffers( const struct opengl_funcs *funcs, struct buffers *buffers )
 {
     struct buffer *buffer, *next;
 
     if (--buffers->ref) return;
 
     RB_FOR_EACH_ENTRY_DESTRUCTOR( buffer, next, &buffers->map, struct buffer, entry )
-        free_buffer( buffer );
+        free_buffer( funcs, buffer );
     free( buffers );
 }
 
@@ -382,7 +440,7 @@ static void update_handle_context( TEB *teb, HGLRC handle, struct wgl_handle *pt
     }
     if (shared && shared->buffers)
     {
-        release_buffers( ctx->buffers );
+        release_buffers( funcs, ctx->buffers );
         ctx->buffers = shared->buffers;
         ctx->buffers->ref++;
     }
@@ -483,60 +541,6 @@ static const char *legacy_extensions[] =
     NULL,
 };
 
-static GLubyte *filter_extensions_list( const char *extensions, const char *disabled, const char *enabled )
-{
-    const char *end, **extra;
-    char *p, *str;
-    size_t size, len;
-
-    size = strlen( extensions ) + 2;
-    for (extra = legacy_extensions; *extra; extra++) size += strlen( *extra ) + 1;
-    if (!(p = str = malloc( size ))) return NULL;
-
-    TRACE( "GL_EXTENSIONS:\n" );
-
-    for (;;)
-    {
-        while (*extensions == ' ') extensions++;
-        if (!*extensions) break;
-
-        if (!(end = strchr( extensions, ' ' ))) end = extensions + strlen( extensions );
-        memcpy( p, extensions, end - extensions );
-        len = end - extensions;
-        p[len] = 0;
-
-        /* We do not support GL_MAP_PERSISTENT_BIT, and hence
-         * ARB_buffer_storage, on wow64. */
-        if (is_win64 && is_wow64() && (!strcmp( p, "GL_ARB_buffer_storage" ) || !strcmp( p, "GL_EXT_buffer_storage" )))
-        {
-            TRACE( "-- %s (disabled due to wow64)\n", p );
-        }
-        else if (!has_extension( disabled, p, len ) && (!*enabled || has_extension( enabled, p, len )))
-        {
-            TRACE( "++ %s\n", p );
-            p += end - extensions;
-            *p++ = ' ';
-        }
-        else
-        {
-            TRACE( "-- %s (disabled by config)\n", p );
-        }
-        extensions = end;
-    }
-
-    for (extra = legacy_extensions; *extra; extra++)
-    {
-        size = strlen( *extra );
-        memcpy( p, *extra, size );
-        p += size;
-        *p++ = ' ';
-    }
-
-    if (p != str) --p;
-    *p = 0;
-    return (GLubyte *)str;
-}
-
 static const char *parse_gl_version( const char *gl_version, int *major, int *minor )
 {
     const char *ptr = gl_version;
@@ -553,60 +557,6 @@ static const char *parse_gl_version( const char *gl_version, int *major, int *mi
 
     while (isdigit( *ptr )) ++ptr;
     return ptr;
-}
-
-static GLuint *filter_extensions_index( TEB *teb, const char *disabled, const char *enabled )
-{
-    const struct opengl_funcs *funcs = teb->glTable;
-    const char *ext, *version;
-    GLuint *disabled_index;
-    GLint extensions_count;
-    unsigned int i = 0, j, len;
-    int major, minor;
-
-    if (!funcs->p_glGetStringi)
-    {
-        void **func_ptr = (void **)&funcs->p_glGetStringi;
-        *func_ptr = funcs->p_wglGetProcAddress( "glGetStringi" );
-        if (!funcs->p_glGetStringi) return NULL;
-    }
-
-    version = (const char *)funcs->p_glGetString( GL_VERSION );
-    parse_gl_version( version, &major, &minor );
-    if (major < 3)
-        return NULL;
-
-    funcs->p_glGetIntegerv( GL_NUM_EXTENSIONS, &extensions_count );
-    disabled_index = malloc( extensions_count * sizeof(*disabled_index) );
-    if (!disabled_index) return NULL;
-
-    TRACE( "GL_EXTENSIONS:\n" );
-
-    for (j = 0; j < extensions_count; ++j)
-    {
-        ext = (const char *)funcs->p_glGetStringi( GL_EXTENSIONS, j );
-        len = strlen( ext );
-
-        /* We do not support GL_MAP_PERSISTENT_BIT, and hence
-         * ARB_buffer_storage, on wow64. */
-        if (is_win64 && is_wow64() && (!strcmp( ext, "GL_ARB_buffer_storage" ) || !strcmp( ext, "GL_EXT_buffer_storage" )))
-        {
-            TRACE( "-- %s (disabled due to wow64)\n", ext );
-            disabled_index[i++] = j;
-        }
-        else if (!has_extension( disabled, ext, len ) && (!*enabled || has_extension( enabled, ext, len )))
-        {
-            TRACE( "++ %s\n", ext );
-        }
-        else
-        {
-            TRACE( "-- %s (disabled by config)\n", ext );
-            disabled_index[i++] = j;
-        }
-    }
-
-    disabled_index[i] = ~0u;
-    return disabled_index;
 }
 
 static inline void ascii_to_unicode( WCHAR *dst, const char *src, size_t len )
@@ -761,42 +711,70 @@ static char *query_opengl_option( const char *name )
     return str;
 }
 
-/* build the extension string by filtering out the disabled extensions */
-static BOOL filter_extensions( TEB * teb, const char *extensions, GLubyte **exts_list, GLuint **disabled_exts )
+static int string_array_cmp( const void *p1, const void *p2 )
 {
-    static const char *disabled, *enabled;
-    char *str;
-
-    if (!disabled)
-    {
-        if (!(str = query_opengl_option( "DisabledExtensions" ))) disabled = "";
-        else if (InterlockedCompareExchangePointer( (void **)&disabled, str, NULL )) free( str );
-    }
-    if (!enabled)
-    {
-        if (!(str = query_opengl_option( "EnabledExtensions" ))) enabled = "";
-        else if (InterlockedCompareExchangePointer( (void **)&enabled, str, NULL )) free( str );
-    }
-
-    if (extensions && !*exts_list) *exts_list = filter_extensions_list( extensions, disabled, enabled );
-    if (!*disabled_exts) *disabled_exts = filter_extensions_index( teb, disabled, enabled );
-    return (exts_list && *exts_list) || *disabled_exts;
-}
-
-static const GLuint *disabled_extensions_index( TEB *teb )
-{
-    struct context *ctx = get_current_context( teb, NULL, NULL );
-    GLuint **disabled = &ctx->disabled_exts;
-    if (*disabled || filter_extensions( teb, NULL, NULL, disabled )) return *disabled;
-    return NULL;
+    const char *const *s1 = p1;
+    const char *const *s2 = p2;
+    return strcmp( *s1, *s2 );
 }
 
 /* Check if a GL extension is supported */
-static BOOL check_extension_support( struct context *ctx, const char *extension, const char *available_extensions )
+static BOOL is_extension_supported( struct context *ctx, const char *extension )
+{
+    return bsearch( &extension, ctx->extension_array, ctx->extension_count,
+                    sizeof(ctx->extension_array[0]), string_array_cmp ) != NULL;
+}
+
+/* build the extension string by filtering out the disabled extensions */
+static GLubyte *filter_extensions( struct context *ctx, const char *extensions )
+{
+    const char *end, **extra;
+    size_t size, len;
+    char *p, *str;
+
+    size = strlen( extensions ) + 2;
+    for (extra = legacy_extensions; *extra; extra++) size += strlen( *extra ) + 1;
+    if (!(p = str = malloc( size ))) return NULL;
+
+    TRACE( "GL_EXTENSIONS:\n" );
+
+    for (;;)
+    {
+        while (*extensions == ' ') extensions++;
+        if (!*extensions) break;
+        len = (end = strchr( extensions, ' ' )) ? end - extensions : strlen( extensions );
+        memcpy( p, extensions, len );
+        p[len] = 0;
+        if (is_extension_supported( ctx, p ))
+        {
+            TRACE( "++ %s\n", p );
+            p += len;
+            *p++ = ' ';
+        }
+        else
+        {
+            TRACE( "-- %s (disabled in context)\n", p );
+        }
+        extensions = end;
+    }
+
+    for (extra = legacy_extensions; *extra; extra++)
+    {
+        size = strlen( *extra );
+        memcpy( p, *extra, size );
+        p += size;
+        *p++ = ' ';
+    }
+
+    if (p != str) --p;
+    *p = 0;
+    return (GLubyte *)str;
+}
+
+/* Check if any GL extension from the list is supported */
+static BOOL is_any_extension_supported( struct context *ctx, const char *extension )
 {
     size_t len;
-
-    TRACE( "Checking for extension '%s'\n", extension );
 
     /* We use the GetProcAddress function from the display driver to retrieve function pointers
      * for OpenGL and WGL extensions. In case of winex11.drv the OpenGL extension lookup is done
@@ -804,10 +782,12 @@ static BOOL check_extension_support( struct context *ctx, const char *extension,
      * require the function to return NULL when an extension isn't found. For this reason we check
      * if the OpenGL extension required for the function we are looking up is supported. */
 
-    while ((len = strcspn( extension, " " )))
+    while ((len = strlen( extension )))
     {
+        TRACE( "Checking for extension '%s'\n", extension );
+
         /* Check if the extension is part of the GL extension string to see if it is supported. */
-        if (has_extension( available_extensions, extension, len )) return TRUE;
+        if (is_extension_supported( ctx, extension )) return TRUE;
 
         /* In general an OpenGL function starts as an ARB/EXT extension and at some stage
          * it becomes part of the core OpenGL library and can be reached without the ARB/EXT
@@ -826,8 +806,7 @@ static BOOL check_extension_support( struct context *ctx, const char *extension,
                   major, minor, ctx->major_version, ctx->minor_version );
         }
 
-        if (extension[len] == ' ') len++;
-        extension += len;
+        extension += len + 1;
     }
 
     return FALSE;
@@ -869,19 +848,8 @@ static BOOL get_default_fbo_integer( struct context *ctx, struct opengl_drawable
 
 static BOOL get_integer( TEB *teb, GLenum pname, GLint *data )
 {
-    const struct opengl_funcs *funcs = teb->glTable;
     struct opengl_drawable *draw, *read;
-    const GLuint *disabled;
     struct context *ctx;
-
-    if (pname == GL_NUM_EXTENSIONS)
-    {
-        funcs->p_glGetIntegerv( pname, data );
-        if ((disabled = disabled_extensions_index( teb )))
-            while (*disabled++ != ~0u) (*data)--;
-        *data += ARRAY_SIZE(legacy_extensions) - 1;
-        return TRUE;
-    }
 
     if (!(ctx = get_current_context( teb, &draw, &read ))) return FALSE;
 
@@ -892,6 +860,9 @@ static BOOL get_integer( TEB *teb, GLenum pname, GLint *data )
         return TRUE;
     case GL_MINOR_VERSION:
         *data = ctx->minor_version;
+        return TRUE;
+    case GL_NUM_EXTENSIONS:
+        *data = ctx->extension_count;
         return TRUE;
     case GL_DRAW_FRAMEBUFFER_BINDING:
         if (!draw->draw_fbo) break;
@@ -917,8 +888,7 @@ const GLubyte *wrap_glGetString( TEB *teb, GLenum name )
         {
             struct context *ctx = get_current_context( teb, NULL, NULL );
             GLubyte **extensions = &ctx->extensions;
-            GLuint **disabled = &ctx->disabled_exts;
-            if (*extensions || filter_extensions( teb, (const char *)ret, extensions, disabled )) return *extensions;
+            if (*extensions || (*extensions = filter_extensions( ctx, (const char *)ret ))) return *extensions;
         }
         else if (name == GL_VERSION)
         {
@@ -933,8 +903,6 @@ const GLubyte *wrap_glGetString( TEB *teb, GLenum name )
 const GLubyte *wrap_glGetStringi( TEB *teb, GLenum name, GLuint index )
 {
     const struct opengl_funcs *funcs = teb->glTable;
-    const GLuint *disabled;
-    GLint count;
 
     if (!funcs->p_glGetStringi)
     {
@@ -944,54 +912,12 @@ const GLubyte *wrap_glGetStringi( TEB *teb, GLenum name, GLuint index )
 
     if (name == GL_EXTENSIONS)
     {
-        funcs->p_glGetIntegerv( GL_NUM_EXTENSIONS, &count );
-
-        if ((disabled = disabled_extensions_index( teb )))
-            while (index >= *disabled++) index++;
-
-        if (index >= count && index - count < ARRAY_SIZE(legacy_extensions))
-            return (const GLubyte *)legacy_extensions[index - count];
+        struct context *ctx = get_current_context( teb, NULL, NULL );
+        if (index < ctx->extension_count) return (const GLubyte *)ctx->extension_array[index];
+        index = -1;
     }
 
     return funcs->p_glGetStringi( name, index );
-}
-
-static char *build_extension_list( TEB *teb )
-{
-    GLint len = 0, capacity, i, extensions_count;
-    char *extension, *tmp, *available_extensions;
-
-    get_integer( teb, GL_NUM_EXTENSIONS, &extensions_count );
-    capacity = 128 * extensions_count;
-
-    if (!(available_extensions = malloc( capacity ))) return NULL;
-    for (i = 0; i < extensions_count; ++i)
-    {
-        extension = (char *)wrap_glGetStringi( teb, GL_EXTENSIONS, i );
-        capacity = max( capacity, len + strlen( extension ) + 2 );
-        if (!(tmp = realloc( available_extensions, capacity ))) break;
-        available_extensions = tmp;
-        len += snprintf( available_extensions + len, capacity - len, "%s ", extension );
-    }
-    if (len) available_extensions[len - 1] = 0;
-
-    return available_extensions;
-}
-
-/* Check if a GL extension is supported */
-static BOOL is_extension_supported( TEB *teb, struct context *ctx, const char *extension )
-{
-    char *available_extensions = NULL;
-    BOOL ret = FALSE;
-
-    if (ctx->major_version < 3) available_extensions = strdup( (const char *)wrap_glGetString( teb, GL_EXTENSIONS ) );
-    if (!available_extensions) available_extensions = build_extension_list( teb );
-
-    if (!available_extensions) ERR( "No OpenGL extensions found, check if your OpenGL setup is correct!\n" );
-    else ret = check_extension_support( ctx, extension, available_extensions );
-
-    free( available_extensions );
-    return ret;
 }
 
 static int registry_entry_cmp( const void *a, const void *b )
@@ -1027,7 +953,7 @@ PROC wrap_wglGetProcAddress( TEB *teb, LPCSTR name )
     {
         void *driver_func = funcs->p_wglGetProcAddress( name );
 
-        if (!is_extension_supported( teb, ctx, found->extension ))
+        if (!is_any_extension_supported( ctx, found->extension ))
         {
             unsigned int i;
             static const struct { const char *name, *alt; } alternatives[] =
@@ -1077,11 +1003,204 @@ BOOL wrap_wglCopyContext( TEB *teb, HGLRC hglrcSrc, HGLRC hglrcDst, UINT mask )
     return ret;
 }
 
+static BOOL initialize_vk_device( TEB *teb, struct context *ctx )
+{
+    struct opengl_funcs *funcs = teb->glTable;
+    VkPhysicalDevice *vk_physical_devices = NULL;
+    struct vk_device *vk_device = NULL;
+    GLint uuid_count = 0, i, j;
+    VkResult vr;
+
+    static PFN_vkCreateDevice p_vkCreateDevice;
+    static PFN_vkEnumeratePhysicalDevices p_vkEnumeratePhysicalDevices;
+    static PFN_vkGetPhysicalDeviceFeatures2KHR p_vkGetPhysicalDeviceFeatures2KHR;
+    static PFN_vkGetPhysicalDeviceMemoryProperties p_vkGetPhysicalDeviceMemoryProperties;
+    static PFN_vkGetPhysicalDeviceProperties2KHR p_vkGetPhysicalDeviceProperties2KHR;
+
+    if (ctx->buffers->vk_device) return TRUE; /* already initialized */
+    if (!is_extension_supported( ctx, "GL_EXT_memory_object_fd" ))
+    {
+        TRACE( "GL_EXT_memory_object_fd is not supported\n" );
+        return FALSE;
+    }
+
+    if (!vk_funcs)
+    {
+        PFN_vkCreateInstance p_vkCreateInstance;
+        static const char *instance_extensions[] =
+        {
+            "VK_KHR_get_physical_device_properties2",
+        };
+        VkApplicationInfo app_info =
+        {
+            .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+            .pEngineName = "Wine WGL",
+            .engineVersion = 1,
+        };
+        VkInstanceCreateInfo create_info =
+        {
+            .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+            .pApplicationInfo = &app_info,
+            .ppEnabledExtensionNames = instance_extensions,
+            .enabledExtensionCount = ARRAYSIZE(instance_extensions),
+        };
+
+        if (!(vk_funcs = __wine_get_vulkan_driver( WINE_VULKAN_DRIVER_VERSION ))) return FALSE;
+        if (!vk_funcs->p_vkGetInstanceProcAddr
+            || !(p_vkCreateInstance = (void *)vk_funcs->p_vkGetInstanceProcAddr( NULL, "vkCreateInstance" )))
+            return FALSE;
+        if ((vr = p_vkCreateInstance( &create_info, NULL, &vk_instance )))
+        {
+            WARN( "Failed to create a Vulkan instance, vr %d.\n", vr );
+            return FALSE;
+        }
+#define GET_VK_FUNC(name) p_##name = (void *)vk_funcs->p_vkGetInstanceProcAddr( vk_instance, #name )
+        GET_VK_FUNC( vkCreateDevice );
+        GET_VK_FUNC( vkDestroyInstance );
+        GET_VK_FUNC( vkEnumeratePhysicalDevices );
+        GET_VK_FUNC( vkGetPhysicalDeviceFeatures2KHR );
+        GET_VK_FUNC( vkGetPhysicalDeviceMemoryProperties );
+        GET_VK_FUNC( vkGetPhysicalDeviceProperties2KHR );
+#undef GET_VK_FUNC
+    }
+    if (!vk_instance) return FALSE;
+
+#define GET_GL_FUNC(name) if (!funcs->p_##name) funcs->p_##name = (void *)funcs->p_wglGetProcAddress( #name )
+    GET_GL_FUNC( glBufferStorageMemEXT );
+    GET_GL_FUNC( glCreateMemoryObjectsEXT );
+    GET_GL_FUNC( glDeleteMemoryObjectsEXT );
+    GET_GL_FUNC( glGetUnsignedBytei_vEXT );
+    GET_GL_FUNC( glImportMemoryFdEXT );
+    GET_GL_FUNC( glNamedBufferStorageMemEXT );
+#undef GET_GL_FUNC
+
+    funcs->p_glGetIntegerv( GL_NUM_DEVICE_UUIDS_EXT, &uuid_count );
+    for (i = 0; i < uuid_count; i++)
+    {
+        GLubyte uuid[GL_UUID_SIZE_EXT];
+        struct rb_entry *entry;
+        uint32_t count = 0;
+
+        funcs->p_glGetUnsignedBytei_vEXT( GL_DEVICE_UUID_EXT, i, uuid );
+        if ((entry = rb_get( &vk_devices, uuid )))
+        {
+            vk_device = RB_ENTRY_VALUE( entry, struct vk_device, entry );
+            if (!vk_device->vk_device) continue; /* known incompatible device */
+            TRACE( "Found existing device %p for uuid %s\n", vk_device, debugstr_guid(&vk_device->uuid) );
+            ctx->buffers->vk_device = vk_device;
+            free( vk_physical_devices );
+            return TRUE;
+        }
+
+        if (!(vk_device = calloc( 1, sizeof(*vk_device) ))) return FALSE;
+        memcpy( &vk_device->uuid, uuid, sizeof(uuid) );
+        rb_put( &vk_devices, uuid, &vk_device->entry );
+
+        if (!vk_physical_devices)
+        {
+            vr = p_vkEnumeratePhysicalDevices( vk_instance, &count, NULL );
+            if (!vr && count)
+            {
+                vk_physical_devices = calloc( count, sizeof(*vk_physical_devices) );
+                vr = p_vkEnumeratePhysicalDevices( vk_instance, &count, vk_physical_devices );
+            }
+            if (vr || !count)
+            {
+                WARN( "Could not get vulkan physical devices: %d\n", vr );
+                continue;
+            }
+        }
+
+        for (j = 0; j < count; j++)
+        {
+            static const char *device_extensions[] =
+            {
+                "VK_KHR_external_memory",
+                "VK_KHR_external_memory_fd",
+                "VK_EXT_map_memory_placed",
+                "VK_KHR_map_memory2",
+            };
+            VkPhysicalDeviceIDProperties id_props =
+            {
+                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES,
+            };
+            VkPhysicalDeviceProperties2 props =
+            {
+                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+                .pNext = &id_props,
+            };
+            float priority = 0.0f;
+            VkDeviceQueueCreateInfo queue_info =
+            {
+                .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+                .queueCount = 1,
+                .pQueuePriorities = &priority,
+            };
+            VkDeviceCreateInfo device_info =
+            {
+                .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+                .queueCreateInfoCount = 1,
+                .pQueueCreateInfos = &queue_info,
+                .enabledExtensionCount = ARRAYSIZE(device_extensions),
+                .ppEnabledExtensionNames = device_extensions,
+            };
+            VkPhysicalDeviceMapMemoryPlacedFeaturesEXT map_placed_feature =
+            {
+                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAP_MEMORY_PLACED_FEATURES_EXT,
+            };
+            VkPhysicalDeviceFeatures2 features =
+            {
+                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+                .pNext = &map_placed_feature,
+            };
+
+            p_vkGetPhysicalDeviceProperties2KHR( vk_physical_devices[j], &props );
+            if (memcmp( id_props.deviceUUID, uuid, sizeof(uuid) )) continue;
+
+            p_vkGetPhysicalDeviceFeatures2KHR( vk_physical_devices[j], &features );
+            if (!map_placed_feature.memoryMapPlaced || !map_placed_feature.memoryUnmapReserve)
+            {
+                WARN( "Device %s does not support placed memory mapping\n", debugstr_guid(&vk_device->uuid) );
+                continue;
+            }
+
+            p_vkGetPhysicalDeviceMemoryProperties( vk_physical_devices[j], &vk_device->memory_properties );
+            vr = p_vkCreateDevice( vk_physical_devices[j], &device_info, NULL, &vk_device->vk_device );
+            if (vr)
+            {
+                WARN( "Could not create vulkan device: %d\n", vr );
+                continue;
+            }
+
+#define GET_VK_FUNC(name) vk_device->p_##name = (void *)vk_funcs->p_vkGetDeviceProcAddr( vk_device->vk_device, #name )
+            GET_VK_FUNC( vkAllocateMemory );
+            GET_VK_FUNC( vkDestroyDevice );
+            GET_VK_FUNC( vkFreeMemory );
+            GET_VK_FUNC( vkGetMemoryFdKHR );
+            GET_VK_FUNC( vkMapMemory2KHR );
+            GET_VK_FUNC( vkUnmapMemory2KHR );
+            GET_VK_FUNC( vkFlushMappedMemoryRanges );
+#undef GET_VK_FUNC
+            TRACE( "Created %p device for uuid %s\n", vk_device, debugstr_guid(&vk_device->uuid) );
+            free( vk_physical_devices );
+            return TRUE;
+        }
+    }
+
+    free( vk_physical_devices );
+    WARN( "Could not find compatible Vulkan device\n" );
+    return FALSE;
+}
+
 static void make_context_current( TEB *teb, const struct opengl_funcs *funcs, HDC draw_hdc, HDC read_hdc,
                                   HGLRC hglrc, struct context *ctx )
 {
     DWORD tid = HandleToULong(teb->ClientId.UniqueThread);
-    const char *version, *rest = "";
+    size_t size = ARRAYSIZE(legacy_extensions) - 1, count = 0;
+    const char *version, *rest = "", **extensions;
+    int i, j;
+
+    static const char *disabled, *enabled;
 
     ctx->tid = tid;
     teb->glReserved1[0] = draw_hdc;
@@ -1093,11 +1212,73 @@ static void make_context_current( TEB *teb, const struct opengl_funcs *funcs, HD
     if (ctx->major_version) return; /* already synced */
 
     version = (const char *)funcs->p_glGetString( GL_VERSION );
-    if (version) parse_gl_version( version, &ctx->major_version, &ctx->minor_version );
+    if (version) rest = parse_gl_version( version, &ctx->major_version, &ctx->minor_version );
     if (!ctx->major_version) ctx->major_version = 1;
     TRACE( "context %p version %d.%d\n", ctx, ctx->major_version, ctx->minor_version );
 
-    if (is_win64 && is_wow64())
+    if (ctx->major_version >= 3)
+    {
+        GLint extensions_count;
+
+        if (!funcs->p_glGetStringi)
+        {
+            void **func_ptr = (void **)&funcs->p_glGetStringi;
+            *func_ptr = funcs->p_wglGetProcAddress( "glGetStringi" );
+        }
+
+        funcs->p_glGetIntegerv( GL_NUM_EXTENSIONS, &extensions_count );
+        size += extensions_count;
+        if (!(extensions = malloc( size * sizeof(*extensions) ))) return;
+        for (i = 0; i < extensions_count; i++) extensions[count++] = (const char *)funcs->p_glGetStringi( GL_EXTENSIONS, i );
+    }
+    else
+    {
+        const char *str = (const char *)funcs->p_glGetString( GL_EXTENSIONS );
+        size_t len = strlen( str );
+        const char *p;
+        char *ext;
+        if (!str) str = "";
+        if ((len = strlen( str )) && str[len - 1] == ' ') len--;
+        if (*str) size++;
+        for (p = str; p < str + len; p++) if (*p == ' ') size++;
+        if (!(extensions = malloc( size * sizeof(*extensions) + len + 1 ))) return;
+        ext = (char *)&extensions[size];
+        memcpy( ext, str, len );
+        ext[len] = 0;
+        if (*ext) extensions[count++] = ext;
+        while (*ext)
+        {
+            if (*ext == ' ')
+            {
+                *ext = 0;
+                extensions[count++] = ext + 1;
+            }
+            ext++;
+        }
+        assert( count + ARRAYSIZE(legacy_extensions) - 1 == size );
+    }
+
+    if (!disabled && !(disabled = query_opengl_option( "DisabledExtensions" ))) disabled = "";
+    if (!enabled && !(enabled = query_opengl_option( "EnabledExtensions" ))) enabled = "";
+    if (*enabled || *disabled)
+    {
+        for (i = 0, j = 0; i < count; i++)
+        {
+            size_t len = strlen( extensions[i] );
+            if (!has_extension( disabled, extensions[i], len ) && (!*enabled || has_extension( enabled, extensions[i], len )))
+                extensions[j++] = extensions[i];
+            else
+                TRACE( "-- %s (disabled by config)\n", extensions[i] );
+        }
+        count = j;
+    }
+
+    for (i = 0; legacy_extensions[i]; i++) extensions[count++] = legacy_extensions[i];
+    qsort( extensions, count, sizeof(*extensions), string_array_cmp );
+    ctx->extension_array = extensions;
+    ctx->extension_count = count;
+
+    if (is_win64 && ctx->buffers && !initialize_vk_device( teb, ctx ))
     {
         if (ctx->major_version > 4 || (ctx->major_version == 4 && ctx->minor_version > 3))
         {
@@ -1106,7 +1287,20 @@ static void make_context_current( TEB *teb, const struct opengl_funcs *funcs, HD
             ctx->minor_version = 3;
             asprintf( &ctx->wow64_version, "4.3%s", rest );
         }
+        for (i = 0, j = 0; i < count; i++)
+        {
+            const char *ext = extensions[i];
+            if (!strcmp( ext, "GL_ARB_buffer_storage" ) || !strcmp( ext, "GL_ARB_buffer_storage" ))
+            {
+                FIXME( "Disabling %s extension on wow64\n", ext );
+                continue;
+            }
+            extensions[j++] = ext;
+        }
+        ctx->extension_count = j;
     }
+
+    if (TRACE_ON(opengl)) for (i = 0; i < count; i++) TRACE( "++ %s\n", extensions[i] );
 }
 
 BOOL wrap_wglMakeCurrent( TEB *teb, HDC hdc, HGLRC hglrc )
@@ -1147,7 +1341,7 @@ BOOL wrap_wglMakeCurrent( TEB *teb, HDC hdc, HGLRC hglrc )
 static void free_context( struct context *ctx )
 {
     free( ctx->wow64_version );
-    free( ctx->disabled_exts );
+    free( ctx->extension_array );
     free( ctx->extensions );
     free( ctx->attribs );
     free( ctx );
@@ -1312,6 +1506,7 @@ HGLRC wrap_wglCreateContextAttribsARB( TEB *teb, HDC hdc, HGLRC share, const int
             else
             {
                 context->buffers->ref = 1;
+                context->buffers->vk_device = NULL;
                 rb_init( &context->buffers->map, compare_buffer_name );
             }
         }
@@ -1859,6 +2054,20 @@ NTSTATUS thread_attach( void *args )
 
 NTSTATUS process_detach( void *args )
 {
+    struct vk_device *vk_device, *next;
+
+    RB_FOR_EACH_ENTRY_DESTRUCTOR( vk_device, next, &vk_devices, struct vk_device, entry )
+    {
+        if (vk_device->vk_device) vk_device->p_vkDestroyDevice( vk_device->vk_device, NULL );
+        free( vk_device );
+    }
+    rb_destroy( &vk_devices, NULL, NULL );
+    if (vk_instance)
+    {
+        p_vkDestroyInstance( vk_instance, NULL );
+        vk_instance = NULL;
+    }
+    vk_funcs = NULL;
     return STATUS_SUCCESS;
 }
 
@@ -2091,7 +2300,7 @@ void invalidate_buffer_name( TEB *teb, GLuint name )
 
     if (!buffer || !(ctx = get_current_context( teb, NULL, NULL ))) return;
     rb_remove( &ctx->buffers->map, &buffer->entry );
-    free_buffer( buffer );
+    free_buffer( teb->glTable, buffer );
 }
 
 void invalidate_buffer_target( TEB *teb, GLenum target )
@@ -2126,10 +2335,166 @@ static BOOL buffer_vm_alloc( TEB *teb, struct buffer *buffer, SIZE_T size )
     return TRUE;
 }
 
-static PTR32 wow64_map_buffer( TEB *teb, GLenum target, GLuint name, GLintptr offset,
+static void flush_buffer( TEB *teb, struct buffer *buffer, size_t offset, size_t length )
+{
+    VkMappedMemoryRange memory_range =
+    {
+        .sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+        .memory = buffer->vk_memory,
+        .offset = (char *)buffer->map_ptr - (char *)buffer->host_ptr + offset,
+        .size = length,
+    };
+    VkResult vr;
+
+    if (!buffer->vk_memory) return;
+
+    vr = buffer->vk_device->p_vkFlushMappedMemoryRanges( buffer->vk_device->vk_device, 1, &memory_range );
+    if (vr) ERR( "vkFlushMappedMemoryRanges failed: %x\n", vr );
+}
+
+static struct buffer *create_buffer_storage( TEB *teb, GLenum target, GLuint name, size_t size, const void *data, GLbitfield flags )
+{
+    VkExportMemoryAllocateInfo export_alloc =
+    {
+        .sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO,
+        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT,
+    };
+    VkMemoryAllocateInfo alloc_info =
+    {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext = &export_alloc,
+        .allocationSize = size,
+    };
+    VkMemoryGetFdInfoKHR fd_info =
+    {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR,
+        .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT,
+    };
+    struct opengl_funcs *funcs = teb->glTable;
+    GLuint buffer_name = name ? name : get_target_name( teb, target );
+    struct context *ctx = get_current_context( teb, NULL, NULL );
+    struct vk_device *vk_device;
+    struct buffer *buffer;
+    uint32_t i;
+    int fd;
+    VkResult vr;
+
+    if (!(vk_device = ctx->buffers->vk_device) || !vk_device->vk_device) return NULL;
+
+    /* FIXME: For now, just use any host-visible coherent memory type. We can do better and take into account GL flags. */
+    for (i = 0; i < vk_device->memory_properties.memoryTypeCount; i++)
+    {
+        static const uint32_t mask = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        if ((vk_device->memory_properties.memoryTypes[i].propertyFlags & mask) == mask) break;
+    }
+    if (i == vk_device->memory_properties.memoryTypeCount)
+    {
+        WARN( "Could not find memory type\n" );
+        return NULL;
+    }
+    alloc_info.memoryTypeIndex = i;
+
+    if (!(buffer = calloc( 1, sizeof(*buffer) ))) return NULL;
+    buffer->name = buffer_name;
+    buffer->flags = flags;
+    buffer->size = size;
+    buffer->vk_device = vk_device;
+
+    vr = vk_device->p_vkAllocateMemory( vk_device->vk_device, &alloc_info, NULL, &buffer->vk_memory );
+    if (vr)
+    {
+        ERR( "vkAllocateMemory failed: %d\n", vr );
+        free_buffer( funcs, buffer );
+        return NULL;
+    }
+
+    if (data)
+    {
+        VkMemoryMapInfoKHR map_info =
+        {
+            .sType = VK_STRUCTURE_TYPE_MEMORY_MAP_INFO_KHR,
+            .memory = buffer->vk_memory,
+            .size = VK_WHOLE_SIZE,
+        };
+        VkMemoryUnmapInfoKHR unmap_info =
+        {
+            .sType = VK_STRUCTURE_TYPE_MEMORY_UNMAP_INFO_KHR,
+            .memory = buffer->vk_memory,
+        };
+        void *ptr;
+
+        vr = vk_device->p_vkMapMemory2KHR( vk_device->vk_device, &map_info, &ptr );
+        if (vr)
+        {
+            ERR( "vkMapMemory2KHR failed: %d\n", vr );
+            free_buffer( funcs, buffer );
+            return NULL;
+        }
+
+        memcpy( ptr, data, size );
+        vk_device->p_vkUnmapMemory2KHR( vk_device->vk_device, &unmap_info );
+    }
+
+    fd_info.memory = buffer->vk_memory;
+    vr = vk_device->p_vkGetMemoryFdKHR( vk_device->vk_device, &fd_info, &fd );
+    if (vr)
+    {
+        ERR( "vkGetMemoryFdKHR failed: %d\n", vr );
+        free_buffer( funcs, buffer );
+        return NULL;
+    }
+
+    funcs->p_glCreateMemoryObjectsEXT( 1, &buffer->gl_memory );
+    funcs->p_glImportMemoryFdEXT( buffer->gl_memory, size, GL_HANDLE_TYPE_OPAQUE_FD_EXT, fd );
+    if (name)
+        funcs->p_glNamedBufferStorageMemEXT( buffer->name, size, buffer->gl_memory, 0 );
+    else
+        funcs->p_glBufferStorageMemEXT( target, size, buffer->gl_memory, 0 );
+    rb_put( &ctx->buffers->map, &buffer->name, &buffer->entry );
+    TRACE( "created buffer_storage %p\n", buffer );
+    return buffer;
+}
+
+static PTR32 wow64_map_buffer( TEB *teb, struct buffer *buffer, GLenum target, GLuint name, GLintptr offset,
                                size_t length, GLbitfield access, void *ptr )
 {
-    struct buffer *buffer = get_target_buffer( teb, target );
+    if (buffer && buffer->map_ptr)
+    {
+        set_gl_error( teb, GL_INVALID_OPERATION );
+        return 0;
+    }
+
+    if (buffer && buffer->vk_memory)
+    {
+        VkMemoryMapPlacedInfoEXT placed_info =
+        {
+            .sType = VK_STRUCTURE_TYPE_MEMORY_MAP_PLACED_INFO_EXT,
+        };
+        VkMemoryMapInfoKHR map_info =
+        {
+            .sType = VK_STRUCTURE_TYPE_MEMORY_MAP_INFO_KHR,
+            .flags = VK_MEMORY_MAP_PLACED_BIT_EXT,
+            .pNext = &placed_info,
+            .memory = buffer->vk_memory,
+            .size = VK_WHOLE_SIZE,
+        };
+        VkResult vr;
+        struct context *ctx = get_current_context( teb, NULL, NULL );
+        struct vk_device *vk_device = ctx->buffers->vk_device;
+
+        if (!buffer_vm_alloc( teb, buffer, buffer->size )) return 0;
+        placed_info.pPlacedAddress = buffer->vm_ptr;
+        vr = vk_device->p_vkMapMemory2KHR( vk_device->vk_device, &map_info, &buffer->host_ptr );
+        if (vr)
+        {
+            ERR( "vkMapMemory2KHR failed: %d\n", vr );
+            return 0;
+        }
+        assert( buffer->host_ptr == buffer->vm_ptr );
+        buffer->map_ptr = (char *)buffer->vm_ptr + offset;
+        TRACE( "returning vk mapping %p\n", buffer->map_ptr );
+        return PtrToUlong( buffer->map_ptr );
+    }
 
     if (!ptr) return 0;
 
@@ -2209,6 +2574,39 @@ void wow64_glDeleteBuffers( TEB *teb, GLsizei n, const GLuint *buffers )
     pthread_mutex_unlock( &wgl_lock );
 }
 
+void wow64_glBufferStorage( TEB *teb, GLenum target, GLsizeiptr size, const void *data, GLbitfield flags )
+{
+    const struct opengl_funcs *funcs = teb->glTable;
+    struct buffer *buffer = NULL;
+
+    if (flags & (GL_MAP_READ_BIT | GL_MAP_WRITE_BIT))
+        buffer = create_buffer_storage( teb, target, 0, size, data, flags );
+
+    if (!buffer) funcs->p_glBufferStorage( target, size, data, flags );
+}
+
+void wow64_glNamedBufferStorage( TEB *teb, GLuint name, GLsizeiptr size, const void *data, GLbitfield flags )
+{
+    const struct opengl_funcs *funcs = teb->glTable;
+    struct buffer *buffer = NULL;
+
+    if (flags & (GL_MAP_READ_BIT | GL_MAP_WRITE_BIT))
+        buffer = create_buffer_storage( teb, 0, name, size, data, flags );
+
+    if (!buffer) funcs->p_glNamedBufferStorage( name, size, data, flags );
+}
+
+void wow64_glNamedBufferStorageEXT( TEB *teb, GLuint name, GLsizeiptr size, const void *data, GLbitfield flags )
+{
+    const struct opengl_funcs *funcs = teb->glTable;
+    struct buffer *buffer = NULL;
+
+    if (flags & (GL_MAP_READ_BIT | GL_MAP_WRITE_BIT))
+        buffer = create_buffer_storage( teb, 0, name, size, data, flags );
+
+    if (!buffer) funcs->p_glNamedBufferStorageEXT( name, size, data, flags );
+}
+
 static BOOL wow64_gl_get_buffer_pointer_v( TEB *teb, GLenum target, GLuint name, GLenum pname, PTR32 *wow_ptr )
 {
     struct buffer *buffer;
@@ -2266,12 +2664,14 @@ void wow64_glGetNamedBufferPointervEXT( TEB *teb, GLuint buffer, GLenum pname, P
 static PTR32 wow64_gl_map_buffer( TEB *teb, GLenum target, GLenum access, PFN_glMapBuffer gl_map_buffer64 )
 {
     GLbitfield range_access = map_range_flags_from_map_flags( access );
-    void *ptr;
-    PTR32 ret;
+    struct buffer *buffer;
+    void *ptr = NULL;
+    PTR32 ret ;
 
     pthread_mutex_lock( &wgl_lock );
-    ptr = gl_map_buffer64( target, access );
-    ret = wow64_map_buffer( teb, target, 0, 0, 0, range_access, ptr );
+    buffer = get_target_buffer( teb, target );
+    if (!buffer || !buffer->vk_memory) ptr = gl_map_buffer64( target, access );
+    ret = wow64_map_buffer( teb, buffer, target, 0, 0, 0, range_access, ptr );
     pthread_mutex_unlock( &wgl_lock );
     return ret;
 }
@@ -2291,12 +2691,14 @@ PTR32 wow64_glMapBufferARB( TEB *teb, GLenum target, GLenum access )
 PTR32 wow64_glMapBufferRange( TEB *teb, GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access )
 {
     const struct opengl_funcs *funcs = teb->glTable;
-    void *ptr;
+    struct buffer *buffer;
+    void *ptr = NULL;
     PTR32 ret;
 
     pthread_mutex_lock( &wgl_lock );
-    ptr = funcs->p_glMapBufferRange( target, offset, length, access );
-    ret = wow64_map_buffer( teb, target, 0, offset, length, access, ptr );
+    buffer = get_target_buffer( teb, target );
+    if (!buffer || !buffer->vk_memory) ptr = funcs->p_glMapBufferRange( target, offset, length, access );
+    ret = wow64_map_buffer( teb, buffer, target, 0, offset, length, access, ptr );
     pthread_mutex_unlock( &wgl_lock );
     return ret;
 }
@@ -2304,12 +2706,14 @@ PTR32 wow64_glMapBufferRange( TEB *teb, GLenum target, GLintptr offset, GLsizeip
 static PTR32 wow64_gl_map_named_buffer( TEB *teb, GLuint name, GLenum access, PFN_glMapNamedBuffer gl_map_named_buffer64 )
 {
     GLbitfield range_access = map_range_flags_from_map_flags( access );
-    void *ptr;
+    struct buffer *buffer;
+    void *ptr = NULL;
     PTR32 ret;
 
     pthread_mutex_lock( &wgl_lock );
-    ptr = gl_map_named_buffer64( name, access );
-    ret = wow64_map_buffer( teb, 0, name, 0, 0, range_access, ptr );
+    buffer = get_named_buffer( teb, name );
+    if (!buffer || !buffer->vk_memory) ptr = gl_map_named_buffer64( name, access );
+    ret = wow64_map_buffer( teb, buffer, 0, name, 0, 0, range_access, ptr );
     pthread_mutex_unlock( &wgl_lock );
     return ret;
 }
@@ -2329,12 +2733,14 @@ PTR32 wow64_glMapNamedBufferEXT( TEB *teb, GLuint buffer, GLenum access )
 static NTSTATUS wow64_gl_map_named_buffer_range( TEB *teb, GLuint name, GLintptr offset, GLsizeiptr length, GLbitfield access,
                                                  PFN_glMapNamedBufferRange gl_map_named_buffer_range64 )
 {
-    void *ptr;
+    struct buffer *buffer;
+    void *ptr = NULL;
     PTR32 ret;
 
     pthread_mutex_lock( &wgl_lock );
-    ptr = gl_map_named_buffer_range64( name, offset, length, access );
-    ret = wow64_map_buffer( teb, 0, name, offset, length, access, ptr );
+    buffer = get_named_buffer( teb, name );
+    if (!buffer || !buffer->vk_memory) ptr = gl_map_named_buffer_range64( name, offset, length, access );
+    ret = wow64_map_buffer( teb, buffer, 0, name, offset, length, access, ptr );
     pthread_mutex_unlock( &wgl_lock );
     return ret;
 }
@@ -2351,9 +2757,17 @@ PTR32 wow64_glMapNamedBufferRangeEXT( TEB *teb, GLuint buffer, GLintptr offset, 
     return wow64_gl_map_named_buffer_range( teb, buffer, offset, length, access, funcs->p_glMapNamedBufferRangeEXT );
 }
 
-static void wow64_unmap_buffer( struct buffer *buffer )
+static BOOL wow64_unmap_buffer( TEB *teb, struct buffer *buffer )
 {
-    if (!buffer->host_ptr) return;
+    if (buffer->vk_memory)
+    {
+        if (!buffer->map_ptr)
+        {
+            set_gl_error( teb, GL_INVALID_OPERATION );
+            return FALSE;
+        }
+        unmap_vk_buffer( buffer );
+    }
 
     if (buffer->host_ptr != buffer->map_ptr)
     {
@@ -2366,6 +2780,7 @@ static void wow64_unmap_buffer( struct buffer *buffer )
     }
 
     buffer->host_ptr = buffer->map_ptr = NULL;
+    return TRUE;
 }
 
 static GLboolean wow64_unmap_target_buffer( TEB *teb, GLenum target, PFN_glUnmapBuffer gl_unmap )
@@ -2374,8 +2789,8 @@ static GLboolean wow64_unmap_target_buffer( TEB *teb, GLenum target, PFN_glUnmap
     GLboolean ret;
 
     pthread_mutex_lock( &wgl_lock );
-    if ((buffer = get_target_buffer( teb, target ))) wow64_unmap_buffer( buffer );
-    ret = gl_unmap( target );
+    if ((buffer = get_target_buffer( teb, target ))) ret = wow64_unmap_buffer( teb, buffer );
+    if (!buffer || !buffer->vk_memory) ret = gl_unmap( target );
     pthread_mutex_unlock( &wgl_lock );
     return ret;
 }
@@ -2398,8 +2813,8 @@ static GLboolean wow64_gl_unmap_named_buffer( TEB *teb, GLuint name, PFN_glUnmap
     GLboolean ret;
 
     pthread_mutex_lock( &wgl_lock );
-    if ((buffer = get_named_buffer( teb, name ))) wow64_unmap_buffer( buffer );
-    ret = gl_unmap( name );
+    if ((buffer = get_named_buffer( teb, name ))) ret = wow64_unmap_buffer( teb, buffer );
+    if (!buffer || !buffer->vk_memory) ret = gl_unmap( name );
     pthread_mutex_unlock( &wgl_lock );
     return ret;
 }
@@ -2414,6 +2829,39 @@ GLboolean wow64_glUnmapNamedBufferEXT( TEB *teb, GLuint buffer )
 {
     const struct opengl_funcs *funcs = teb->glTable;
     return wow64_gl_unmap_named_buffer( teb, buffer, funcs->p_glUnmapNamedBufferEXT );
+}
+
+void wow64_glFlushMappedBufferRange( TEB *teb, GLenum target, GLintptr offset, GLsizeiptr length )
+{
+    const struct opengl_funcs *funcs = teb->glTable;
+    struct buffer *buffer;
+
+    pthread_mutex_lock( &wgl_lock );
+    if ((buffer = get_target_buffer( teb, target ))) flush_buffer( teb, buffer, offset, length );
+    if (!buffer || !buffer->vk_memory) funcs->p_glFlushMappedBufferRange( target, offset, length );
+    pthread_mutex_unlock( &wgl_lock );
+}
+
+void wow64_glFlushMappedNamedBufferRange( TEB *teb, GLuint name, GLintptr offset, GLsizeiptr length )
+{
+    const struct opengl_funcs *funcs = teb->glTable;
+    struct buffer *buffer;
+
+    pthread_mutex_lock( &wgl_lock );
+    if ((buffer = get_named_buffer( teb, name ))) flush_buffer( teb, buffer, offset, length );
+    if (!buffer || !buffer->vk_memory) funcs->p_glFlushMappedNamedBufferRange( name, offset, length );
+    pthread_mutex_unlock( &wgl_lock );
+}
+
+void wow64_glFlushMappedNamedBufferRangeEXT( TEB *teb, GLuint name, GLintptr offset, GLsizeiptr length )
+{
+    const struct opengl_funcs *funcs = teb->glTable;
+    struct buffer *buffer;
+
+    pthread_mutex_lock( &wgl_lock );
+    if ((buffer = get_named_buffer( teb, name ))) flush_buffer( teb, buffer, offset, length );
+    if (!buffer || !buffer->vk_memory) funcs->p_glFlushMappedNamedBufferRangeEXT( name, offset, length );
+    pthread_mutex_unlock( &wgl_lock );
 }
 
 NTSTATUS wow64_thread_attach( void *args )
