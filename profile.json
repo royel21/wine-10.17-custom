@@ -1,8 +1,8 @@
 {
     "type": "Wine",
-    "versionName": "10.17-x86_64",
+    "versionName": "10.18-x86_64",
     "versionCode": 0,
-    "description": "Wine 10.17 x86_64 - Windows compatibility layer with improved gaming support",
+    "description": "Wine 10.18 x86_64 - Windows compatibility layer with improved gaming support",
     "files": [],
     "wine": {
         "binPath": "bin",

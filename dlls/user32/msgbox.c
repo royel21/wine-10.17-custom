@@ -339,7 +339,7 @@ static void MSGBOX_CopyToClipbaord( HWND hwnd )
     ---------------------------
     */
     int len = ((wcslen(carriage) * 3) + (wcslen(line) * 4) + lenTitle + lenMsg) * sizeof(WCHAR);
-    WCHAR *text = heap_alloc(len);
+    WCHAR *text = malloc(len);
     if(text)
     {
         lstrcpyW(text, line);
@@ -387,7 +387,7 @@ static void MSGBOX_CopyToClipbaord( HWND hwnd )
             NtUserCloseClipboard();
         }
 
-        heap_free(text);
+        free(text);
     }
 }
 
