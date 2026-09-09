@@ -3165,3 +3165,8 @@ LRESULT COMCTL32_NCPaint(HWND hwnd, WPARAM wp, LPARAM lp, const WCHAR *theme_cla
     DeleteObject(clipRgn);
     return 0;
 }
+
+BOOL COMCTL32_IsThemed(HWND hwnd)
+{
+    return !!GetWindowTheme(hwnd);
+}

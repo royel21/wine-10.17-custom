@@ -197,6 +197,7 @@ void COMCTL32_EnsureBitmapSize(HBITMAP *pBitmap, int cxMinWidth, int cyMinHeight
 void COMCTL32_GetFontMetrics(HFONT hFont, TEXTMETRICW *ptm);
 LRESULT COMCTL32_ThemeChanged(HWND hwnd, const WCHAR *theme_class, BOOL invalidate, BOOL erase);
 BOOL COMCTL32_IsReflectedMessage(UINT uMsg);
+BOOL COMCTL32_IsThemed(HWND hwnd);
 LRESULT COMCTL32_NCPaint(HWND hwnd, WPARAM wp, LPARAM lp, const WCHAR *theme_class);
 INT  Str_GetPtrWtoA(LPCWSTR lpSrc, LPSTR lpDest, INT nMaxLen);
 INT  Str_GetPtrAtoW(LPCSTR lpSrc, LPWSTR lpDest, INT nMaxLen);
