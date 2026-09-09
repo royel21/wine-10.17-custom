@@ -11783,6 +11783,9 @@ static void test_builtin_effect(BOOL d3d11)
         {&CLSID_D2D1Grayscale,               3, 1, 1, 1},
         {&CLSID_D2D1ColorMatrix,             1, 1, 1, 1},
         {&CLSID_D2D1Flood,                   1, 0, 0, 0},
+        {&CLSID_D2D1GaussianBlur,            1, 1, 1, 1},
+        {&CLSID_D2D1PointSpecular,           1, 1, 1, 1},
+        {&CLSID_D2D1ArithmeticComposite,     1, 2, 2, 2},
     };
 
     if (!init_test_context(&ctx, d3d11))
@@ -13564,6 +13567,7 @@ static void test_effect_gaussian_blur(BOOL d3d11)
     };
     struct d2d1_test_context ctx;
     ID2D1DeviceContext *context;
+    ID2D1Properties *subprops;
     unsigned int count, i;
     ID2D1Effect *effect;
     WCHAR name[64];
@@ -13577,13 +13581,7 @@ static void test_effect_gaussian_blur(BOOL d3d11)
     context = ctx.context;
 
     hr = ID2D1DeviceContext_CreateEffect(context, &CLSID_D2D1GaussianBlur, &effect);
-    todo_wine
     ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
-    if (hr != S_OK)
-    {
-        release_test_context(&ctx);
-        return;
-    }
 
     check_system_properties(effect);
 
@@ -13595,12 +13593,24 @@ static void test_effect_gaussian_blur(BOOL d3d11)
         hr = ID2D1Effect_GetPropertyName(effect, properties[i].index, name, 64);
         ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
         ok(!wcscmp(name, properties[i].name), "Unexpected name %s.\n", wine_dbgstr_w(name));
+
+        hr = ID2D1Effect_GetSubProperties(effect, properties[i].index, &subprops);
+        todo_wine
+        ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+        if (SUCCEEDED(hr))
+        {
+            count = ID2D1Properties_GetPropertyCount(subprops);
+            ok(!count, "Got unexpected property count %u.\n", count);
+            ID2D1Properties_Release(subprops);
+        }
     }
 
     f = effect_get_float_prop(effect, D2D1_GAUSSIANBLUR_PROP_STANDARD_DEVIATION);
+    todo_wine
     ok(f == 3.0f, "Unexpected value %.8e.\n", f);
 
     v = effect_get_enum_prop(effect, D2D1_GAUSSIANBLUR_PROP_OPTIMIZATION);
+    todo_wine
     ok(v == D2D1_GAUSSIANBLUR_OPTIMIZATION_BALANCED, "Unexpected value %u.\n", v);
 
     v = effect_get_enum_prop(effect, D2D1_GAUSSIANBLUR_PROP_BORDER_MODE);
@@ -13639,13 +13649,7 @@ static void test_effect_point_specular(BOOL d3d11)
     context = ctx.context;
 
     hr = ID2D1DeviceContext_CreateEffect(context, &CLSID_D2D1PointSpecular, &effect);
-    todo_wine
     ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
-    if (hr != S_OK)
-    {
-        release_test_context(&ctx);
-        return;
-    }
 
     check_system_properties(effect);
 
@@ -13664,22 +13668,28 @@ static void test_effect_point_specular(BOOL d3d11)
             vec3.x, vec3.y, vec3.z);
 
     f = effect_get_float_prop(effect, D2D1_POINTSPECULAR_PROP_SPECULAR_EXPONENT);
+    todo_wine
     ok(f == 1.0f, "Unexpected value %.8e.\n", f);
 
     f = effect_get_float_prop(effect, D2D1_POINTSPECULAR_PROP_SPECULAR_CONSTANT);
+    todo_wine
     ok(f == 1.0f, "Unexpected value %.8e.\n", f);
 
     f = effect_get_float_prop(effect, D2D1_POINTSPECULAR_PROP_SURFACE_SCALE);
+    todo_wine
     ok(f == 1.0f, "Unexpected value %.8e.\n", f);
 
     vec3 = effect_get_vec3_prop(effect, D2D1_POINTSPECULAR_PROP_COLOR);
+    todo_wine
     ok(vec3.x == 1.0f && vec3.y == 1.0f && vec3.z == 1.0f, "Unexpected value {%.8e,%.8e,%.8e}.\n",
             vec3.x, vec3.y, vec3.z);
 
     vec2 = effect_get_vec2_prop(effect, D2D1_POINTSPECULAR_PROP_KERNEL_UNIT_LENGTH);
+    todo_wine
     ok(vec2.x == 1.0f && vec2.y == 1.0f, "Unexpected value {%.8e,%.8e}.\n", vec2.x, vec2.y);
 
     v = effect_get_enum_prop(effect, D2D1_POINTSPECULAR_PROP_SCALE_MODE);
+    todo_wine
     ok(v == D2D1_POINTSPECULAR_SCALE_MODE_LINEAR, "Unexpected value %u.\n", v);
 
     ID2D1Effect_Release(effect);
@@ -13708,13 +13718,7 @@ static void test_effect_arithmetic_composite(BOOL d3d11)
     context = ctx.context;
 
     hr = ID2D1DeviceContext_CreateEffect(context, &CLSID_D2D1ArithmeticComposite, &effect);
-    todo_wine
     ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
-    if (hr != S_OK)
-    {
-        release_test_context(&ctx);
-        return;
-    }
 
     check_system_properties(effect);
 
@@ -13729,11 +13733,67 @@ static void test_effect_arithmetic_composite(BOOL d3d11)
     }
 
     vec4 = effect_get_vec4_prop(effect, D2D1_ARITHMETICCOMPOSITE_PROP_COEFFICIENTS);
+    todo_wine
     ok(vec4.x == 1.0f && vec4.y == 0.0f && vec4.z == 0.0f && vec4.w == 0.0f,
             "Unexpected value {%.8e,%.8e,%.8e,%.8e}.\n", vec4.x, vec4.y, vec4.z, vec4.w);
 
     v = effect_get_bool_prop(effect, D2D1_ARITHMETICCOMPOSITE_PROP_CLAMP_OUTPUT);
     ok(!v, "Unexpected value %#x.\n", v);
+
+    ID2D1Effect_Release(effect);
+    release_test_context(&ctx);
+}
+
+static void test_effect_shadow(BOOL d3d11)
+{
+    static const struct effect_property properties[] =
+    {
+        { L"BlurStandardDeviation", D2D1_SHADOW_PROP_BLUR_STANDARD_DEVIATION, D2D1_PROPERTY_TYPE_FLOAT },
+        { L"Color", D2D1_SHADOW_PROP_COLOR, D2D1_PROPERTY_TYPE_VECTOR4 },
+        { L"Optimization", D2D1_SHADOW_PROP_OPTIMIZATION, D2D1_PROPERTY_TYPE_ENUM },
+    };
+    struct d2d1_test_context ctx;
+    ID2D1DeviceContext *context;
+    unsigned int count, i;
+    ID2D1Effect *effect;
+    D2D_VECTOR_4F vec4;
+    WCHAR name[64];
+    HRESULT hr;
+    UINT32 v;
+    float f;
+
+    if (!init_test_context(&ctx, d3d11))
+        return;
+
+    context = ctx.context;
+
+    hr = ID2D1DeviceContext_CreateEffect(context, &CLSID_D2D1Shadow, &effect);
+    ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+
+    check_system_properties(effect);
+
+    count = ID2D1Effect_GetPropertyCount(effect);
+    ok(count == 3, "Got unexpected property count %u.\n", count);
+
+    for (i = 0; i < ARRAY_SIZE(properties); ++i)
+    {
+        hr = ID2D1Effect_GetPropertyName(effect, properties[i].index, name, 64);
+        ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+        ok(!wcscmp(name, properties[i].name), "Unexpected name %s.\n", wine_dbgstr_w(name));
+    }
+
+    f = effect_get_float_prop(effect, D2D1_SHADOW_PROP_BLUR_STANDARD_DEVIATION);
+    todo_wine
+    ok(f == 3.0f, "Unexpected value %.8e.\n", f);
+
+    vec4 = effect_get_vec4_prop(effect, D2D1_SHADOW_PROP_COLOR);
+    todo_wine
+    ok(vec4.x == 0.0f && vec4.y == 0.0f && vec4.z == 0.0f && vec4.w == 1.0f,
+            "Unexpected value {%.8e,%.8e,%.8e,%.8e}.\n", vec4.x, vec4.y, vec4.z, vec4.w);
+
+    v = effect_get_enum_prop(effect, D2D1_SHADOW_PROP_OPTIMIZATION);
+    todo_wine
+    ok(v == D2D1_SHADOW_OPTIMIZATION_BALANCED, "Unexpected value %#x.\n", v);
 
     ID2D1Effect_Release(effect);
     release_test_context(&ctx);
@@ -17104,17 +17164,18 @@ START_TEST(d2d1)
     queue_d3d10_test(test_colour_space);
     queue_test(test_geometry_group);
     queue_test(test_mt_factory);
-    queue_test(test_effect_register);
+    queue_d3d10_test(test_effect_register);
     queue_test(test_effect_context);
-    queue_test(test_effect_properties);
-    queue_test(test_builtin_effect);
+    queue_d3d10_test(test_effect_properties);
+    queue_d3d10_test(test_builtin_effect);
     queue_test(test_effect_2d_affine);
     queue_test(test_effect_crop);
     queue_test(test_effect_grayscale);
-    queue_test(test_registered_effects);
+    queue_d3d10_test(test_registered_effects);
     queue_d3d10_test(test_effect_gaussian_blur);
     queue_d3d10_test(test_effect_point_specular);
     queue_d3d10_test(test_effect_arithmetic_composite);
+    queue_d3d10_test(test_effect_shadow);
     queue_test(test_transform_graph);
     queue_test(test_offset_transform);
     queue_test(test_blend_transform);
