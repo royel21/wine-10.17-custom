@@ -2211,7 +2211,6 @@ static void install_bpf(struct sigaction *sig_act)
         ERR_(seh)("prctl(PR_SET_SECCOMP, ...): %s.\n", strerror(errno));
         return;
     }
-    check_bpf_jit_enable();
 #else
     WARN_(seh)("Built without seccomp.\n");
 #endif

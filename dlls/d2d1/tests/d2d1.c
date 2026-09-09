@@ -60,6 +60,78 @@ static void check_interface_(unsigned int line, void *iface_ptr, REFIID iid, BOO
         IUnknown_Release(unk);
 }
 
+#define effect_get_float_prop(a,b) _effect_get_float_prop(a,b,__LINE__)
+static float _effect_get_float_prop(ID2D1Effect *effect, UINT32 prop, int line)
+{
+    float v = 123321.0f;
+    HRESULT hr;
+
+    hr = ID2D1Effect_GetValue(effect, prop, D2D1_PROPERTY_TYPE_FLOAT, (BYTE *)&v, sizeof(v));
+    ok_(__FILE__, line)(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    return v;
+}
+
+#define effect_get_vec4_prop(a,b) _effect_get_vec4_prop(a,b,__LINE__)
+static D2D_VECTOR_4F _effect_get_vec4_prop(ID2D1Effect *effect, UINT32 prop, int line)
+{
+    D2D_VECTOR_4F v = { 123321.0f, 123321.0f, 123321.0f, 123321.0f };
+    HRESULT hr;
+
+    hr = ID2D1Effect_GetValue(effect, prop, D2D1_PROPERTY_TYPE_VECTOR4, (BYTE *)&v, sizeof(v));
+    ok_(__FILE__, line)(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    return v;
+}
+
+#define effect_get_vec3_prop(a,b) _effect_get_vec3_prop(a,b,__LINE__)
+static D2D_VECTOR_3F _effect_get_vec3_prop(ID2D1Effect *effect, UINT32 prop, int line)
+{
+    D2D_VECTOR_3F v = { 123321.0f, 123321.0f, 123321.0f };
+    HRESULT hr;
+
+    hr = ID2D1Effect_GetValue(effect, prop, D2D1_PROPERTY_TYPE_VECTOR3, (BYTE *)&v, sizeof(v));
+    ok_(__FILE__, line)(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    return v;
+}
+
+#define effect_get_vec2_prop(a,b) _effect_get_vec2_prop(a,b,__LINE__)
+static D2D_VECTOR_2F _effect_get_vec2_prop(ID2D1Effect *effect, UINT32 prop, int line)
+{
+    D2D_VECTOR_2F v = { 123321.0f, 123321.0f };
+    HRESULT hr;
+
+    hr = ID2D1Effect_GetValue(effect, prop, D2D1_PROPERTY_TYPE_VECTOR2, (BYTE *)&v, sizeof(v));
+    ok_(__FILE__, line)(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    return v;
+}
+
+#define effect_get_enum_prop(a,b) _effect_get_enum_prop(a,b,__LINE__)
+static UINT32 _effect_get_enum_prop(ID2D1Effect *effect, UINT32 prop, int line)
+{
+    UINT32 v = 123321;
+    HRESULT hr;
+
+    hr = ID2D1Effect_GetValue(effect, prop, D2D1_PROPERTY_TYPE_ENUM, (BYTE *)&v, sizeof(v));
+    ok_(__FILE__, line)(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    return v;
+}
+
+#define effect_get_bool_prop(a,b) _effect_get_bool_prop(a,b,__LINE__)
+static UINT32 _effect_get_bool_prop(ID2D1Effect *effect, UINT32 prop, int line)
+{
+    UINT32 v = 123321;
+    HRESULT hr;
+
+    hr = ID2D1Effect_GetValue(effect, prop, D2D1_PROPERTY_TYPE_BOOL, (BYTE *)&v, sizeof(v));
+    ok_(__FILE__, line)(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    return v;
+}
+
 static const WCHAR *effect_xml_a =
 L"<?xml version='1.0'?>                                                       \
     <Effect>                                                                  \
@@ -13475,6 +13547,198 @@ static void test_effect_grayscale(BOOL d3d11)
     release_test_context(&ctx);
 }
 
+struct effect_property
+{
+    const WCHAR *name;
+    UINT32 index;
+    D2D1_PROPERTY_TYPE type;
+};
+
+static void test_effect_gaussian_blur(BOOL d3d11)
+{
+    static const struct effect_property properties[] =
+    {
+        { L"StandardDeviation", D2D1_GAUSSIANBLUR_PROP_STANDARD_DEVIATION, D2D1_PROPERTY_TYPE_FLOAT },
+        { L"Optimization", D2D1_GAUSSIANBLUR_PROP_OPTIMIZATION, D2D1_PROPERTY_TYPE_ENUM },
+        { L"BorderMode", D2D1_GAUSSIANBLUR_PROP_BORDER_MODE, D2D1_PROPERTY_TYPE_ENUM },
+    };
+    struct d2d1_test_context ctx;
+    ID2D1DeviceContext *context;
+    unsigned int count, i;
+    ID2D1Effect *effect;
+    WCHAR name[64];
+    HRESULT hr;
+    UINT32 v;
+    float f;
+
+    if (!init_test_context(&ctx, d3d11))
+        return;
+
+    context = ctx.context;
+
+    hr = ID2D1DeviceContext_CreateEffect(context, &CLSID_D2D1GaussianBlur, &effect);
+    todo_wine
+    ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+    if (hr != S_OK)
+    {
+        release_test_context(&ctx);
+        return;
+    }
+
+    check_system_properties(effect);
+
+    count = ID2D1Effect_GetPropertyCount(effect);
+    ok(count == 3, "Got unexpected property count %u.\n", count);
+
+    for (i = 0; i < ARRAY_SIZE(properties); ++i)
+    {
+        hr = ID2D1Effect_GetPropertyName(effect, properties[i].index, name, 64);
+        ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+        ok(!wcscmp(name, properties[i].name), "Unexpected name %s.\n", wine_dbgstr_w(name));
+    }
+
+    f = effect_get_float_prop(effect, D2D1_GAUSSIANBLUR_PROP_STANDARD_DEVIATION);
+    ok(f == 3.0f, "Unexpected value %.8e.\n", f);
+
+    v = effect_get_enum_prop(effect, D2D1_GAUSSIANBLUR_PROP_OPTIMIZATION);
+    ok(v == D2D1_GAUSSIANBLUR_OPTIMIZATION_BALANCED, "Unexpected value %u.\n", v);
+
+    v = effect_get_enum_prop(effect, D2D1_GAUSSIANBLUR_PROP_BORDER_MODE);
+    ok(v == D2D1_BORDER_MODE_SOFT, "Unexpected border mode %u.\n", v);
+
+    ID2D1Effect_Release(effect);
+    release_test_context(&ctx);
+}
+
+static void test_effect_point_specular(BOOL d3d11)
+{
+    static const struct effect_property properties[] =
+    {
+        { L"LightPosition", D2D1_POINTSPECULAR_PROP_LIGHT_POSITION, D2D1_PROPERTY_TYPE_VECTOR3 },
+        { L"SpecularExponent", D2D1_POINTSPECULAR_PROP_SPECULAR_EXPONENT, D2D1_PROPERTY_TYPE_FLOAT },
+        { L"SpecularConstant", D2D1_POINTSPECULAR_PROP_SPECULAR_CONSTANT, D2D1_PROPERTY_TYPE_FLOAT },
+        { L"SurfaceScale", D2D1_POINTSPECULAR_PROP_SURFACE_SCALE, D2D1_PROPERTY_TYPE_FLOAT },
+        { L"Color", D2D1_POINTSPECULAR_PROP_COLOR, D2D1_PROPERTY_TYPE_VECTOR3 },
+        { L"KernelUnitLength", D2D1_POINTSPECULAR_PROP_KERNEL_UNIT_LENGTH, D2D1_PROPERTY_TYPE_VECTOR2 },
+        { L"ScaleMode", D2D1_POINTSPECULAR_PROP_SCALE_MODE, D2D1_PROPERTY_TYPE_ENUM },
+    };
+    struct d2d1_test_context ctx;
+    ID2D1DeviceContext *context;
+    unsigned int count, i;
+    ID2D1Effect *effect;
+    D2D_VECTOR_3F vec3;
+    D2D_VECTOR_2F vec2;
+    WCHAR name[64];
+    HRESULT hr;
+    UINT32 v;
+    float f;
+
+    if (!init_test_context(&ctx, d3d11))
+        return;
+
+    context = ctx.context;
+
+    hr = ID2D1DeviceContext_CreateEffect(context, &CLSID_D2D1PointSpecular, &effect);
+    todo_wine
+    ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+    if (hr != S_OK)
+    {
+        release_test_context(&ctx);
+        return;
+    }
+
+    check_system_properties(effect);
+
+    count = ID2D1Effect_GetPropertyCount(effect);
+    ok(count == 7, "Got unexpected property count %u.\n", count);
+
+    for (i = 0; i < ARRAY_SIZE(properties); ++i)
+    {
+        hr = ID2D1Effect_GetPropertyName(effect, properties[i].index, name, 64);
+        ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+        ok(!wcscmp(name, properties[i].name), "Unexpected name %s.\n", wine_dbgstr_w(name));
+    }
+
+    vec3 = effect_get_vec3_prop(effect, D2D1_POINTSPECULAR_PROP_LIGHT_POSITION);
+    ok(vec3.x == 0.0f && vec3.y == 0.0f && vec3.z == 0.0f, "Unexpected value {%.8e,%.8e,%.8e}.\n",
+            vec3.x, vec3.y, vec3.z);
+
+    f = effect_get_float_prop(effect, D2D1_POINTSPECULAR_PROP_SPECULAR_EXPONENT);
+    ok(f == 1.0f, "Unexpected value %.8e.\n", f);
+
+    f = effect_get_float_prop(effect, D2D1_POINTSPECULAR_PROP_SPECULAR_CONSTANT);
+    ok(f == 1.0f, "Unexpected value %.8e.\n", f);
+
+    f = effect_get_float_prop(effect, D2D1_POINTSPECULAR_PROP_SURFACE_SCALE);
+    ok(f == 1.0f, "Unexpected value %.8e.\n", f);
+
+    vec3 = effect_get_vec3_prop(effect, D2D1_POINTSPECULAR_PROP_COLOR);
+    ok(vec3.x == 1.0f && vec3.y == 1.0f && vec3.z == 1.0f, "Unexpected value {%.8e,%.8e,%.8e}.\n",
+            vec3.x, vec3.y, vec3.z);
+
+    vec2 = effect_get_vec2_prop(effect, D2D1_POINTSPECULAR_PROP_KERNEL_UNIT_LENGTH);
+    ok(vec2.x == 1.0f && vec2.y == 1.0f, "Unexpected value {%.8e,%.8e}.\n", vec2.x, vec2.y);
+
+    v = effect_get_enum_prop(effect, D2D1_POINTSPECULAR_PROP_SCALE_MODE);
+    ok(v == D2D1_POINTSPECULAR_SCALE_MODE_LINEAR, "Unexpected value %u.\n", v);
+
+    ID2D1Effect_Release(effect);
+    release_test_context(&ctx);
+}
+
+static void test_effect_arithmetic_composite(BOOL d3d11)
+{
+    static const struct effect_property properties[] =
+    {
+        { L"Coefficients", D2D1_ARITHMETICCOMPOSITE_PROP_COEFFICIENTS, D2D1_PROPERTY_TYPE_VECTOR4 },
+        { L"ClampOutput", D2D1_ARITHMETICCOMPOSITE_PROP_CLAMP_OUTPUT, D2D1_PROPERTY_TYPE_BOOL },
+    };
+    struct d2d1_test_context ctx;
+    ID2D1DeviceContext *context;
+    unsigned int count, i;
+    ID2D1Effect *effect;
+    D2D_VECTOR_4F vec4;
+    WCHAR name[64];
+    HRESULT hr;
+    UINT32 v;
+
+    if (!init_test_context(&ctx, d3d11))
+        return;
+
+    context = ctx.context;
+
+    hr = ID2D1DeviceContext_CreateEffect(context, &CLSID_D2D1ArithmeticComposite, &effect);
+    todo_wine
+    ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+    if (hr != S_OK)
+    {
+        release_test_context(&ctx);
+        return;
+    }
+
+    check_system_properties(effect);
+
+    count = ID2D1Effect_GetPropertyCount(effect);
+    ok(count == 2, "Got unexpected property count %u.\n", count);
+
+    for (i = 0; i < ARRAY_SIZE(properties); ++i)
+    {
+        hr = ID2D1Effect_GetPropertyName(effect, properties[i].index, name, 64);
+        ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+        ok(!wcscmp(name, properties[i].name), "Unexpected name %s.\n", wine_dbgstr_w(name));
+    }
+
+    vec4 = effect_get_vec4_prop(effect, D2D1_ARITHMETICCOMPOSITE_PROP_COEFFICIENTS);
+    ok(vec4.x == 1.0f && vec4.y == 0.0f && vec4.z == 0.0f && vec4.w == 0.0f,
+            "Unexpected value {%.8e,%.8e,%.8e,%.8e}.\n", vec4.x, vec4.y, vec4.z, vec4.w);
+
+    v = effect_get_bool_prop(effect, D2D1_ARITHMETICCOMPOSITE_PROP_CLAMP_OUTPUT);
+    ok(!v, "Unexpected value %#x.\n", v);
+
+    ID2D1Effect_Release(effect);
+    release_test_context(&ctx);
+}
+
 static void test_registered_effects(BOOL d3d11)
 {
     UINT32 ret, count, count2, count3;
@@ -16848,6 +17112,9 @@ START_TEST(d2d1)
     queue_test(test_effect_crop);
     queue_test(test_effect_grayscale);
     queue_test(test_registered_effects);
+    queue_d3d10_test(test_effect_gaussian_blur);
+    queue_d3d10_test(test_effect_point_specular);
+    queue_d3d10_test(test_effect_arithmetic_composite);
     queue_test(test_transform_graph);
     queue_test(test_offset_transform);
     queue_test(test_blend_transform);

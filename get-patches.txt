@@ -1,0 +1,9 @@
+mkdir wine-patches && cd wine-patches
+git init
+git remote add origin https://gitlab.winehq.org/wine/wine.git
+
+# Fetch only the history around the tags (shallow fetch)
+git fetch --depth 300 origin tag wine-10.17 tag wine-10.18
+
+# Generate individual formatted patches
+git format-patch wine-10.17..wine-10.18 -o .

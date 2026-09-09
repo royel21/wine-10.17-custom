@@ -228,7 +228,7 @@ static const BOOL is_win64 = sizeof(void *) > sizeof(int);
 static BOOL glxRequireVersion(int requiredVersion);
 
 static void dump_PIXELFORMATDESCRIPTOR(const PIXELFORMATDESCRIPTOR *ppfd) {
-  TRACE( "size %u version %u flags %u type %u color %u %u,%u,%u,%u "
+  TRACE( "size %u version %u flags %#x type %u color %u %u,%u,%u,%u "
          "accum %u depth %u stencil %u aux %u ",
          ppfd->nSize, ppfd->nVersion, ppfd->dwFlags, ppfd->iPixelType,
          ppfd->cColorBits, ppfd->cRedBits, ppfd->cGreenBits, ppfd->cBlueBits, ppfd->cAlphaBits,
@@ -1449,7 +1449,7 @@ static BOOL x11drv_surface_swap( struct opengl_drawable *base )
 
     TRACE( "drawable %s\n", debugstr_opengl_drawable( base ) );
 
-    if ((offscreen = InterlockedCompareExchange( &base->client->offscreen, 0, 0 )) ||
+    if (!(offscreen = InterlockedCompareExchange( &base->client->offscreen, 0, 0 )) ||
         !ctx || !pglXSwapBuffersMscOML) pglXSwapBuffers( gdi_display, gl->drawable );
     else
     {
