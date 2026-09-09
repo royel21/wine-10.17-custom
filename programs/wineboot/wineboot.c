@@ -32,7 +32,7 @@
  * - Services (NT)
  * - HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\RunServicesOnce (9x, asynch)
  * - HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\RunServices (9x, asynch)
- * 
+ *
  * After log in
  * - HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\RunOnce (all, synch)
  * - HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Run (all, asynch)
@@ -41,7 +41,7 @@
  * - HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\RunOnce (all, asynch)
  *
  * Somewhere in there is processing the RunOnceEx entries (also no imp)
- * 
+ *
  * Bugs:
  * - If a pending rename registry does not start with \??\ the entry is
  *   processed anyways. I'm not sure that is the Windows behaviour.
@@ -1052,6 +1052,17 @@ static void create_known_dlls(void)
     RegCloseKey( key );
 }
 
+/* Some broken applications expect the ProxyEnable registry value to exist.
+ * This value is automatically created by wininet when initializing.
+ * This value is not initialized for new users on Windows, but it is created
+ * for the admin user. */
+static void initialize_internet(void)
+{
+    HINTERNET inet;
+
+    if ((inet = InternetOpenW( L"Wine", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0 )))
+        InternetCloseHandle( inet );
+}
 
 static void create_proxy_settings(void)
 {
@@ -1900,6 +1911,7 @@ int __cdecl main( int argc, char *argv[] )
 
     create_volatile_environment_registry_key();
     create_known_dlls();
+    initialize_internet();
     create_proxy_settings();
 
     ProcessRunKeys( HKEY_LOCAL_MACHINE, L"RunOnce", TRUE, TRUE );
