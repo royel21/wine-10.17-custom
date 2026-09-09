@@ -2243,9 +2243,10 @@ struct map_image_view_request
     obj_handle_t mapping;
     client_ptr_t base;
     mem_size_t   size;
+    mem_size_t   offset;
     unsigned int entry;
     unsigned short machine;
-    char __pad_38[2];
+    char __pad_46[2];
 };
 struct map_image_view_reply
 {
@@ -7157,6 +7158,6 @@ union generic_reply
     struct get_esync_apc_fd_reply get_esync_apc_fd_reply;
 };
 
-#define SERVER_PROTOCOL_VERSION 924
+#define SERVER_PROTOCOL_VERSION 925
 
 #endif /* __WINE_WINE_SERVER_PROTOCOL_H */
