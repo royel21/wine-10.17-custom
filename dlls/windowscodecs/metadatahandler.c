@@ -1079,7 +1079,7 @@ static HRESULT load_IFD_entry(IStream *input, const GUID *vendor, DWORD options,
         MetadataItem *item, bool resolve_pointer_tags, bool is_writer)
 {
     BOOL native_byte_order = !(options & WICPersistOptionBigEndian);
-    ULONG count, value, i, bytesread;
+    ULONG count, value, i;
     IStream *sub_stream;
     SHORT type;
     LARGE_INTEGER pos;

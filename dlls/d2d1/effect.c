@@ -1007,6 +1007,10 @@ L"<?xml version='1.0'?>                                                      \
     <Inputs>                                                                 \
       <Input name='Source'/>                                                 \
     </Inputs>                                                                \
+    <Property name='InterpolationMode' type='enum' />                        \
+    <Property name='BorderMode' type='enum' />                               \
+    <Property name='TransformMatrix' type='matrix3x2' />                     \
+    <Property name='Sharpness' type='float' />                               \
   </Effect>";
 
 static const WCHAR _3d_perspective_transform_description[] =
@@ -1095,6 +1099,7 @@ L"<?xml version='1.0'?>                                                   \
     <Property name='Description' type='string' value='Flood'/>            \
     <Inputs minimum='0' maximum='0' >                                     \
     </Inputs>                                                             \
+    <Property name='Color' type='vector4' />                              \
   </Effect>";
 
 static const WCHAR gaussian_blur_description[] =

@@ -19,11 +19,8 @@
 
 #define COBJMACROS
 
-#include <stdbool.h>
-
 #include "initguid.h"
 #include "roapi.h"
-#include "weakreference.h"
 #include "winstring.h"
 #define WIDL_using_Windows_Foundation
 #include "windows.foundation.h"
@@ -95,18 +92,10 @@ void *__cdecl Allocate(size_t size)
     TRACE("(%Iu)\n", size);
 
     addr = malloc(size);
-    /* TODO: Throw a COMException on allocation failure. */
     if (!addr)
-        FIXME("allocation failure\n");
+        __abi_WinRTraiseOutOfMemoryException();
     return addr;
 }
-
-struct exception_alloc
-{
-    void *unknown;
-    void *exception_inner;
-    char data[0];
-};
 
 void *__cdecl AllocateException(size_t size)
 {
@@ -133,20 +122,6 @@ void __cdecl FreeException(void *addr)
 
     Free(base);
 }
-
-struct control_block
-{
-    IWeakReference IWeakReference_iface;
-    LONG ref_weak;
-    LONG ref_strong;
-    IUnknown *object;
-    bool is_inline;
-    bool unknown;
-    bool is_exception;
-#ifdef _WIN32
-    char _padding[5];
-#endif
-};
 
 static inline struct control_block *impl_from_IWeakReference(IWeakReference *iface)
 {
@@ -421,8 +396,7 @@ static const char *debugstr_abi_type_descriptor(const struct __abi_type_descript
 void *WINAPI __abi_make_type_id(const struct __abi_type_descriptor *desc)
 {
     /* TODO:
-     * Implement IEquatable and IPrintable.
-     * Throw a COMException if CoCreateFreeThreadedMarshaler fails. */
+     * Implement IEquatable and IPrintable. */
     struct platform_type *obj;
     HRESULT hr;
 
@@ -436,9 +410,8 @@ void *WINAPI __abi_make_type_id(const struct __abi_type_descriptor *desc)
     hr = CoCreateFreeThreadedMarshaler((IUnknown *)&obj->IInspectable_iface, &obj->marshal);
     if (FAILED(hr))
     {
-        FIXME("CoCreateFreeThreadedMarshaler failed: %#lx\n", hr);
         Free(obj);
-        return NULL;
+        __abi_WinRTraiseCOMException(hr);
     }
     return &obj->IInspectable_iface;
 }
@@ -464,10 +437,9 @@ HSTRING __cdecl platform_type_ToString(struct platform_type *this)
 
     TRACE("(%p)\n", this);
 
-    /* TODO: Throw a COMException if this fails */
     hr = WindowsCreateString(this->desc->name, this->desc->name ? wcslen(this->desc->name) : 0, &str);
     if (FAILED(hr))
-        FIXME("WindowsCreateString failed: %#lx\n", hr);
+        __abi_WinRTraiseCOMException(hr);
     return str;
 }
 
@@ -536,10 +508,7 @@ void *WINAPI CreateValue(int typecode, const void *val)
     hr = GetActivationFactoryByPCWSTR(RuntimeClass_Windows_Foundation_PropertyValue, &IID_IPropertyValueStatics,
                                       (void **)&statics);
     if (FAILED(hr))
-    {
-        FIXME("GetActivationFactoryByPCWSTR failed: %#lx\n", hr);
-        return NULL;
-    }
+        __abi_WinRTraiseCOMException(hr);
     switch (typecode)
     {
     case TYPECODE_BOOLEAN:
@@ -604,98 +573,16 @@ void *WINAPI CreateValue(int typecode, const void *val)
 
     IPropertyValueStatics_Release(statics);
     if (FAILED(hr))
-    {
-        FIXME("Failed to create IPropertyValue object: %#lx\n", hr);
-        return NULL;
-    }
+        __abi_WinRTraiseCOMException(hr);
     return obj;
-}
-
-void *__cdecl CreateExceptionWithMessage(HRESULT hr, HSTRING msg)
-{
-    FIXME("(%#lx, %s): stub!\n", hr, debugstr_hstring(msg));
-    return NULL;
-}
-
-void *__cdecl CreateException(HRESULT hr)
-{
-    FIXME("(%#lx): stub!\n", hr);
-    return NULL;
-}
-
-void WINAPI __abi_WinRTraiseCOMException(HRESULT hr)
-{
-    FIXME("(%#lx): stub!\n", hr);
-}
-
-#define WINRT_EXCEPTIONS                                     \
-    WINRT_EXCEPTION(AccessDenied, E_ACCESSDENIED)            \
-    WINRT_EXCEPTION(ChangedState, E_CHANGED_STATE)           \
-    WINRT_EXCEPTION(ClassNotRegistered, REGDB_E_CLASSNOTREG) \
-    WINRT_EXCEPTION(Disconnected, RPC_E_DISCONNECTED)        \
-    WINRT_EXCEPTION(Failure, E_FAIL)                         \
-    WINRT_EXCEPTION(InvalidArgument, E_INVALIDARG)           \
-    WINRT_EXCEPTION(InvalidCast, E_NOINTERFACE)              \
-    WINRT_EXCEPTION(NotImplemented, E_NOTIMPL)               \
-    WINRT_EXCEPTION(NullReference, E_POINTER)                \
-    WINRT_EXCEPTION(ObjectDisposed, RO_E_CLOSED)             \
-    WINRT_EXCEPTION(OperationCanceled, E_ABORT)              \
-    WINRT_EXCEPTION(OutOfBounds, E_BOUNDS)                   \
-    WINRT_EXCEPTION(OutOfMemory, E_OUTOFMEMORY)              \
-    WINRT_EXCEPTION(WrongThread, RPC_E_WRONG_THREAD)
-
-#define WINRT_EXCEPTION(name, hr)                                                  \
-    void WINAPI __abi_WinRTraise##name##Exception(void)                            \
-    {                                                                              \
-        FIXME("(): stub!\n");                                                      \
-    }                                                                              \
-    void *__cdecl platform_##name##Exception_ctor(void *this)                      \
-    {                                                                              \
-        FIXME("(%p): stub!\n", this);                                              \
-        return this;                                                               \
-    }                                                                              \
-    void *__cdecl platform_##name##Exception_hstring_ctor(void *this, HSTRING msg) \
-    {                                                                              \
-        FIXME("(%p, %s): stub!\n", this, debugstr_hstring(msg));                   \
-        return this;                                                               \
-    }
-
-WINRT_EXCEPTIONS
-#undef WINRT_EXCEPTION
-
-void *__cdecl platform_Exception_ctor(void *this, HRESULT hr)
-{
-    FIXME("(%p, %#lx): stub!\n", this, hr);
-    return this;
-}
-
-void *__cdecl platform_Exception_hstring_ctor(void *this, HRESULT hr, HSTRING msg)
-{
-    FIXME("(%p, %#lx, %s): stub!\n", this, hr, debugstr_hstring(msg));
-    return this;
-}
-
-void *__cdecl platform_COMException_ctor(void *this, HRESULT hr)
-{
-    FIXME("(%p, %#lx): stub!\n", this, hr);
-    return this;
-}
-
-void *__cdecl platform_COMException_hstring_ctor(void *this, HRESULT hr, HSTRING msg)
-{
-    FIXME("(%p, %#lx, %s): stub!\n", this, hr, debugstr_hstring(msg));
-    return this;
-}
-
-HSTRING __cdecl platform_exception_get_Message(void *excp)
-{
-    FIXME("(%p): stub!\n", excp);
-    return NULL;
 }
 
 BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, void *reserved)
 {
     if (reason == DLL_PROCESS_ATTACH)
+    {
+        init_exception(inst);
         init_platform_type(inst);
+    }
     return TRUE;
 }
