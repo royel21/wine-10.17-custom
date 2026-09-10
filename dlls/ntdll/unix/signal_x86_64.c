@@ -207,8 +207,8 @@ __ASM_GLOBAL_FUNC( modify_ldt,
 #define EFL_sig(context)     ((context)->uc_mcontext.gregs[REG_EFL])
 #define TRAP_sig(context)    ((context)->uc_mcontext.gregs[REG_TRAPNO])
 #define ERROR_sig(context)   ((context)->uc_mcontext.gregs[REG_ERR])
-#define FPU_sig(context)     ((XMM_SAVE_AREA32 *)((context)->uc_mcontext.fpregs))
-#define XState_sig(fpu)      (((unsigned int *)fpu->Reserved4)[12] == FP_XSTATE_MAGIC1 ? (XSAVE_AREA_HEADER *)(fpu + 1) : NULL)
+#define FPU_sig(context)     ((void *)((context)->uc_mcontext.fpregs))
+#define XState_sig(fpu)      (((unsigned int *)((XMM_SAVE_AREA32 *)fpu)->Reserved4)[12] == FP_XSTATE_MAGIC1 ? (XSAVE_AREA_HEADER *)(((XMM_SAVE_AREA32 *)fpu) + 1) : NULL)
 
 #elif defined(__FreeBSD__) || defined (__FreeBSD_kernel__)
 
@@ -240,7 +240,7 @@ __ASM_GLOBAL_FUNC( modify_ldt,
 #define RSP_sig(context)     ((context)->uc_mcontext.mc_rsp)
 #define TRAP_sig(context)    ((context)->uc_mcontext.mc_trapno)
 #define ERROR_sig(context)   ((context)->uc_mcontext.mc_err)
-#define FPU_sig(context)     ((XMM_SAVE_AREA32 *)((context)->uc_mcontext.mc_fpstate))
+#define FPU_sig(context)     ((void *)((context)->uc_mcontext.mc_fpstate))
 #define XState_sig(context)  NULL
 
 #elif defined(__NetBSD__)
@@ -271,7 +271,7 @@ __ASM_GLOBAL_FUNC( modify_ldt,
 #define RSP_sig(context)    (*((unsigned long*)&(context)->uc_mcontext.__gregs[_REG_URSP]))
 #define TRAP_sig(context)   ((context)->uc_mcontext.__gregs[_REG_TRAPNO])
 #define ERROR_sig(context)  ((context)->uc_mcontext.__gregs[_REG_ERR])
-#define FPU_sig(context)    ((XMM_SAVE_AREA32 *)((context)->uc_mcontext.__fpregs))
+#define FPU_sig(context)    ((void *)((context)->uc_mcontext.__fpregs))
 #define XState_sig(context) NULL
 
 #elif defined (__APPLE__)
@@ -347,15 +347,15 @@ _STRUCT_MCONTEXT_AVX64_FULL
  * This changes the offset of the FPU state.
  * Checking mcsize is the only way to determine which mcontext is in use.
  */
-static inline XMM_SAVE_AREA32 *FPU_sig( const ucontext_t *context )
+static inline void *FPU_sig( const ucontext_t *context )
 {
     if (context->uc_mcsize == sizeof(_STRUCT_MCONTEXT64_FULL) ||
         context->uc_mcsize == sizeof(_STRUCT_MCONTEXT_AVX64_FULL) ||
         context->uc_mcsize == SIZEOF_STRUCT_MCONTEXT_AVX512_64_FULL)
     {
-        return (XMM_SAVE_AREA32 *)&((_STRUCT_MCONTEXT64_FULL *)context->uc_mcontext)->__fs.__fpu_fcw;
+        return &((_STRUCT_MCONTEXT64_FULL *)context->uc_mcontext)->__fs.__fpu_fcw;
     }
-    return (XMM_SAVE_AREA32 *)&(context)->uc_mcontext->__fs.__fpu_fcw;
+    return &(context)->uc_mcontext->__fs.__fpu_fcw;
 }
 
 static inline const WORD *SS_sig_ptr( const ucontext_t *context )
@@ -1023,7 +1023,7 @@ static void save_context( struct xcontext *xcontext, const ucontext_t *sigcontex
         XSAVE_AREA_HEADER *xs;
 
         context->ContextFlags |= CONTEXT_FLOATING_POINT;
-        context->FltSave = *FPU_sig(sigcontext);
+        memcpy( &context->FltSave, FPU_sig(sigcontext), sizeof(context->FltSave) );
         context->MxCsr = context->FltSave.MxCsr;
         if (xstate_extended_features && (xs = XState_sig(FPU_sig(sigcontext))))
         {
@@ -1064,7 +1064,7 @@ static void fixup_frame_fpu_state( struct syscall_frame *frame, const ucontext_t
         frame->xstate.CompactionMask = 0x8000000000000000 | user_shared_data->XState.EnabledFeatures;
 
     if (!FPU_sig(sigcontext)) return;
-    xsave = *FPU_sig(sigcontext);
+    memcpy( &xsave, FPU_sig(sigcontext), sizeof(xsave) );
     memcpy( &xsave.XmmRegisters[6], &frame->xsave.XmmRegisters[6], 10 * sizeof(*xsave.XmmRegisters) );
     xsave.MxCsr = frame->xsave.MxCsr;
     frame->xsave = xsave;
@@ -1088,7 +1088,7 @@ static void restore_context( const struct xcontext *xcontext, ucontext_t *sigcon
     amd64_thread_data()->dr6 = context->Dr6;
     amd64_thread_data()->dr7 = context->Dr7;
     set_sigcontext( context, sigcontext );
-    if (FPU_sig(sigcontext)) *FPU_sig(sigcontext) = context->FltSave;
+    if (FPU_sig(sigcontext)) memcpy( FPU_sig(sigcontext), &context->FltSave, sizeof(context->FltSave) );
     leave_handler( sigcontext );
 }
 
@@ -2066,156 +2066,6 @@ static int sc_seccomp(unsigned int operation, unsigned int flags, void *args)
 }
 #endif
 
-static void check_bpf_jit_enable(void)
-{
-    char enabled;
-    int fd;
-
-    fd = open("/proc/sys/net/core/bpf_jit_enable", O_RDONLY);
-    if (fd == -1)
-    {
-        WARN_(seh)("Could not open /proc/sys/net/core/bpf_jit_enable.\n");
-        return;
-    }
-
-    if (read(fd, &enabled, sizeof(enabled)) == sizeof(enabled))
-    {
-        TRACE_(seh)("enabled %#x.\n", enabled);
-
-        if (enabled != '1')
-            ERR_(seh)("BPF JIT is not enabled in the kernel, enable it to reduce syscall emulation overhead.\n");
-    }
-    else
-    {
-        WARN_(seh)("Could not read /proc/sys/net/core/bpf_jit_enable.\n");
-    }
-    close(fd);
-}
-
-static void install_bpf(struct sigaction *sig_act)
-{
-#ifdef HAVE_SECCOMP
-#   ifndef SECCOMP_FILTER_FLAG_SPEC_ALLOW
-#       define SECCOMP_FILTER_FLAG_SPEC_ALLOW (1UL << 2)
-#   endif
-
-#   ifndef SECCOMP_SET_MODE_FILTER
-#       define SECCOMP_SET_MODE_FILTER 1
-#   endif
-    static const BYTE syscall_trap_test[] =
-    {
-        0x48, 0x89, 0xf8,   /* mov %rdi, %rax */
-        0x0f, 0x05,         /* syscall */
-        0xc3,               /* retq */
-    };
-    static const unsigned int flags = SECCOMP_FILTER_FLAG_SPEC_ALLOW;
-
-#define NATIVE_SYSCALL_ADDRESS_START 0x700000000000
-
-    static struct sock_filter filter[] =
-    {
-        /* Allow i386. */
-        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, arch)),
-        BPF_JUMP (BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_X86_64, 1, 0),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
-        /* Native libs are loaded at high addresses. */
-        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, instruction_pointer) + 4),
-        BPF_JUMP(BPF_JMP | BPF_JGT | BPF_K, NATIVE_SYSCALL_ADDRESS_START >> 32, 0, 8),
-        /* High addresses may be top-down allocations, trap those */
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0x7fff, 1, 0),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
-        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, instruction_pointer)),
-        BPF_JUMP(BPF_JMP | BPF_JGE | BPF_K, 0xfe000000, 1, 0),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
-        BPF_JUMP(BPF_JMP | BPF_JGE | BPF_K, 0xffff0000, 0, 1),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_TRAP),
-        /* Allow wine64-preloader */
-        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, instruction_pointer)),
-        BPF_JUMP(BPF_JMP | BPF_JGE | BPF_K, 0x7d400000, 1, 0),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_TRAP),
-        BPF_JUMP(BPF_JMP | BPF_JGE | BPF_K, 0x7d402000, 0, 1),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_TRAP),
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
-    };
-    long (*test_syscall)(long sc_number);
-    struct syscall_frame *frame = get_syscall_frame();
-    struct sock_fprog prog;
-    NTSTATUS status;
-
-    if ((ULONG_PTR)sc_seccomp < NATIVE_SYSCALL_ADDRESS_START
-            || (ULONG_PTR)syscall < NATIVE_SYSCALL_ADDRESS_START)
-    {
-        ERR_(seh)("Native libs are being loaded in low addresses, sc_seccomp %p, syscall %p, not installing seccomp.\n",
-                sc_seccomp, syscall);
-        ERR_(seh)("The known reasons are /proc/sys/vm/legacy_va_layout set to 1 or 'ulimit -s' being 'unlimited'.\n");
-        return;
-    }
-
-    sig_act->sa_sigaction = sigsys_handler;
-    memset(&prog, 0, sizeof(prog));
-
-    sigaction(SIGSYS, sig_act, NULL);
-
-
-
-
-    test_syscall = mmap((void *)0x600000000000, 0x1000, PROT_EXEC | PROT_READ | PROT_WRITE,
-            MAP_PRIVATE | MAP_ANON, -1, 0);
-    if (test_syscall != (void *)0x600000000000)
-    {
-        int ret;
-
-        ERR("Could not allocate test syscall, falling back to seccomp presence check, test_syscall %p, errno %d.\n",
-                test_syscall, errno);
-        if (test_syscall != MAP_FAILED) munmap(test_syscall, 0x1000);
-
-        if ((ret = prctl(PR_GET_SECCOMP, 0, NULL, 0, 0)))
-        {
-            if (ret == 2)
-                TRACE_(seh)("Seccomp filters already installed.\n");
-            else
-                ERR_(seh)("Seccomp filters cannot be installed, ret %d, error %s.\n", ret, strerror(errno));
-            return;
-        }
-    }
-    else
-    {
-        memcpy(test_syscall, syscall_trap_test, sizeof(syscall_trap_test));
-        status = test_syscall(0xffff);
-        munmap(test_syscall, 0x1000);
-        if (status == STATUS_INVALID_PARAMETER)
-        {
-            TRACE_(seh)("Seccomp filters already installed.\n");
-            return;
-        }
-        if (status != -ENOSYS && (status != -1 || errno != ENOSYS))
-        {
-            ERR_(seh)("Unexpected status %#x, errno %d.\n", status, errno);
-            return;
-        }
-    }
-
-    TRACE_(seh)("Installing seccomp filters.\n");
-
-    prog.len = ARRAY_SIZE(filter);
-    prog.filter = filter;
-
-    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0))
-    {
-        ERR_(seh)("prctl(PR_SET_NO_NEW_PRIVS, ...): %s.\n", strerror(errno));
-        return;
-    }
-    if (sc_seccomp(SECCOMP_SET_MODE_FILTER, flags, &prog))
-    {
-        ERR_(seh)("prctl(PR_SET_SECCOMP, ...): %s.\n", strerror(errno));
-        return;
-    }
-#else
-    WARN_(seh)("Built without seccomp.\n");
-#endif
-}
-
 static void sigsys_handler( int signal, siginfo_t *siginfo, void *sigcontext )
 {
     extern const void *__wine_syscall_dispatcher_prolog_end_ptr;
@@ -2603,7 +2453,10 @@ static void trap_handler( int signal, siginfo_t *siginfo, void *sigcontext )
 static void fpe_handler( int signal, siginfo_t *siginfo, void *sigcontext )
 {
     ucontext_t *ucontext = init_handler( sigcontext );
-    EXCEPTION_RECORD rec = { 0 };
+    EXCEPTION_RECORD rec = { .ExceptionAddress = (void *)RIP_sig(ucontext) };
+    struct xcontext context;
+
+    save_context( &context, sigcontext );
 
     switch (siginfo->si_code)
     {
@@ -2630,7 +2483,7 @@ static void fpe_handler( int signal, siginfo_t *siginfo, void *sigcontext )
         break;
     case FPE_FLTINV:
     default:
-        if (FPU_sig(ucontext) && FPU_sig(ucontext)->StatusWord & 0x40)
+        if (context.c.FltSave.StatusWord & 0x40)
             rec.ExceptionCode = EXCEPTION_FLT_STACK_CHECK;
         else
             rec.ExceptionCode = EXCEPTION_FLT_INVALID_OPERATION;
@@ -2641,10 +2494,10 @@ static void fpe_handler( int signal, siginfo_t *siginfo, void *sigcontext )
     {
         rec.NumberParameters = 2;
         rec.ExceptionInformation[0] = 0;
-        rec.ExceptionInformation[1] = FPU_sig(ucontext) ? FPU_sig(ucontext)->MxCsr : 0;
+        rec.ExceptionInformation[1] = context.c.FltSave.MxCsr;
         if (CS_sig(ucontext) != cs64_sel) rec.ExceptionCode = STATUS_FLOAT_MULTIPLE_TRAPS;
     }
-    setup_exception( ucontext, &rec );
+    setup_raise_exception( sigcontext, &rec, &context );
 }
 
 

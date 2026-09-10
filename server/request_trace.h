@@ -3516,6 +3516,10 @@ static void dump_d3dkmt_object_open_name_reply( const struct d3dkmt_object_open_
     fprintf( stderr, " handle=%04x", req->handle );
 }
 
+static void dump_get_esync_apc_fd_request( const struct get_esync_apc_fd_request *req )
+{
+}
+
 static void dump_d3dkmt_mutex_acquire_request( const struct d3dkmt_mutex_acquire_request *req )
 {
     fprintf( stderr, " mutex=%08x", req->mutex );
@@ -3540,10 +3544,6 @@ static void dump_d3dkmt_mutex_release_request( const struct d3dkmt_mutex_release
     dump_uint64( ", fence_value=", &req->fence_value );
     fprintf( stderr, ", runtime_size=%u", req->runtime_size );
     dump_varargs_bytes( ", runtime=", cur_size );
-}
-
-static void dump_get_esync_apc_fd_request( const struct get_esync_apc_fd_request *req )
-{
 }
 
 typedef void (*dump_func)( const void *req );
@@ -3857,9 +3857,9 @@ static const dump_func req_dumpers[REQ_NB_REQUESTS] =
     (dump_func)dump_d3dkmt_object_open_request,
     (dump_func)dump_d3dkmt_share_objects_request,
     (dump_func)dump_d3dkmt_object_open_name_request,
+    (dump_func)dump_get_esync_apc_fd_request,
     (dump_func)dump_d3dkmt_mutex_acquire_request,
     (dump_func)dump_d3dkmt_mutex_release_request,
-    (dump_func)dump_get_esync_apc_fd_request,
 };
 
 static const dump_func reply_dumpers[REQ_NB_REQUESTS] =
@@ -4171,6 +4171,7 @@ static const dump_func reply_dumpers[REQ_NB_REQUESTS] =
     (dump_func)dump_d3dkmt_object_open_reply,
     (dump_func)dump_d3dkmt_share_objects_reply,
     (dump_func)dump_d3dkmt_object_open_name_reply,
+    NULL,
     (dump_func)dump_d3dkmt_mutex_acquire_reply,
     NULL,
 };
@@ -4484,9 +4485,9 @@ static const char * const req_names[REQ_NB_REQUESTS] =
     "d3dkmt_object_open",
     "d3dkmt_share_objects",
     "d3dkmt_object_open_name",
+    "get_esync_apc_fd",
     "d3dkmt_mutex_acquire",
     "d3dkmt_mutex_release",
-    "get_esync_apc_fd",
 };
 
 static const struct

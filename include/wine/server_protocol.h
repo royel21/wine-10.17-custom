@@ -2998,7 +2998,7 @@ struct get_msg_queue_handle_reply
 {
     struct reply_header __header;
     obj_handle_t handle;
-    obj_handle_t idle_event;
+    char __pad_12[4];
 };
 
 
@@ -6164,6 +6164,18 @@ struct d3dkmt_object_open_name_reply
 };
 
 
+struct get_esync_apc_fd_request
+{
+    struct request_header __header;
+    char __pad_12[4];
+};
+struct get_esync_apc_fd_reply
+{
+    struct reply_header __header;
+};
+
+
+
 struct d3dkmt_mutex_acquire_request
 {
     struct request_header __header;
@@ -6196,17 +6208,6 @@ struct d3dkmt_mutex_release_request
     char __pad_36[4];
 };
 struct d3dkmt_mutex_release_reply
-{
-    struct reply_header __header;
-};
-
-
-struct get_esync_apc_fd_request
-{
-    struct request_header __header;
-    char __pad_12[4];
-};
-struct get_esync_apc_fd_reply
 {
     struct reply_header __header;
 };
@@ -6521,9 +6522,9 @@ enum request
     REQ_d3dkmt_object_open,
     REQ_d3dkmt_share_objects,
     REQ_d3dkmt_object_open_name,
+    REQ_get_esync_apc_fd,
     REQ_d3dkmt_mutex_acquire,
     REQ_d3dkmt_mutex_release,
-    REQ_get_esync_apc_fd,
     REQ_NB_REQUESTS
 };
 
@@ -6838,9 +6839,9 @@ union generic_request
     struct d3dkmt_object_open_request d3dkmt_object_open_request;
     struct d3dkmt_share_objects_request d3dkmt_share_objects_request;
     struct d3dkmt_object_open_name_request d3dkmt_object_open_name_request;
+    struct get_esync_apc_fd_request get_esync_apc_fd_request;
     struct d3dkmt_mutex_acquire_request d3dkmt_mutex_acquire_request;
     struct d3dkmt_mutex_release_request d3dkmt_mutex_release_request;
-    struct get_esync_apc_fd_request get_esync_apc_fd_request;
 };
 union generic_reply
 {
@@ -7153,11 +7154,11 @@ union generic_reply
     struct d3dkmt_object_open_reply d3dkmt_object_open_reply;
     struct d3dkmt_share_objects_reply d3dkmt_share_objects_reply;
     struct d3dkmt_object_open_name_reply d3dkmt_object_open_name_reply;
+    struct get_esync_apc_fd_reply get_esync_apc_fd_reply;
     struct d3dkmt_mutex_acquire_reply d3dkmt_mutex_acquire_reply;
     struct d3dkmt_mutex_release_reply d3dkmt_mutex_release_reply;
-    struct get_esync_apc_fd_reply get_esync_apc_fd_reply;
 };
 
-#define SERVER_PROTOCOL_VERSION 925
+#define SERVER_PROTOCOL_VERSION 926
 
 #endif /* __WINE_WINE_SERVER_PROTOCOL_H */
