@@ -132,10 +132,6 @@ typedef struct
 
 static HBITMAP hBmpClose   = 0;
 
-static WCHAR shelltray[] = {'S','h','e','l','l','_','T','r','a','y','W','n','d',0};
-static WCHAR progman[] = {'P','r','o','g','m','a','n',0};
-
-
 /* ----------------- declarations ----------------- */
 static void MDI_UpdateFrameText( HWND, HWND, BOOL, LPCWSTR);
 static BOOL MDI_AugmentFrameMenu( HWND, HWND );
@@ -1816,74 +1812,6 @@ typedef struct CASCADE_INFO
     HWND *wnd_array;
     DWORD wnd_count;
 } CASCADE_INFO;
-
-static BOOL CALLBACK GetCascadeChildProc(HWND hwnd, LPARAM lParam)
-{
-    DWORD count, size;
-    HWND *wnd_array;
-    CASCADE_INFO *info = (CASCADE_INFO *)lParam;
-
-    if (hwnd == info->desktop || hwnd == info->tray_wnd ||
-        hwnd == info->progman || hwnd == info->top)
-    {
-        return TRUE;
-    }
-
-    if (info->parent && GetParent(hwnd) != info->parent)
-        return TRUE;
-
-    if ((info->flags & MDITILE_SKIPDISABLED) && !IsWindowEnabled(hwnd))
-        return TRUE;
-
-    if (!IsWindowVisible(hwnd) || IsIconic(hwnd))
-        return TRUE;
-
-    count = info->wnd_count;
-    size = (count + 1) * sizeof(HWND);
-
-    if (count == 0 || !info->wnd_array)
-    {
-        count = 0;
-        info->wnd_array = (HWND *)heap_alloc(size);
-    }
-    else
-    {
-        wnd_array = (HWND *)heap_realloc(info->wnd_array, size);
-        if (!wnd_array)
-        {
-            heap_free(info->wnd_array);
-        }
-        info->wnd_array = wnd_array;
-    }
-
-    if (!info->wnd_array)
-    {
-        info->wnd_count = 0;
-        return FALSE;
-    }
-
-    info->wnd_array[count] = hwnd;
-    info->wnd_count = count + 1;
-    return TRUE;
-}
-
-static BOOL
-QuerySizeFix(HWND hwnd, INT *pcx, INT *pcy)
-{
-    MINMAXINFO mmi;
-    DWORD_PTR result;
-
-    mmi.ptMinTrackSize.x = mmi.ptMinTrackSize.y = 0;
-    mmi.ptMaxTrackSize.x = mmi.ptMaxTrackSize.y = MAXLONG;
-    if (SendMessageTimeoutW(hwnd, WM_GETMINMAXINFO, 0, (LPARAM)&mmi,
-                            SMTO_ABORTIFHUNG | SMTO_NORMAL, 120, &result))
-    {
-        *pcx = min(max(*pcx, mmi.ptMinTrackSize.x), mmi.ptMaxTrackSize.x);
-        *pcy = min(max(*pcy, mmi.ptMinTrackSize.y), mmi.ptMaxTrackSize.y);
-        return TRUE;
-    }
-    return FALSE;
-}
 
 
 /************************************************************************

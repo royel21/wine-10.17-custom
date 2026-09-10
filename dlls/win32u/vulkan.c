@@ -1467,7 +1467,7 @@ static VkResult acquire_keyed_mutexes( VkWin32KeyedMutexAcquireReleaseInfoKHR *m
         {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
             .semaphore = memory->semaphore,
-            .stageMask = 0,
+            .stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
             .deviceIndex = 0,
         };
 
@@ -1522,7 +1522,7 @@ static VkResult release_keyed_mutexes( VkWin32KeyedMutexAcquireReleaseInfoKHR *m
         {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
             .semaphore = memory->semaphore,
-            .stageMask = 0,
+            .stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
             .deviceIndex = 0,
         };
 
@@ -1844,7 +1844,6 @@ static VkResult win32u_vkCreateSemaphore( VkDevice client_device, const VkSemaph
                 nt_shared = !(export_info->handleTypes & VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT);
                 export_info->handleTypes = get_host_external_semaphore_type();
             }
-            *next = (*next)->pNext; next = &prev;
             break;
         case VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_WIN32_HANDLE_INFO_KHR:
             export_win32 = *(VkExportSemaphoreWin32HandleInfoKHR *)*next;
@@ -2067,7 +2066,6 @@ static VkResult win32u_vkCreateFence( VkDevice client_device, const VkFenceCreat
                 nt_shared = !(export_info->handleTypes & VK_EXTERNAL_FENCE_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT);
                 export_info->handleTypes = get_host_external_fence_type();
             }
-            *next = (*next)->pNext; next = &prev;
             break;
         case VK_STRUCTURE_TYPE_EXPORT_FENCE_WIN32_HANDLE_INFO_KHR:
         {
