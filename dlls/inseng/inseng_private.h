@@ -22,7 +22,6 @@
 #include "ole2.h"
 #include "rpcproxy.h"
 #include "inseng.h"
-#include "wine/heap.h"
 
 
 static inline char *strdupA(const char *src)

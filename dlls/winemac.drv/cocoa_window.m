@@ -920,28 +920,16 @@ static CVReturn WineDisplayLinkCallback(CVDisplayLinkRef displayLink, const CVTi
 
     - (NSRect) firstRectForCharacterRange:(NSRange)aRange actualRange:(NSRangePointer)actualRange
     {
-        macdrv_query* query;
         WineWindow* window = (WineWindow*)[self window];
         NSRect ret;
 
         aRange = NSIntersectionRange(aRange, NSMakeRange(0, [markedText length]));
 
-        query = macdrv_create_query();
-        query->type = QUERY_IME_CHAR_RECT;
-        query->window = (macdrv_window)[window retain];
-        query->ime_char_rect.himc = [window himc];
-        query->ime_char_rect.range = CFRangeMake(aRange.location, aRange.length);
+        pthread_mutex_lock(&ime_composition_rect_mutex);
+        ret = NSRectFromCGRect(cgrect_mac_from_win(ime_composition_rect));
+        pthread_mutex_unlock(&ime_composition_rect_mutex);
 
-        if ([window.queue query:query timeout:0.3 flags:WineQueryNoPreemptWait])
-        {
-            aRange = NSMakeRange(query->ime_char_rect.range.location, query->ime_char_rect.range.length);
-            ret = NSRectFromCGRect(cgrect_mac_from_win(query->ime_char_rect.rect));
-            [[WineApplicationController sharedController] flipRect:&ret];
-        }
-        else
-            ret = NSMakeRect(100, 100, aRange.length ? 1 : 0, 12);
-
-        macdrv_release_query(query);
+        [[WineApplicationController sharedController] flipRect:&ret];
 
         if (actualRange)
             *actualRange = aRange;
@@ -4044,12 +4032,11 @@ uint32_t macdrv_window_background_color(void)
  * processed by input sources (AKA IMEs). This is only called when there is an
  * active non-keyboard input source.
  */
-void macdrv_ime_process_key(int keyc, unsigned int flags, int repeat, void *himc,
-                            int *done, void *ime_done_event)
+int macdrv_ime_process_key(int keyc, unsigned int flags, int repeat, void *himc)
 {
-    OnMainThreadAsync(^{
-        BOOL ret;
-        macdrv_event* event;
+    __block BOOL ret;
+
+    OnMainThread(^{
         WineWindow* window = (WineWindow*)[NSApp keyWindow];
         if (![window isKindOfClass:[WineWindow class]])
         {
@@ -4081,14 +4068,9 @@ void macdrv_ime_process_key(int keyc, unsigned int flags, int repeat, void *himc
         }
         else
             ret = FALSE;
-
-        event = macdrv_create_event(SENT_TEXT_INPUT, window);
-        event->sent_text_input.handled = ret;
-        event->sent_text_input.done = done;
-        event->sent_text_input.ime_done_event = ime_done_event;
-        [[window queue] postEvent:event];
-        macdrv_release_event(event);
     });
+
+    return (int)ret;
 }
 
 void macdrv_clear_ime_text(void)

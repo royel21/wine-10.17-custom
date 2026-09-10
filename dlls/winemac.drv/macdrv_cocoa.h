@@ -291,7 +291,6 @@ enum {
     QUERY_EVENT_NO_PREEMPT_WAIT,
     REASSERT_WINDOW_POSITION,
     RELEASE_CAPTURE,
-    SENT_TEXT_INPUT,
     STATUS_ITEM_MOUSE_BUTTON,
     STATUS_ITEM_MOUSE_MOVE,
     WINDOW_BROUGHT_FORWARD,
@@ -379,11 +378,6 @@ typedef struct macdrv_event {
             struct macdrv_query *query;
         }                                           query_event;
         struct {
-            int handled;
-            int *done;
-            void *ime_done_event;
-        }                                           sent_text_input;
-        struct {
             macdrv_status_item  item;
             int                 button;
             int                 down;
@@ -421,7 +415,6 @@ enum {
     QUERY_DRAG_DROP_LEAVE,
     QUERY_DRAG_DROP_DRAG,
     QUERY_DRAG_DROP_DROP,
-    QUERY_IME_CHAR_RECT,
     QUERY_PASTEBOARD_DATA,
     QUERY_RESIZE_SIZE,
     QUERY_RESIZE_START,
@@ -442,11 +435,6 @@ typedef struct macdrv_query {
             uint32_t            ops;
             CFTypeRef           pasteboard;
         }                                           drag_drop;
-        struct {
-            void   *himc;
-            CFRange range;
-            CGRect  rect;
-        }                                           ime_char_rect;
         struct {
             CFStringRef type;
         }                                           pasteboard_data;
@@ -546,8 +534,7 @@ extern void macdrv_view_release_metal_view(macdrv_metal_view v);
 extern int macdrv_get_view_backing_size(macdrv_view v, int backing_size[2]);
 extern void macdrv_set_view_backing_size(macdrv_view v, const int backing_size[2]);
 extern uint32_t macdrv_window_background_color(void);
-extern void macdrv_ime_process_key(int keyc, unsigned int flags, int repeat, void *data,
-                                   int *done, void *ime_done_event);
+extern int macdrv_ime_process_key(int keyc, unsigned int flags, int repeat, void *data);
 extern int macdrv_is_any_wine_window_visible(void);
 
 
@@ -585,6 +572,9 @@ extern void macdrv_destroy_status_item(macdrv_status_item s);
 extern void macdrv_set_status_item_image(macdrv_status_item s, CGImageRef cgimage);
 extern void macdrv_set_status_item_tooltip(macdrv_status_item s, CFStringRef cftip);
 
+/* ime */
+extern pthread_mutex_t ime_composition_rect_mutex;
+extern CGRect ime_composition_rect;
 extern void macdrv_clear_ime_text(void);
 
 #endif  /* __WINE_MACDRV_COCOA_H */
