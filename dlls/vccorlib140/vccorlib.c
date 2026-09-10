@@ -262,6 +262,40 @@ void __thiscall control_block_ReleaseTarget(struct control_block *weakref)
     }
 }
 
+IWeakReference *WINAPI GetWeakReference(IUnknown *obj)
+{
+    IWeakReferenceSource *src;
+    IWeakReference *ref;
+    HRESULT hr;
+
+    TRACE("(%p)\n", obj);
+
+    if (!obj)
+        __abi_WinRTraiseInvalidArgumentException();
+    if (SUCCEEDED((hr = IUnknown_QueryInterface(obj, &IID_IWeakReferenceSource, (void **)&src))))
+    {
+        hr = IWeakReferenceSource_GetWeakReference(src, &ref);
+        IWeakReferenceSource_Release(src);
+    }
+    if (FAILED(hr))
+        __abi_WinRTraiseCOMException(hr);
+
+    return ref;
+}
+
+IUnknown *WINAPI ResolveWeakReference(const GUID *iid, IWeakReference **weakref)
+{
+    IUnknown *obj = NULL;
+    HRESULT hr;
+
+    TRACE("(%s, %p)\n", debugstr_guid(iid), weakref);
+
+    if (*weakref && FAILED((hr = IWeakReference_Resolve(*weakref, iid, (IInspectable **)&obj))))
+        __abi_WinRTraiseCOMException(hr);
+
+    return obj;
+}
+
 struct __abi_type_descriptor
 {
     const WCHAR *name;
