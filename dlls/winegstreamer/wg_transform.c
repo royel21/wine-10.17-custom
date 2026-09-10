@@ -1039,8 +1039,8 @@ NTSTATUS wg_transform_push_data(void *args)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS copy_video_buffer(GstBuffer *buffer, GstVideoInfo *src_video_info,
-        GstVideoInfo *dst_video_info, struct wg_sample *sample, gsize *total_size)
+static NTSTATUS copy_video_buffer(GstBuffer *buffer, const GstVideoInfo *src_video_info,
+        const GstVideoInfo *dst_video_info, struct wg_sample *sample, gsize *total_size)
 {
     NTSTATUS status = STATUS_UNSUCCESSFUL;
     GstVideoFrame src_frame, dst_frame;

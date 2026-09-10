@@ -2713,7 +2713,11 @@ static void call_virtual_unwind_x86( int testnum, const struct unwind_test_x86 *
     memcpy( (char *)code_mem + code_offset, test->function, test->function_size );
     if (test->unwind_info)
     {
-        UINT unwind_size = 4 + 2 * test->unwind_info[2] + 8;
+        UINT handler_offset = 4 + 2 * test->unwind_info[2];
+        UINT unwind_size;
+
+        handler_offset = (handler_offset + 3) & ~3;
+        unwind_size = handler_offset + 8;
         memcpy( (char *)code_mem + unwind_offset, test->unwind_info, unwind_size );
         runtime_func.BeginAddress = code_offset;
         runtime_func.EndAddress = code_offset + test->function_size;
@@ -2837,14 +2841,13 @@ static void call_virtual_unwind_x86( int testnum, const struct unwind_test_x86 *
                     testnum, i, (void *)context.Rsp, (void *)expected_rsp );
                 continue;
             }
-
             if (ctx_ptr.IntegerContext[j])
             {
                 ok( k < nb_regs || broken( broken_k < nb_regs ), "%u/%u: register %s should not be set to %Ix\n",
                     testnum, i, reg_names_x86[j], *(&context.Rax + j) );
                 ok( k == nb_regs || *(&context.Rax + j) == test->results[i].regs[k][1]
-                        || broken( broken_k == nb_regs || *(&context.Rax + j)
-                        == test->broken_results[i].regs[broken_k][1] ),
+                        || broken( test->broken_results && (broken_k == nb_regs || *(&context.Rax + j)
+                        == test->broken_results[i].regs[broken_k][1]) ),
                         "%u/%u: register %s wrong %p/%x\n",
                         testnum, i, reg_names_x86[j], (void *)*(&context.Rax + j), test->results[i].regs[k][1] );
             }
@@ -2868,31 +2871,36 @@ static void test_virtual_unwind_x86(void)
 {
     static const BYTE function_0[] =
     {
-        0xff, 0xf5,                                  /* 00: push %rbp */
-        0x48, 0x81, 0xec, 0x10, 0x01, 0x00, 0x00,    /* 02: sub $0x110,%rsp */
-        0x48, 0x8d, 0x6c, 0x24, 0x30,                /* 09: lea 0x30(%rsp),%rbp */
-        0x48, 0x89, 0x9d, 0xf0, 0x00, 0x00, 0x00,    /* 0e: mov %rbx,0xf0(%rbp) */
-        0x48, 0x89, 0xb5, 0xf8, 0x00, 0x00, 0x00,    /* 15: mov %rsi,0xf8(%rbp) */
-        0x90,                                        /* 1c: nop */
-        0x48, 0x8b, 0x9d, 0xf0, 0x00, 0x00, 0x00,    /* 1d: mov 0xf0(%rbp),%rbx */
-        0x48, 0x8b, 0xb5, 0xf8, 0x00, 0x00, 0x00,    /* 24: mov 0xf8(%rbp),%rsi */
-        0x48, 0x8d, 0xa5, 0xe0, 0x00, 0x00, 0x00,    /* 2b: lea 0xe0(%rbp),%rsp */
-        0x5d,                                        /* 32: pop %rbp */
-        0xc3                                         /* 33: ret */
+        0x57,                                        /* 00: push %rdi */
+        0xff, 0xf5,                                  /* 01: push %rbp */
+        0x48, 0x81, 0xec, 0x10, 0x01, 0x00, 0x00,    /* 03: sub $0x110,%rsp */
+        0x48, 0x8d, 0x6c, 0x24, 0x30,                /* 0a: lea 0x30(%rsp),%rbp */
+        0x48, 0x89, 0x9d, 0xf0, 0x00, 0x00, 0x00,    /* 0f: mov %rbx,0xf0(%rbp) */
+        0x48, 0x89, 0xb5, 0xf8, 0x00, 0x00, 0x00,    /* 16: mov %rsi,0xf8(%rbp) */
+        0x90,                                        /* 1d: nop */
+        0x48, 0x8b, 0x9d, 0xf0, 0x00, 0x00, 0x00,    /* 1e: mov 0xf0(%rbp),%rbx */
+        0x48, 0x8b, 0xb5, 0xf8, 0x00, 0x00, 0x00,    /* 25: mov 0xf8(%rbp),%rsi */
+        0x48, 0x8d, 0xa5, 0xe0, 0x00, 0x00, 0x00,    /* 2c: lea 0xe0(%rbp),%rsp */
+        0x5d,                                        /* 33: pop %rbp */
+        0x5f,                                        /* 34: pop %rdi */
+        0xc3                                         /* 35: ret */
     };
 
     static const BYTE unwind_info_0[] =
     {
         1 | (UNW_FLAG_EHANDLER << 3),  /* version + flags */
-        0x1c,                          /* prolog size */
-        8,                             /* opcode count */
+        0x1d,                          /* prolog size */
+        9,                             /* opcode count */
         (0x03 << 4) | rbp,             /* frame reg rbp offset 0x30 */
 
-        0x1c, UWOP(SAVE_NONVOL, rsi), 0x25, 0, /* 1c: mov %rsi,0x128(%rsp) */
-        0x15, UWOP(SAVE_NONVOL, rbx), 0x24, 0, /* 15: mov %rbx,0x120(%rsp) */
-        0x0e, UWOP(SET_FPREG, rbp),            /* 0e: lea 0x30(%rsp),rbp */
-        0x09, UWOP(ALLOC_LARGE, 0), 0x22, 0,   /* 09: sub $0x110,%rsp */
-        0x02, UWOP(PUSH_NONVOL, rbp),          /* 02: push %rbp */
+        0x1d, UWOP(SAVE_NONVOL, rsi), 0x25, 0, /* 1d: mov %rsi,0x128(%rsp) */
+        0x16, UWOP(SAVE_NONVOL, rbx), 0x24, 0, /* 16: mov %rbx,0x120(%rsp) */
+        0x0f, UWOP(SET_FPREG, rbp),            /* 0f: lea 0x30(%rsp),rbp */
+        0x0a, UWOP(ALLOC_LARGE, 0), 0x22, 0,   /* 0a: sub $0x110,%rsp */
+        0x03, UWOP(PUSH_NONVOL, rbp),          /* 03: push %rbp */
+        0x01, UWOP(PUSH_NONVOL, rdi),          /* 01: push %rdi */
+
+        0x00, 0x00, /* align */
 
         0x00, 0x02, 0x00, 0x00,  /* handler */
         0x05, 0x06, 0x07, 0x08,  /* data */
@@ -2902,33 +2910,37 @@ static void test_virtual_unwind_x86(void)
     {
       /* offset  rbp   handler  rip   frame   registers */
         { 0x00,  0x40,  FALSE, 0x000, 0x000, { {rsp,0x008}, {-1,-1} }},
-        { 0x02,  0x40,  FALSE, 0x008, 0x000, { {rsp,0x010}, {rbp,0x000}, {-1,-1} }},
-        { 0x09,  0x40,  FALSE, 0x118, 0x000, { {rsp,0x120}, {rbp,0x110}, {-1,-1} }},
-        { 0x0e,  0x40,  FALSE, 0x128, 0x010, { {rsp,0x130}, {rbp,0x120}, {-1,-1} }},
-        { 0x15,  0x40,  FALSE, 0x128, 0x010, { {rsp,0x130}, {rbp,0x120}, {rbx,0x130}, {-1,-1} }},
-        { 0x1c,  0x40,  TRUE,  0x128, 0x010, { {rsp,0x130}, {rbp,0x120}, {rbx,0x130}, {rsi,0x138}, {-1,-1}}},
-        { 0x1d,  0x40,  TRUE,  0x128, 0x010, { {rsp,0x130}, {rbp,0x120}, {rbx,0x130}, {rsi,0x138}, {-1,-1}}},
-        { 0x24,  0x40,  TRUE,  0x128, 0x010, { {rsp,0x130}, {rbp,0x120}, {rbx,0x130}, {rsi,0x138}, {-1,-1}}},
-        { 0x2b,  0x40,  FALSE, 0x128, 0x010, { {rsp,0x130}, {rbp,0x120}, {-1,-1}}},
-        { 0x32,  0x40,  FALSE, 0x008, 0x010, { {rsp,0x010}, {rbp,0x000}, {-1,-1}}},
-        { 0x33,  0x40,  FALSE, 0x000, 0x010, { {rsp,0x008}, {-1,-1}}},
+        { 0x01,  0x40,  FALSE, 0x008, 0x000, { {rsp,0x010}, {rdi,0x000}, {-1,-1} }},
+        { 0x03,  0x40,  FALSE, 0x010, 0x000, { {rsp,0x018}, {rdi,0x008}, {rbp,0x000}, {-1,-1} }},
+        { 0x0a,  0x40,  FALSE, 0x120, 0x000, { {rsp,0x128}, {rdi,0x118}, {rbp,0x110}, {-1,-1} }},
+        { 0x0f,  0x40,  FALSE, 0x130, 0x010, { {rsp,0x138}, {rdi,0x128}, {rbp,0x120}, {-1,-1} }},
+        { 0x16,  0x40,  FALSE, 0x130, 0x010, { {rsp,0x138}, {rdi,0x128}, {rbp,0x120}, {rbx,0x130}, {-1,-1} }},
+        { 0x1d,  0x40,  TRUE,  0x130, 0x010, { {rsp,0x138}, {rdi,0x128}, {rbp,0x120}, {rbx,0x130}, {rsi,0x138}, {-1,-1}}},
+        { 0x1e,  0x40,  TRUE,  0x130, 0x010, { {rsp,0x138}, {rdi,0x128}, {rbp,0x120}, {rbx,0x130}, {rsi,0x138}, {-1,-1}}},
+        { 0x25,  0x40,  TRUE,  0x130, 0x010, { {rsp,0x138}, {rdi,0x128}, {rbp,0x120}, {rbx,0x130}, {rsi,0x138}, {-1,-1}}},
+        { 0x2c,  0x40,  FALSE, 0x130, 0x130, { {rsp,0x138}, {rdi,0x128}, {rbp,0x120}, {-1,-1}}},
+        { 0x33,  0x40,  FALSE, 0x010, 0x010, { {rsp,0x018}, {rdi,0x008}, {rbp,0x000}, {-1,-1}}},
+        { 0x34,  0x40,  FALSE, 0x008, 0x008, { {rsp,0x010}, {rdi,0x000}, {-1,-1}}},
+        { 0x35,  0x40,  FALSE, 0x000, 0x000, { {rsp,0x008}, {-1,-1}}},
     };
 
     static const struct results_x86 broken_results_0[] =
     {
       /* offset  rbp   handler  rip   frame   registers */
         { 0x00,  0x40,  FALSE, 0x000, 0x000, { {rsp,0x008}, {-1,-1} }},
-        { 0x02,  0x40,  FALSE, 0x008, 0x000, { {rsp,0x010}, {rbp,0x000}, {-1,-1} }},
-        { 0x09,  0x40,  FALSE, 0x118, 0x000, { {rsp,0x120}, {rbp,0x110}, {-1,-1} }},
-        { 0x0e,  0x40,  FALSE, 0x128, 0x010, { {rsp,0x130}, {rbp,0x120}, {-1,-1} }},
-        { 0x15,  0x40,  FALSE, 0x128, 0x010, { {rsp,0x130}, {rbp,0x120}, {rbx,0x130}, {-1,-1} }},
-        { 0x1c,  0x40,  TRUE,  0x128, 0x010, { {rsp,0x130}, {rbp,0x120}, {rbx,0x130}, {rsi,0x138}, {-1,-1}}},
-        { 0x1d,  0x40,  TRUE,  0x128, 0x010, { {rsp,0x130}, {rbp,0x120}, {rbx,0x130}, {rsi,0x138}, {-1,-1}}},
-        { 0x24,  0x40,  TRUE,  0x128, 0x010, { {rsp,0x130}, {rbp,0x120}, {rbx,0x130}, {rsi,0x138}, {-1,-1}}},
-        /* On Win11 output frame in epilogue corresponds to context->Rsp - 0x8 when fpreg is set. */
-        { 0x2b,  0x40,  FALSE, 0x128, 0x128, { {rsp,0x130}, {rbp,0x120}, {-1,-1}}},
-        { 0x32,  0x40,  FALSE, 0x008, 0x008, { {rsp,0x010}, {rbp,0x000}, {-1,-1}}},
-        { 0x33,  0x40,  FALSE, 0x000, 0x000, { {rsp,0x008}, {-1,-1}}},
+        { 0x01,  0x40,  FALSE, 0x008, 0x000, { {rsp,0x010}, {rdi,0x000}, {-1,-1} }},
+        { 0x03,  0x40,  FALSE, 0x010, 0x000, { {rsp,0x018}, {rdi,0x008}, {rbp,0x000}, {-1,-1} }},
+        { 0x0a,  0x40,  FALSE, 0x120, 0x000, { {rsp,0x128}, {rdi,0x118}, {rbp,0x110}, {-1,-1} }},
+        { 0x0f,  0x40,  FALSE, 0x130, 0x010, { {rsp,0x138}, {rdi,0x128}, {rbp,0x120}, {-1,-1} }},
+        { 0x16,  0x40,  FALSE, 0x130, 0x010, { {rsp,0x138}, {rdi,0x128}, {rbp,0x120}, {rbx,0x130}, {-1,-1} }},
+        { 0x1d,  0x40,  TRUE,  0x130, 0x010, { {rsp,0x138}, {rdi,0x128}, {rbp,0x120}, {rbx,0x130}, {rsi,0x138}, {-1,-1}}},
+        { 0x1e,  0x40,  TRUE,  0x130, 0x010, { {rsp,0x138}, {rdi,0x128}, {rbp,0x120}, {rbx,0x130}, {rsi,0x138}, {-1,-1}}},
+        { 0x25,  0x40,  TRUE,  0x130, 0x010, { {rsp,0x138}, {rdi,0x128}, {rbp,0x120}, {rbx,0x130}, {rsi,0x138}, {-1,-1}}},
+        /* Before Win11 output frame in epilogue is set with fpreg even after it is popped. */
+        { 0x2c,  0x40,  FALSE, 0x130, 0x010, { {rsp,0x138}, {rdi,0x128}, {rbp,0x120}, {-1,-1}}},
+        { 0x33,  0x40,  FALSE, 0x010, 0x010, { {rsp,0x018}, {rdi,0x008}, {rbp,0x000}, {-1,-1}}},
+        { 0x34,  0x40,  FALSE, 0x008, 0x010, { {rsp,0x010}, {rdi,0x000}, {-1,-1}}},
+        { 0x35,  0x40,  FALSE, 0x000, 0x010, { {rsp,0x008}, {-1,-1}}},
     };
 
     static const BYTE function_1[] =
@@ -3080,6 +3092,74 @@ static void test_virtual_unwind_x86(void)
     };
 #endif
 
+    static const BYTE function_6_1[] =
+    {
+        0x55,                     /* 00: push %rbp */
+        0x90,                     /* 01: nop */
+        0x5d,                     /* 02: pop %rbp */
+        0xeb, 0x02,               /* 03: jmp 06 */
+        0x90,                     /* 04: nop */
+        0xc3,                     /* 05: ret */
+     };
+
+    static const BYTE function_6_2[] =
+    {
+        0x55,                     /* 00: push %rbp */
+        0x90,                     /* 01: nop */
+        0x5d,                     /* 02: pop %rbp */
+        0xeb, 0x01,               /* 03: jmp 05 */
+        0x90,                     /* 04: nop */
+        0xc3,                     /* 05: ret */
+     };
+
+    static const BYTE function_6_3[] =
+    {
+        0x55,                     /* 00: push %rbp */
+        0x90,                     /* 01: nop */
+        0x5d,                     /* 02: pop %rbp */
+        0xe9, 0x55, 0x55, 0x55, 0x55, /* 03: jmp away */
+        0x90,                     /* 07: nop */
+        0xc3,                     /* 08: ret */
+     };
+
+    BYTE function_tail_jump_ff[] =
+    {
+        0x55,                     /* 00: push %rbp */
+        0x90,                     /* 01: nop */
+        0x5d,                     /* 02: pop %rbp */
+        0x48, 0xff, 0x25,         /* 03: space for rex prefix and 0xff jump opcode */
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0xc3,                     /* ret */
+     };
+
+    static const BYTE unwind_info_6[] =
+    {
+        1,                             /* version + flags */
+        0x1,                           /* prolog size */
+        1,                             /* opcode count */
+        0,                             /* frame reg */
+
+        0x01, UWOP(PUSH_NONVOL, rbp),  /* 02: push %rbp */
+    };
+
+    static const struct results_x86 results_6_epilogue[] =
+    {
+      /* offset  rbp   handler  rip   frame   registers */
+        { 0x00,  0x00,  FALSE, 0x000, 0x000, { {rsp,0x008}, {-1,-1} }},
+        { 0x01,  0x00,  FALSE, 0x008, 0x000, { {rsp,0x010}, {rbp,0x000}, {-1,-1} }},
+        { 0x02,  0x00,  FALSE, 0x008, 0x000, { {rsp,0x010}, {rbp,0x000}, {-1,-1} }},
+        { 0x03,  0x00,  FALSE, 0x000, 0x000, { {rsp,0x008}, {-1,-1} }},
+    };
+
+    static const struct results_x86 results_6_body[] =
+    {
+      /* offset  rbp   handler  rip   frame   registers */
+        { 0x00,  0x00,  FALSE, 0x000, 0x000, { {rsp,0x008}, {-1,-1} }},
+        { 0x01,  0x00,  FALSE, 0x008, 0x000, { {rsp,0x010}, {rbp,0x000}, {-1,-1} }},
+        { 0x02,  0x00,  FALSE, 0x008, 0x000, { {rsp,0x010}, {rbp,0x000}, {-1,-1} }},
+        { 0x03,  0x00,  FALSE, 0x008, 0x000, { {rsp,0x010}, {rbp,0x000}, {-1,-1} }},
+    };
+
     static const struct unwind_test_x86 tests[] =
     {
         { function_0, sizeof(function_0), unwind_info_0, results_0, ARRAY_SIZE(results_0), broken_results_0 },
@@ -3092,8 +3172,47 @@ static void test_virtual_unwind_x86(void)
 #if 0  /* crashes before Win10 21H2 */
         { function_5, sizeof(function_5), NULL,          results_5, ARRAY_SIZE(results_5) },
 #endif
+        { function_6_1, sizeof(function_6_1), unwind_info_6, results_6_epilogue, ARRAY_SIZE(results_6_epilogue) },
+        { function_6_2, sizeof(function_6_2), unwind_info_6, results_6_body, ARRAY_SIZE(results_6_body) },
+        { function_6_3, sizeof(function_6_3), unwind_info_6, results_6_epilogue, ARRAY_SIZE(results_6_epilogue) },
     };
-    unsigned int i;
+
+    struct unwind_test_x86 jump_test = { function_tail_jump_ff, sizeof(function_tail_jump_ff), unwind_info_6,
+                                         results_6_epilogue, ARRAY_SIZE(results_6_epilogue) };
+
+    unsigned int i, rex_prefix, ind;
+
+    for (rex_prefix = 0; rex_prefix <= 8; ++rex_prefix)
+    {
+        for (i = 0; i < 256; ++i)
+        {
+            unsigned int ext;
+            int expected;
+
+            ind = 3;
+            if (rex_prefix) function_tail_jump_ff[ind++] = 0x40 | rex_prefix;
+            function_tail_jump_ff[ind++] = 0xff;
+            function_tail_jump_ff[ind++] = i;
+            ext = (i >> 3) & 0x7;
+            memset( function_tail_jump_ff + ind, 0, sizeof(function_tail_jump_ff) - ind );
+            if (((rex_prefix == 8 || !rex_prefix) && i == 0x25)
+                || (rex_prefix == 8 && ext == 4))
+            {
+                jump_test.results = results_6_epilogue;
+                jump_test.nb_results = ARRAY_SIZE(results_6_epilogue);
+                expected = 1;
+            }
+            else
+            {
+                jump_test.results = results_6_body;
+                jump_test.nb_results = ARRAY_SIZE(results_6_body);
+                expected = 0;
+            }
+            winetest_push_context( "rex %#x, byte %#x, expected %d", rex_prefix, i, expected );
+            call_virtual_unwind_x86( 0, &jump_test );
+            winetest_pop_context();
+        }
+    }
 
     for (i = 0; i < ARRAY_SIZE(tests); i++)
         call_virtual_unwind_x86( i, &tests[i] );

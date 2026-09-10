@@ -26,7 +26,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#ifdef HAVE_FREETYPE
+#ifdef SONAME_LIBFREETYPE
 
 #ifdef HAVE_FT2BUILD_H
 #include <ft2build.h>
@@ -530,10 +530,10 @@ static struct fontinfo *fill_fontinfo( const char *face_name, int ppem, int enc,
     }
 
     /* Versions of fontforge prior to early 2006 have incorrect
-       ascender values in the eblc table, so we won't find the 
+       ascender values in the eblc table, so we won't find the
        correct bitmapSizeTable.  In this case use the height of
        the Aring glyph instead. */
-    if(ascent == 0) 
+    if(ascent == 0)
     {
         if(FT_Load_Char(face, 0xc5, FT_LOAD_DEFAULT))
             error("Can't find Aring\n");
@@ -1036,7 +1036,7 @@ done:
     exit(0);
 }
 
-#else /* HAVE_FREETYPE */
+#else /* SONAME_LIBFREETYPE */
 
 int main(int argc, char **argv)
 {
@@ -1044,4 +1044,4 @@ int main(int argc, char **argv)
     exit(1);
 }
 
-#endif /* HAVE_FREETYPE */
+#endif /* SONAME_LIBFREETYPE */

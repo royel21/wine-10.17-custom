@@ -1886,7 +1886,9 @@ static BOOL is_inside_epilog( BYTE *pc, ULONG64 base, const RUNTIME_FUNCTION *fu
 
     for (;;)
     {
-        if ((*pc & 0xf0) == 0x40) pc++;  /* rex prefix */
+        BYTE rex = 0;
+
+        if ((*pc & 0xf0) == 0x40) rex = *pc++ & 0x0f;  /* rex prefix */
 
         switch (*pc)
         {
@@ -1905,16 +1907,16 @@ static BOOL is_inside_epilog( BYTE *pc, ULONG64 base, const RUNTIME_FUNCTION *fu
             return TRUE;
         case 0xe9: /* jmp nnnn */
             pc += 5 + *(LONG *)(pc + 1);
-            if (pc - (BYTE *)base >= function->BeginAddress && pc - (BYTE *)base < function->EndAddress)
-                continue;
-            break;
+            return !(pc - (BYTE *)base >= function->BeginAddress && pc - (BYTE *)base < function->EndAddress);
         case 0xeb: /* jmp n */
             pc += 2 + (signed char)pc[1];
-            if (pc - (BYTE *)base >= function->BeginAddress && pc - (BYTE *)base < function->EndAddress)
-                continue;
-            break;
+            return !(pc - (BYTE *)base >= function->BeginAddress && pc - (BYTE *)base < function->EndAddress);
         case 0xf3: /* rep; ret (for amd64 prediction bug) */
             return pc[1] == 0xc3;
+        case 0xff: /* jmp */
+            if (rex && rex != 8) return FALSE;
+            if (pc[1] == 0x25) return TRUE;
+            return rex && ((pc[1] >> 3) & 7) == 4;
         }
         return FALSE;
     }
@@ -1967,17 +1969,14 @@ static void interpret_epilog( BYTE *pc, CONTEXT *context, KNONVOLATILE_CONTEXT_P
             context->Rip = *(ULONG64 *)context->Rsp;
             context->Rsp += sizeof(ULONG64) + *(WORD *)(pc + 1);
             return;
+        case 0xe9: /* jmp nnnn */
+        case 0xeb: /* jmp n */
         case 0xc3: /* ret */
         case 0xf3: /* rep; ret */
+        case 0xff: /* jmp */
             context->Rip = *(ULONG64 *)context->Rsp;
             context->Rsp += sizeof(ULONG64);
             return;
-        case 0xe9: /* jmp nnnn */
-            pc += 5 + *(LONG *)(pc + 1);
-            continue;
-        case 0xeb: /* jmp n */
-            pc += 2 + (signed char)pc[1];
-            continue;
         }
         return;
     }
@@ -2083,7 +2082,7 @@ NTSTATUS WINAPI RtlVirtualUnwind2( ULONG type, ULONG_PTR base, ULONG_PTR pc,
             {
                 TRACE("inside epilog.\n");
                 interpret_epilog( (BYTE *)pc, context, ctx_ptr );
-                *frame_ret = frame;
+                *frame_ret = info->frame_reg ? context->Rsp - 8 : frame;
                 *handler_ret = NULL;
                 return STATUS_SUCCESS;
             }
