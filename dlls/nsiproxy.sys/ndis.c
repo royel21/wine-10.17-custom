@@ -92,7 +92,7 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(nsi);
 
-/* Winlator: App 端将网络接口写入 rootfs 的 tmp 目录, 通过 TMPDIR 定位 (跨包名兼容) */
+/* Winlator: The app writes the network interface to the tmp directory in rootfs, located via TMPDIR (compatible across package names) */
 static const char *ifaddrs_path( void )
 {
     static char path[256];

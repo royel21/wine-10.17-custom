@@ -1090,7 +1090,7 @@ static void set_initial_wm_hints( Display *display, Window window, HWND hwnd )
     XChangeProperty( display, window, x11drv_atom(XdndAware),
                      XA_ATOM, 32, PropModeReplace, (unsigned char*)&dndVersion, 1 );
 
-    /* Winlator: WOW64 标志与 HWND, 供 App 端任务管理器使用 */
+    /* Winlator: WOW64 flag and HWND, for App-side Task Manager use */
     if (!NtQueryInformationProcess( GetCurrentProcess(), ProcessWow64Information, &pbi, sizeof(pbi), NULL )) is_wow64 = !!pbi;
     XChangeProperty( display, window, x11drv_atom(_NET_WM_WOW64),
                      XA_CARDINAL, 8, PropModeReplace, (unsigned char *)&is_wow64, 1 );
