@@ -3139,8 +3139,6 @@ DECL_HANDLER(is_window_hung)
 DECL_HANDLER(get_msg_queue_handle)
 {
     struct msg_queue *queue = get_current_queue();
-    struct process *process = current->process;
-    struct event *event;
 
     reply->handle = 0;
     if (queue) reply->handle = alloc_handle( current->process, queue, SYNCHRONIZE, 0 );

@@ -63,8 +63,9 @@ typedef int Status;
 #include "windef.h"
 #include "winbase.h"
 #include "ntgdi.h"
+#include "shlobj.h"
+#include "wine/unixlib.h"
 #include "wine/gdi_driver.h"
-#include "unixlib.h"
 #include "wine/list.h"
 #include "wine/debug.h"
 #include "mwm.h"
@@ -911,10 +912,6 @@ static inline BOOL is_window_rect_mapped( const RECT *rect )
             max( rect->right, rect->left + 1 ) > virtual_rect.left &&
             max( rect->bottom, rect->top + 1 ) > virtual_rect.top);
 }
-
-/* unixlib interface */
-
-extern NTSTATUS x11drv_tablet_load_info( void *arg );
 
 /* GDI helpers */
 

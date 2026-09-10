@@ -21,9 +21,7 @@
 #include <stdarg.h>
 #include "windef.h"
 #include "winbase.h"
-#include "ntgdi.h"
-#include "unixlib.h"
-#include "wine/debug.h"
+#include "wine/unixlib.h"
 
 BOOL WINAPI DllMain( HINSTANCE instance, DWORD reason, void *reserved )
 {
@@ -31,27 +29,6 @@ BOOL WINAPI DllMain( HINSTANCE instance, DWORD reason, void *reserved )
 
     DisableThreadLibraryCalls( instance );
     if (__wine_init_unix_call()) return FALSE;
-    if (X11DRV_CALL( init, NULL )) return FALSE;
 
-    return TRUE;
-}
-
-/***********************************************************************
- *           LoadTabletInfo (winex11.@)
- */
-BOOL CDECL X11DRV_LoadTabletInfo( HWND hwnd )
-{
-    return X11DRV_CALL( tablet_load_info, hwnd );
-}
-
-/***********************************************************************
- *          WTInfoW (winex11.@)
- */
-UINT CDECL X11DRV_WTInfoW( UINT category, UINT index, void *output )
-{
-    struct tablet_info_params params;
-    params.category = category;
-    params.index = index;
-    params.output = output;
-    return X11DRV_CALL( tablet_info, &params );
+    return !WINE_UNIX_CALL( 0, NULL );
 }
