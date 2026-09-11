@@ -2676,7 +2676,7 @@ static BOOL WINAPI init_xdg_dirs( INIT_ONCE *once, void *param, void **context )
     HANDLE file;
     DWORD len;
 
-    if (!(var = _wgetenv( L"XDG_CONFIG_HOME" )) || var[0] != '/')
+    if (!(var = _wgetenv( L"UNIX_XDG_CONFIG_HOME" )) || var[0] != '/')
     {
         if (!(var = _wgetenv( L"WINEHOMEDIR" ))) return TRUE;
         fmt = L"%s/.config/user-dirs.dirs";
@@ -3450,7 +3450,7 @@ HRESULT WINAPI SHGetFolderLocation(
 
     TRACE("%p 0x%08x %p 0x%08lx %p\n",
      hwndOwner, nFolder, hToken, dwReserved, ppidl);
-    
+
     if (!ppidl)
         return E_INVALIDARG;
     if (dwReserved)

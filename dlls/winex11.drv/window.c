@@ -444,7 +444,7 @@ static BOOL is_window_managed( HWND hwnd, UINT swp_flags, BOOL fullscreen )
  */
 static inline BOOL is_window_resizable( struct x11drv_win_data *data, DWORD style )
 {
-    if (style & WS_THICKFRAME) return TRUE;
+    if (data->is_resizable) return TRUE;
     /* Metacity needs the window to be resizable to make it fullscreen */
     return data->is_fullscreen;
 }
@@ -2526,12 +2526,17 @@ void X11DRV_SetWindowStyle( HWND hwnd, INT offset, STYLESTRUCT *style )
 {
     struct x11drv_win_data *data;
     DWORD changed = style->styleNew ^ style->styleOld;
+    BOOL flush = FALSE;
 
     if (hwnd == NtUserGetDesktopWindow()) return;
     if (!(data = get_win_data( hwnd ))) return;
     if (!data->whole_window) goto done;
 
-    if (offset == GWL_STYLE && (changed & WS_DISABLED)) set_wm_hints( data );
+    if (offset == GWL_STYLE && (changed & WS_DISABLED))
+    {
+        set_wm_hints( data );
+        flush = TRUE;
+    }
 
     if (offset == GWL_EXSTYLE)
     {
@@ -2542,7 +2547,10 @@ void X11DRV_SetWindowStyle( HWND hwnd, INT offset, STYLESTRUCT *style )
             sync_window_opacity( data->display, data->whole_window, 0, 0 );
         }
         if (changed & WS_EX_TRANSPARENT) sync_window_style( data );
+        flush = TRUE;
     }
+
+    if (flush) XFlush( data->display );
 done:
     release_win_data( data );
 }
@@ -3183,13 +3191,13 @@ static BOOL get_desired_wm_state( DWORD style, const struct window_rects *rects 
 /***********************************************************************
  *		WindowPosChanged   (X11DRV.@)
  */
-void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, HWND owner_hint, UINT swp_flags, BOOL fullscreen,
+void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, HWND owner_hint, UINT swp_flags,
                               const struct window_rects *new_rects, struct window_surface *surface )
 {
     struct x11drv_win_data *data;
     UINT ex_style = NtUserGetWindowLongW( hwnd, GWL_EXSTYLE ), new_style = NtUserGetWindowLongW( hwnd, GWL_STYLE );
     struct window_rects old_rects;
-    BOOL is_managed, was_fullscreen, activate = !(swp_flags & SWP_NOACTIVATE);
+    BOOL is_managed, was_fullscreen, activate = !(swp_flags & SWP_NOACTIVATE), fullscreen = !!(swp_flags & WINE_SWP_FULLSCREEN);
 
     if ((is_managed = is_window_managed( hwnd, swp_flags, fullscreen ))) make_owner_managed( hwnd );
 
@@ -3200,6 +3208,7 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, HWND owner_hint, UIN
     was_fullscreen = data->is_fullscreen;
     if (!(new_style & WS_MINIMIZE) || is_virtual_desktop()) data->rects = *new_rects;
     data->is_fullscreen = fullscreen;
+    data->is_resizable = !!(swp_flags & WINE_SWP_RESIZABLE);
 
     TRACE( "win %p/%lx new_rects %s style %08x flags %08x\n", hwnd, data->whole_window,
            debugstr_window_rects(new_rects), new_style, swp_flags );
@@ -3328,6 +3337,8 @@ void X11DRV_SetWindowIcons( HWND hwnd, HICON icon, const ICONINFO *ii, HICON ico
     if (!(data = get_win_data( hwnd ))) return;
     set_window_icon_data( data, icon, ii, icon_small, ii_small );
     set_wm_hints( data );
+
+    XFlush( data->display );
     release_win_data( data );
 }
 
@@ -3367,7 +3378,10 @@ void X11DRV_SetLayeredWindowAttributes( HWND hwnd, COLORREF key, BYTE alpha, DWO
         set_window_visual( data, &default_visual, FALSE );
 
         if (data->whole_window)
+        {
             sync_window_opacity( data->display, data->whole_window, alpha, flags );
+            XFlush( data->display );
+        }
 
         data->layered = TRUE;
         release_win_data( data );
@@ -3380,6 +3394,7 @@ void X11DRV_SetLayeredWindowAttributes( HWND hwnd, COLORREF key, BYTE alpha, DWO
             sync_window_opacity( gdi_display, win, alpha, flags );
             if (flags & LWA_COLORKEY)
                 FIXME( "LWA_COLORKEY not supported on foreign process window %p\n", hwnd );
+            XFlush( gdi_display );
         }
     }
 }
@@ -3395,7 +3410,10 @@ void X11DRV_UpdateLayeredWindow( HWND hwnd, BYTE alpha, UINT flags )
     if (!(data = get_win_data( hwnd ))) return;
 
     if (data->whole_window)
+    {
         sync_window_opacity( data->display, data->whole_window, alpha, flags );
+        XFlush( data->display );
+    }
 
     release_win_data( data );
 }

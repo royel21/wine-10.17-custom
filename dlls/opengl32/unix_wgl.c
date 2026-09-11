@@ -729,7 +729,7 @@ static BOOL is_extension_supported( struct context *ctx, const char *extension )
 static GLubyte *filter_extensions( struct context *ctx, const char *extensions )
 {
     const char *end, **extra;
-    size_t size;
+    size_t size, len;
     char *p, *str;
 
     size = strlen( extensions ) + 2;
@@ -742,15 +742,13 @@ static GLubyte *filter_extensions( struct context *ctx, const char *extensions )
     {
         while (*extensions == ' ') extensions++;
         if (!*extensions) break;
-
-        if (!(end = strchr( extensions, ' ' ))) end = extensions + strlen( extensions );
-        memcpy( p, extensions, end - extensions );
-        p[end - extensions] = 0;
-
+        len = (end = strchr( extensions, ' ' )) ? end - extensions : strlen( extensions );
+        memcpy( p, extensions, len );
+        p[len] = 0;
         if (is_extension_supported( ctx, p ))
         {
             TRACE( "++ %s\n", p );
-            p += end - extensions;
+            p += len;
             *p++ = ' ';
         }
         else
@@ -1376,15 +1374,71 @@ static GLenum drawable_buffer_from_buffer( struct opengl_drawable *drawable, GLe
     return drawable->buffer_map[buffer - GL_FRONT_LEFT];
 }
 
+static BOOL context_draws_back( struct context *ctx )
+{
+    for (int i = 0; i < ARRAY_SIZE(ctx->color_buffer.draw_buffers); i++)
+    {
+        switch (ctx->color_buffer.draw_buffers[i])
+        {
+        case GL_LEFT:
+        case GL_RIGHT:
+        case GL_BACK:
+        case GL_FRONT_AND_BACK:
+        case GL_BACK_LEFT:
+        case GL_BACK_RIGHT:
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+static BOOL context_draws_front( struct context *ctx )
+{
+    for (int i = 0; i < ARRAY_SIZE(ctx->color_buffer.draw_buffers); i++)
+    {
+        switch (ctx->color_buffer.draw_buffers[i])
+        {
+        case GL_LEFT:
+        case GL_RIGHT:
+        case GL_FRONT:
+        case GL_FRONT_AND_BACK:
+        case GL_FRONT_LEFT:
+        case GL_FRONT_RIGHT:
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
 static void flush_context( TEB *teb, void (*flush)(void) )
 {
-    struct context *ctx = get_current_context( teb, NULL, NULL );
-    const struct opengl_funcs *funcs = teb->glTable;
+    struct opengl_drawable *read, *draw;
+    struct context *ctx = get_current_context( teb, &read, &draw );
+     const struct opengl_funcs *funcs = teb->glTable;
+    BOOL force_swap = flush && ctx && !ctx->draw_fbo && context_draws_front( ctx ) &&
+                      draw->buffer_map[0] == GL_BACK_LEFT && draw->client;
 
-    if (!ctx || !funcs->p_wgl_context_flush( &ctx->base, flush ))
+    if (!ctx || !funcs->p_wgl_context_flush( &ctx->base, flush, force_swap ))
+     {
+         /* default implementation: call the functions directly */
+         if (flush) flush();
+     }
+
+    if (force_swap)
     {
-        /* default implementation: call the functions directly */
-        if (flush) flush();
+        GLenum mask = GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT;
+        RECT rect;
+
+        WARN( "Front buffer rendering emulation, copying front buffer back\n" );
+
+        NtUserGetClientRect( draw->client->hwnd, &rect, NtUserGetDpiForWindow( draw->client->hwnd ) );
+        if (ctx->read_fbo) funcs->p_glBindFramebuffer( GL_READ_FRAMEBUFFER, 0 );
+        funcs->p_glReadBuffer( GL_FRONT_LEFT );
+        funcs->p_glBlitFramebuffer( 0, 0, 0, 0, rect.right, rect.bottom, rect.right, rect.bottom, mask, GL_NEAREST );
+        if (ctx->read_fbo) funcs->p_glBindFramebuffer( GL_READ_FRAMEBUFFER, ctx->read_fbo );
+        else funcs->p_glReadBuffer( drawable_buffer_from_buffer( read, ctx->pixel_mode.read_buffer ) );
     }
 }
 
@@ -1744,44 +1798,6 @@ void pop_default_fbo( TEB *teb )
         funcs->p_glViewport( 0, 0, rect.right, rect.bottom );
         ctx->has_viewport = GL_TRUE;
     }
-}
-
-static BOOL context_draws_back( struct context *ctx )
-{
-    for (int i = 0; i < ARRAY_SIZE(ctx->color_buffer.draw_buffers); i++)
-    {
-        switch (ctx->color_buffer.draw_buffers[i])
-        {
-        case GL_LEFT:
-        case GL_RIGHT:
-        case GL_BACK:
-        case GL_FRONT_AND_BACK:
-        case GL_BACK_LEFT:
-        case GL_BACK_RIGHT:
-            return TRUE;
-        }
-    }
-
-    return FALSE;
-}
-
-static BOOL context_draws_front( struct context *ctx )
-{
-    for (int i = 0; i < ARRAY_SIZE(ctx->color_buffer.draw_buffers); i++)
-    {
-        switch (ctx->color_buffer.draw_buffers[i])
-        {
-        case GL_LEFT:
-        case GL_RIGHT:
-        case GL_FRONT:
-        case GL_FRONT_AND_BACK:
-        case GL_FRONT_LEFT:
-        case GL_FRONT_RIGHT:
-            return TRUE;
-        }
-    }
-
-    return FALSE;
 }
 
 void resolve_default_fbo( TEB *teb, BOOL read )
@@ -2354,17 +2370,6 @@ static void flush_buffer( TEB *teb, struct buffer *buffer, size_t offset, size_t
     if (vr) ERR( "vkFlushMappedMemoryRanges failed: %x\n", vr );
 }
 
-static int find_vk_memory_type( struct vk_device *vk_device, uint32_t flags, uint32_t mask )
-{
-    uint32_t i;
-    flags &= mask;
-    for (i = 0; i < vk_device->memory_properties.memoryTypeCount; i++)
-    {
-        if ((vk_device->memory_properties.memoryTypes[i].propertyFlags & mask) == flags) return i;
-    }
-    return -1;
-}
-
 static struct buffer *create_buffer_storage( TEB *teb, GLenum target, GLuint name, size_t size, const void *data, GLbitfield flags )
 {
     VkExportMemoryAllocateInfo export_alloc =
@@ -2385,26 +2390,27 @@ static struct buffer *create_buffer_storage( TEB *teb, GLenum target, GLuint nam
     };
     struct opengl_funcs *funcs = teb->glTable;
     GLuint buffer_name = name ? name : get_target_name( teb, target );
-    uint32_t type_mask = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-    uint32_t desired_type = type_mask;
     struct context *ctx = get_current_context( teb, NULL, NULL );
     struct vk_device *vk_device;
     struct buffer *buffer;
-    int fd, memory_type;
+    uint32_t i;
+    int fd;
     VkResult vr;
 
     if (!(vk_device = ctx->buffers->vk_device) || !vk_device->vk_device) return NULL;
 
-    if (flags & GL_CLIENT_STORAGE_BIT) desired_type &= ~VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-    memory_type = find_vk_memory_type( vk_device, desired_type, type_mask );
-    if (memory_type == -1) /* if we can’t find a matching type, try ignoring GL_CLIENT_STORAGE_BIT */
-        memory_type = find_vk_memory_type( vk_device, desired_type, type_mask & ~VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT );
-    if (memory_type == -1)
+    /* FIXME: For now, just use any host-visible coherent memory type. We can do better and take into account GL flags. */
+    for (i = 0; i < vk_device->memory_properties.memoryTypeCount; i++)
+    {
+        static const uint32_t mask = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        if ((vk_device->memory_properties.memoryTypes[i].propertyFlags & mask) == mask) break;
+    }
+    if (i == vk_device->memory_properties.memoryTypeCount)
     {
         WARN( "Could not find memory type\n" );
         return NULL;
     }
-    alloc_info.memoryTypeIndex = memory_type;
+    alloc_info.memoryTypeIndex = i;
 
     if (!(buffer = calloc( 1, sizeof(*buffer) ))) return NULL;
     buffer->name = buffer_name;

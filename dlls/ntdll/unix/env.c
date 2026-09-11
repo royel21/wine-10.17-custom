@@ -345,7 +345,7 @@ static BOOL is_special_env_var( const char *var )
             STARTS_WITH( var, "TMP=" ) ||
             STARTS_WITH( var, "QT_" ) ||
             STARTS_WITH( var, "VK_" ) ||
-            STARTS_WITH( var, "XDG_SESSION_TYPE=" ));
+            STARTS_WITH( var, "XDG_" ));
 }
 
 /* check if an environment variable changes dynamically in every new process */
@@ -916,6 +916,12 @@ static WCHAR *get_initial_environment( SIZE_T *pos, SIZE_T *size )
     /* estimate needed size */
     *size = 1;
     for (e = environ; *e; e++) *size += strlen(*e) + 6;
+    if (*size > 30000)  /* Windows is limited to 32767, and we need some space for the Wine variables */
+    {
+        ERR( "Unix environment too large, not importing it.\n");
+        *size = *pos = 0;
+        return NULL;
+    }
 
     env = malloc( *size * sizeof(WCHAR) );
     ptr = env;

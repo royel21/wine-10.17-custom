@@ -104,7 +104,7 @@ static BOOL WINAPI init_trash_dirs( INIT_ONCE *once, void *param, void **context
     }
     else
     {
-        const WCHAR *data_home = _wgetenv( L"XDG_DATA_HOME" );
+        const WCHAR *data_home = _wgetenv( L"UNIX_XDG_DATA_HOME" );
         const WCHAR *fmt = L"%s/.local/share/Trash";
         WCHAR *p;
 
@@ -1029,7 +1029,7 @@ static HRESULT WINAPI RecycleBin_GetDetailsOf(IShellFolder2 *iface, LPCITEMIDLIS
         default:
             return E_FAIL;
     }
-    
+
     pDetails->str.uType = STRRET_WSTR;
     return SHStrDupW(buffer, &pDetails->str.pOleStr);
 }
@@ -1044,7 +1044,7 @@ static HRESULT WINAPI RecycleBin_MapColumnToSCID(IShellFolder2 *iface, UINT iCol
     return shellfolder_map_column_to_scid(RecycleBinColumns, iColumn, pscid);
 }
 
-static const IShellFolder2Vtbl recycleBinVtbl = 
+static const IShellFolder2Vtbl recycleBinVtbl =
 {
     /* IUnknown */
     RecycleBin_QueryInterface,
