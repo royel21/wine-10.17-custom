@@ -1969,10 +1969,12 @@ static BOOL X11DRV_TouchEvent( HWND hwnd, XGenericEventCookie *xev )
  */
 void x11drv_xinput2_load(void)
 {
-#if defined(SONAME_LIBXI)
     int event, error;
-    void *libxi_handle = dlopen( SONAME_LIBXI, RTLD_NOW );
+    void *libxi_handle = NULL;
+    if (!usexinput2) return;
 
+#if defined(SONAME_LIBXI)
+    libxi_handle = dlopen( SONAME_LIBXI, RTLD_NOW );
     if (!libxi_handle)
     {
         WARN( "couldn't load %s\n", SONAME_LIBXI );

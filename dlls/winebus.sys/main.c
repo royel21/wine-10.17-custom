@@ -961,7 +961,7 @@ static DWORD CALLBACK bus_main_thread(void *args)
             UINT buttons;
 
             usages = get_device_usages(event->device, &buttons);
-            if (!desc.is_hidraw != !is_hidraw_enabled(desc.vid, desc.pid, &usages, buttons))
+           if (!desc.is_synthetic && !desc.is_hidraw != !is_hidraw_enabled(desc.vid, desc.pid, &usages, buttons))
             {
                 struct device_remove_params params = {.device = event->device};
                 WARN("ignoring %shidraw device %04x:%04x with usages %04x:%04x\n", desc.is_hidraw ? "" : "non-",

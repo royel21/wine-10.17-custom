@@ -41,6 +41,7 @@ struct device_desc
     UINT bus_type;
     BOOL is_gamepad;
     BOOL is_hidraw;
+    BOOL is_synthetic;
 
     WCHAR manufacturer[MAX_PATH];
     WCHAR product[MAX_PATH];

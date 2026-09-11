@@ -304,7 +304,7 @@ static NTSTATUS build_gamepad_report_descriptor(struct unix_device *iface)
     if (impl->vibration)
     {
         if (!hid_device_add_haptics(&impl->unix_device))
-            return FALSE;
+            return STATUS_UNSUCCESSFUL;
     }
 
     if (!hid_device_end_report_descriptor(iface))
@@ -326,11 +326,14 @@ static void gamepad_create(int index, char *data)
         .vid = *(short*)(data + 3),
         .pid = *(short*)(data + 5),
         .is_gamepad = FALSE,
+        .is_synthetic = TRUE,
     };
     int name_len = data[7];
     char* name = data + 8;
     char buffer[ARRAY_SIZE(desc.product)];
     struct gamepad *impl;
+
+    if (name_len < 0 || name_len >= ARRAY_SIZE(desc.product)) name_len = 0;
 
     snprintf(buffer, sizeof(buffer), "%s.%d", GAMEPAD_GUID, index);
     ntdll_umbstowcs(buffer, strlen(buffer) + 1, desc.serialnumber, ARRAY_SIZE(desc.serialnumber));
@@ -391,9 +394,18 @@ static void gamepad_set_state(int slot, char *data)
     BOOL pressed;
     short buttons, axis_value;
     struct gamepad *impl = find_device_from_index(slot);
-    struct unix_device *iface = &impl->unix_device;
-    struct hid_device_state *state = &iface->hid_device_state;
+    struct unix_device *iface;
+    struct hid_device_state *state;
     LONG dpad_x = 0, dpad_y = 0;
+
+    if (!impl)
+    {
+        WARN("No device with index %d, can't set state\n", slot);
+        return;
+    }
+
+    iface = &impl->unix_device;
+    state = &iface->hid_device_state;
 
     if (impl->state != GAMEPAD_STATE_STARTED)
     {
