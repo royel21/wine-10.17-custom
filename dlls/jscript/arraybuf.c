@@ -18,6 +18,7 @@
 
 
 #include <limits.h>
+#include <math.h>
 
 #include "jscript.h"
 
@@ -715,6 +716,7 @@ static const builtin_info_t DataViewConstr_info = {
     X(Int16Array)        \
     X(Int32Array)        \
     X(Uint8Array)        \
+    X(Uint8ClampedArray) \
     X(Uint16Array)       \
     X(Uint32Array)       \
     X(Float32Array)      \
@@ -746,11 +748,17 @@ static void set_f32(void *p, double v) { *(float *)p = v; }
 static double get_f64(const void *p) { return *(const double *)p; }
 static void set_f64(void *p, double v) { *(double *)p = v; }
 
+static void set_clamped_u8(void *p, double v)
+{
+    *(UINT8 *)p = v >= 255.0 ? 255 : v > 0 ? lround(v) : 0;
+}
+
 static const struct typed_array_desc typed_array_descs[NUM_TYPEDARRAY_TYPES] = {
     [Int8Array_desc_idx]         = { 1, get_s8,  set_u8         },
     [Int16Array_desc_idx]        = { 2, get_s16, set_u16        },
     [Int32Array_desc_idx]        = { 4, get_s32, set_u32        },
     [Uint8Array_desc_idx]        = { 1, get_u8,  set_u8         },
+    [Uint8ClampedArray_desc_idx] = { 1, get_u8,  set_clamped_u8 },
     [Uint16Array_desc_idx]       = { 2, get_u16, set_u16        },
     [Uint32Array_desc_idx]       = { 4, get_u32, set_u32        },
     [Float32Array_desc_idx]      = { 4, get_f32, set_f32        },
@@ -1231,9 +1239,9 @@ static const builtin_info_t TypedArrayConstr_info = {
     .call  = Function_value,
 };
 
-static HRESULT init_typed_array_constructor(script_ctx_t *ctx, builtin_invoke_t func, const WCHAR *name,
-                                            const builtin_info_t *info, unsigned int type_idx)
+static HRESULT init_typed_array_constructor(script_ctx_t *ctx, builtin_invoke_t func, const WCHAR *name, const builtin_info_t *info)
 {
+    const unsigned type_idx = info->class - FIRST_TYPEDARRAY_JSCLASS;
     TypedArrayInstance *prototype;
     HRESULT hres;
 
@@ -1269,6 +1277,20 @@ static HRESULT init_typed_array_constructor(script_ctx_t *ctx, builtin_invoke_t 
 
 HRESULT init_arraybuf_constructors(script_ctx_t *ctx)
 {
+    static const struct {
+        const WCHAR *name;
+        builtin_invoke_t constr_func;
+        const builtin_info_t *prototype_info;
+    } typed_arrays[] = {
+        { L"Int8Array",     Int8ArrayConstr_value,     &Int8Array_info },
+        { L"Int16Array",    Int16ArrayConstr_value,    &Int16Array_info },
+        { L"Int32Array",    Int32ArrayConstr_value,    &Int32Array_info },
+        { L"Uint8Array",    Uint8ArrayConstr_value,    &Uint8Array_info },
+        { L"Uint16Array",   Uint16ArrayConstr_value,   &Uint16Array_info },
+        { L"Uint32Array",   Uint32ArrayConstr_value,   &Uint32Array_info },
+        { L"Float32Array",  Float32ArrayConstr_value,  &Float32Array_info },
+        { L"Float64Array",  Float64ArrayConstr_value,  &Float64Array_info },
+    };
     static const struct {
         const WCHAR *name;
         builtin_invoke_t get;
@@ -1352,12 +1374,17 @@ HRESULT init_arraybuf_constructors(script_ctx_t *ctx)
     if(FAILED(hres))
         return hres;
 
-#define X(name) \
-    hres = init_typed_array_constructor(ctx, name##Constr_value, L"" #name, &name##_info, name##_desc_idx); \
-    if(FAILED(hres)) \
-        return hres;
-    ALL_TYPED_ARRAYS
-#undef X
+    for(i = 0; i < ARRAY_SIZE(typed_arrays); i++) {
+        hres = init_typed_array_constructor(ctx, typed_arrays[i].constr_func, typed_arrays[i].name, typed_arrays[i].prototype_info);
+        if(FAILED(hres))
+            return hres;
+    }
+
+    if(ctx->version >= SCRIPTLANGUAGEVERSION_ES6) {
+        hres = init_typed_array_constructor(ctx, Uint8ClampedArrayConstr_value, L"Uint8ClampedArray", &Uint8ClampedArray_info);
+        if(FAILED(hres))
+            return hres;
+    }
 
     return hres;
 }

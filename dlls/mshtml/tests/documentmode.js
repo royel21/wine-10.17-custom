@@ -3264,6 +3264,24 @@ sync_test("nullDisp", function() {
     r = (nullDisp instanceof Object);
     ok(r === false, "nullDisp instance of Object");
 
+    try {
+        r = Object.prototype.valueOf.call(null);
+        ok(v < 10, "expected exception calling valueOf on null");
+        ok(r === null, "valueOf null != null");
+    }catch(e) {
+        ok(v >= 10, "did not expect exception calling valueOf on null");
+        ok(e.number === 0xa138f - 0x80000000, "valueOf on null threw " + e.number);
+    }
+
+    try {
+        r = Object.prototype.valueOf.call(nullDisp);
+        ok(v < 10, "expected exception calling valueOf on nullDisp");
+        ok(r === nullDisp, "valueOf on nullDisp != nullDisp");
+    }catch(e) {
+        ok(v >= 10, "did not expect exception calling valueOf on nullDisp");
+        ok(e.number === 0xa138f - 0x80000000, "valueOf on nullDisp threw " + e.number);
+    }
+
     if(v >= 8) {
         r = JSON.stringify.call(null, nullDisp);
         ok(r === "null", "JSON.stringify(nullDisp) returned " + r);
@@ -4689,7 +4707,7 @@ async_test("window own props", function() {
             "SVGScriptElement", "SVGStopElement", "SVGStringList", "SVGStyleElement", "SVGSwitchElement", "SVGSymbolElement", "SVGTextElement", "SVGTextPathElement", "SVGTitleElement",
             "SVGTransform", "SVGTransformList", "SVGUnitTypes", "SVGUseElement", "SVGViewElement", "SVGZoomAndPan", "SVGZoomEvent", "TextEvent", "TextMetrics", "TextRangeCollection", ["TextTrack",10],
             ["TextTrackCue",10], ["TextTrackCueList",10], ["TextTrackList",10], "TimeRanges", ["TrackEvent",10], ["TransitionEvent",10], "TreeWalker",
-            ["Uint8ClampedArray",11], ["URL",10], ["ValidityState",10], ["VideoPlaybackQuality",11], ["WebGLActiveInfo",11], ["WebGLBuffer",11], ["WebGLContextEvent",11],
+            ["URL",10], ["ValidityState",10], ["VideoPlaybackQuality",11], ["WebGLActiveInfo",11], ["WebGLBuffer",11], ["WebGLContextEvent",11],
             ["WebGLFramebuffer",11], ["WebGLObject",11], ["WebGLProgram",11], ["WebGLRenderbuffer",11], ["WebGLRenderingContext",11], ["WebGLShader",11], ["WebGLShaderPrecisionFormat",11],
             ["WebGLTexture",11], ["WebGLUniformLocation",11], ["WEBGL_compressed_texture_s3tc",11], ["WEBGL_debug_renderer_info",11], ["WebSocket",10], "WheelEvent", ["Worker",10],
             ["XMLHttpRequestEventTarget",10], "XMLSerializer"

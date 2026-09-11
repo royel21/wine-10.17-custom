@@ -430,7 +430,7 @@ static CVReturn WineDisplayLinkCallback(CVDisplayLinkRef displayLink, const CVTi
 
 @implementation WineBaseView
 
-    - (void) setRetinaMode:(int)mode
+    - (void) setRetinaMode:(BOOL)mode
     {
         for (WineBaseView* subview in [self subviews])
         {
@@ -722,7 +722,7 @@ static CVReturn WineDisplayLinkCallback(CVDisplayLinkRef displayLink, const CVTi
         }
     }
 
-    - (void) setRetinaMode:(int)mode
+    - (void) setRetinaMode:(BOOL)mode
     {
         double scale = mode ? 0.5 : 2.0;
         NSRect frame = self.frame;
@@ -784,7 +784,7 @@ static CVReturn WineDisplayLinkCallback(CVDisplayLinkRef displayLink, const CVTi
         event = macdrv_create_event(IM_SET_TEXT, window);
         event->im_set_text.himc = [window himc];
         event->im_set_text.text = (CFStringRef)[text copy];
-        event->im_set_text.complete = TRUE;
+        event->im_set_text.complete = true;
 
         [[window queue] postEvent:event];
 
@@ -867,7 +867,7 @@ static CVReturn WineDisplayLinkCallback(CVDisplayLinkRef displayLink, const CVTi
             event = macdrv_create_event(IM_SET_TEXT, window);
             event->im_set_text.himc = [window himc];
             event->im_set_text.text = (CFStringRef)[[markedText string] copy];
-            event->im_set_text.complete = FALSE;
+            event->im_set_text.complete = false;
             event->im_set_text.cursor_begin = markedTextSelection.location;
             event->im_set_text.cursor_end = markedTextSelection.location + markedTextSelection.length;
 
@@ -969,7 +969,7 @@ static CVReturn WineDisplayLinkCallback(CVDisplayLinkRef displayLink, const CVTi
         [super dealloc];
     }
 
-    - (void) setRetinaMode:(int)mode
+    - (void) setRetinaMode:(BOOL)mode
     {
         self.layer.contentsScale = mode ? 2.0 : 1.0;
         [super setRetinaMode:mode];
@@ -2725,7 +2725,7 @@ static CVReturn WineDisplayLinkCallback(CVDisplayLinkRef displayLink, const CVTi
             [self checkTransparency];
     }
 
-    - (void) setRetinaMode:(int)mode
+    - (void) setRetinaMode:(BOOL)mode
     {
         NSRect frame;
         double scale = mode ? 0.5 : 2.0;

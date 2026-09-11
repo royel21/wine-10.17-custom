@@ -1251,6 +1251,7 @@ typedef struct tagSTYLESTRUCT {
 #define GW_HWNDPREV	3
 #define GW_OWNER	4
 #define GW_CHILD	5
+#define GW_ENABLEDPOPUP 6
 
 /* GetAncestor() constants */
 #define GA_PARENT       1
@@ -2120,7 +2121,7 @@ struct tagMONITORINFOEXW : public tagMONITORINFO
 
 struct tagMONITORINFOEXA
 {   /* the 4 first entries are the same as MONITORINFO */
-    DWORD	cbSize;	
+    DWORD	cbSize;
     RECT	rcMonitor;
     RECT	rcWork;
     DWORD	dwFlags;

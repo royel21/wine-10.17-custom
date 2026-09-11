@@ -1304,7 +1304,7 @@ static NTSTATUS fdo_pnp_dispatch(DEVICE_OBJECT *device, IRP *irp)
         if (!sdl_driver_init()) options.disable_input = TRUE;
         udev_driver_init();
         iohid_driver_init();
-        winlator_driver_init();
+        // winlator_driver_init(); TODO is not working
 
         irp->IoStatus.Status = STATUS_SUCCESS;
         break;
