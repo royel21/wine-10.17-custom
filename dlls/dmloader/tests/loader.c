@@ -199,11 +199,11 @@ static void test_clear_cache(void)
 
     /* ClearCache releases the loaded objects */
     refcount = IDirectMusicCollection_Release(collection);
-    todo_wine ok(!refcount, "refcount == %lu, expected 0\n", refcount);
+    ok(!refcount, "refcount == %lu, expected 0\n", refcount);
     if (segment)
     {
         refcount = IDirectMusicSegment_Release(segment);
-        todo_wine ok(!refcount, "refcount == %lu, expected 0\n", refcount);
+        ok(!refcount, "refcount == %lu, expected 0\n", refcount);
     }
 
     /* ClearCache doesn't remove the default collection */

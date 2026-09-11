@@ -525,10 +525,6 @@ static void preloader_exec( char **argv )
 /* exec the appropriate wine loader for the specified machine */
 static NTSTATUS loader_exec( char **argv, WORD machine )
 {
-    static char noexec[] = "WINELOADERNOEXEC=1";
-
-    putenv( noexec );
-
     if (((argv[1] = get_alternate_wineloader( machine )))) preloader_exec( argv );
 
     argv[1] = strdup( wineloader );
@@ -2189,6 +2185,7 @@ static int pre_exec(void)
 
 static void reexec_loader( int argc, char *argv[], char *extra_arg )
 {
+    static char noexec[] = "WINELOADERNOEXEC=1";
     char **new_argv;
 
     /* have to exec if we have a preloader, or an argument, or if we are the initial wrapper */
@@ -2206,6 +2203,7 @@ static void reexec_loader( int argc, char *argv[], char *extra_arg )
         memcpy( new_argv + 2, argv + 1, argc * sizeof(*argv) );
     }
 
+    putenv( noexec );
     loader_exec( new_argv, current_machine );
     fatal_error( "could not exec the wine loader\n" );
 }
@@ -2280,7 +2278,6 @@ DECLSPEC_EXPORT void __wine_main( int argc, char *argv[] )
 
     init_paths();
     if (!getenv( "WINELOADERNOEXEC" ) || argc <= 1) check_command_line( argc, argv );
-    unsetenv( "WINELOADERNOEXEC" );
 
 #ifdef RLIMIT_NOFILE
     set_max_limit( RLIMIT_NOFILE );
