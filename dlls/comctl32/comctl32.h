@@ -199,6 +199,7 @@ LRESULT COMCTL32_ThemeChanged(HWND hwnd, const WCHAR *theme_class, BOOL invalida
 BOOL COMCTL32_IsReflectedMessage(UINT uMsg);
 BOOL COMCTL32_IsThemed(HWND hwnd);
 LRESULT COMCTL32_NCPaint(HWND hwnd, WPARAM wp, LPARAM lp, const WCHAR *theme_class);
+LRESULT COMCTL32_SetVersion(INT *current_version, INT new_version);
 INT  Str_GetPtrWtoA(LPCWSTR lpSrc, LPSTR lpDest, INT nMaxLen);
 INT  Str_GetPtrAtoW(LPCSTR lpSrc, LPWSTR lpDest, INT nMaxLen);
 BOOL Str_SetPtrAtoW(LPWSTR *lppDest, LPCSTR lpSrc);

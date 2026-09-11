@@ -297,6 +297,7 @@ void handle_dispatch_exception(script_ctx_t *ctx, EXCEPINFO *ei);
 HRESULT create_object(script_ctx_t*,jsdisp_t*,jsdisp_t**);
 HRESULT create_math(script_ctx_t*,jsdisp_t**);
 HRESULT create_array(script_ctx_t*,DWORD,jsdisp_t**);
+HRESULT create_arraybuffer(script_ctx_t*,DWORD,IWineJSDispatch**,void**);
 HRESULT create_regexp(script_ctx_t*,jsstr_t*,DWORD,jsdisp_t**);
 HRESULT create_regexp_var(script_ctx_t*,jsval_t,jsval_t*,jsdisp_t**);
 HRESULT create_string(script_ctx_t*,jsstr_t*,jsdisp_t**);
@@ -494,6 +495,7 @@ HRESULT regexp_string_match(script_ctx_t*,jsdisp_t*,jsstr_t*,jsval_t*);
 
 BOOL bool_obj_value(jsdisp_t*);
 unsigned array_get_length(jsdisp_t*);
+HRESULT typed_array_get_random_values(jsdisp_t*);
 HRESULT localize_number(script_ctx_t*,DOUBLE,BOOL,jsstr_t**);
 
 BOOL is_builtin_eval_func(jsdisp_t*);

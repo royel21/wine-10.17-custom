@@ -3103,6 +3103,23 @@ void COMCTL32_CloseThemeForWindow(HWND hwnd)
     CloseThemeData(GetWindowTheme(hwnd));
 }
 
+/* A helper to handle CCM_SETVERSION messages */
+LRESULT COMCTL32_SetVersion(INT *current_version, INT new_version)
+{
+#if __WINE_COMCTL32_VERSION == 6
+    return *current_version;
+#else
+    INT old_version;
+
+    if (new_version > 5)
+        return -1;
+
+    old_version = *current_version;
+    *current_version = new_version;
+    return old_version;
+#endif
+}
+
 /* A helper to handle WM_THEMECHANGED messages */
 LRESULT COMCTL32_ThemeChanged(HWND hwnd, const WCHAR *theme_class, BOOL invalidate, BOOL erase)
 {
