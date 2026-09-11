@@ -31,6 +31,7 @@ struct rowset
     IColumnsInfo IColumnsInfo_iface;
     IRowsetChange IRowsetChange_iface;
     IAccessor IAccessor_iface;
+    IRowsetInfo IRowsetInfo_iface;
     LONG refs;
 
     int columns_cnt;
@@ -65,6 +66,11 @@ static inline struct rowset *impl_from_IAccessor(IAccessor *iface)
     return CONTAINING_RECORD(iface, struct rowset, IAccessor_iface);
 }
 
+static inline struct rowset *impl_from_IRowsetInfo(IRowsetInfo *iface)
+{
+    return CONTAINING_RECORD(iface, struct rowset, IRowsetInfo_iface);
+}
+
 static HRESULT WINAPI rowset_QueryInterface(IRowsetExactScroll *iface, REFIID riid, void **ppv)
 {
     struct rowset *rowset = impl_from_IRowsetExactScroll(iface);
@@ -91,6 +97,10 @@ static HRESULT WINAPI rowset_QueryInterface(IRowsetExactScroll *iface, REFIID ri
     else if(IsEqualGUID(&IID_IAccessor, riid))
     {
         *ppv = &rowset->IAccessor_iface;
+    }
+    else if(IsEqualGUID(&IID_IRowsetInfo, riid))
+    {
+        *ppv = &rowset->IRowsetInfo_iface;
     }
 
     if(*ppv)
@@ -536,6 +546,101 @@ static struct IAccessorVtbl accessor_vtbl =
     accessor_ReleaseAccessor
 };
 
+static HRESULT WINAPI rowset_info_QueryInterface(IRowsetInfo *iface, REFIID riid, void **ppv)
+{
+    struct rowset *rowset = impl_from_IRowsetInfo(iface);
+    return IRowsetExactScroll_QueryInterface(&rowset->IRowsetExactScroll_iface, riid, ppv);
+}
+
+static ULONG WINAPI rowset_info_AddRef(IRowsetInfo *iface)
+{
+    struct rowset *rowset = impl_from_IRowsetInfo(iface);
+    return IRowsetExactScroll_AddRef(&rowset->IRowsetExactScroll_iface);
+}
+
+static ULONG WINAPI rowset_info_Release(IRowsetInfo *iface)
+{
+    struct rowset *rowset = impl_from_IRowsetInfo(iface);
+    return IRowsetExactScroll_Release(&rowset->IRowsetExactScroll_iface);
+}
+
+static HRESULT WINAPI rowset_info_GetProperties(IRowsetInfo *iface, const ULONG propidsets_count,
+        const DBPROPIDSET propidsets[], ULONG *count, DBPROPSET **propsets)
+{
+    struct rowset *rowset = impl_from_IRowsetInfo(iface);
+    ULONG i, j, c = 0;
+    DBPROP *prop;
+
+    TRACE("%p, %lu, %p, %p, %p\n", rowset, propidsets_count, propidsets, count, propsets);
+
+    for (i = 0; i <propidsets_count; i++)
+    {
+        if (!IsEqualGUID(&DBPROPSET_ROWSET, &propidsets[i].guidPropertySet))
+        {
+            FIXME("property set: %s\n", wine_dbgstr_guid(&propidsets[i].guidPropertySet));
+            return E_NOTIMPL;
+        }
+
+        for (j = 0; j < propidsets[i].cPropertyIDs; j++)
+        {
+            if (propidsets[i].rgPropertyIDs[j] != DBPROP_BOOKMARKS)
+            {
+                FIXME("DBPROPSET_ROWSET property %lu\n", propidsets[i].rgPropertyIDs[j]);
+                return E_NOTIMPL;
+            }
+            c++;
+        }
+    }
+    if (c != 1) return E_NOTIMPL;
+
+    prop = CoTaskMemAlloc(sizeof(*prop));
+    if (!prop) return E_OUTOFMEMORY;
+    *propsets = CoTaskMemAlloc(sizeof(**propsets));
+    if (!*propsets)
+    {
+        CoTaskMemFree(prop);
+        return E_OUTOFMEMORY;
+    }
+
+    *count = 1;
+    (*propsets)->rgProperties = prop;
+    (*propsets)->cProperties = 1;
+    (*propsets)->guidPropertySet = DBPROPSET_ROWSET;
+    memset(prop, 0, sizeof(*prop));
+    prop->dwPropertyID = DBPROP_BOOKMARKS;
+    V_VT(&prop->vValue) = VT_BOOL;
+    V_BOOL(&prop->vValue) = VARIANT_TRUE;
+    return S_OK;
+}
+
+static HRESULT WINAPI rowset_info_GetReferencedRowset(IRowsetInfo *iface,
+        DBORDINAL iOrdinal, REFIID riid, IUnknown **ppReferencedRowset)
+{
+    struct rowset *rowset = impl_from_IRowsetInfo(iface);
+
+    FIXME("%p, %Iu, %s, %p\n", rowset, iOrdinal, wine_dbgstr_guid(riid), ppReferencedRowset);
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI rowset_info_GetSpecification(IRowsetInfo *iface,
+        REFIID riid, IUnknown **ppSpecification)
+{
+    struct rowset *rowset = impl_from_IRowsetInfo(iface);
+
+    FIXME("%p, %s, %p\n", rowset, wine_dbgstr_guid(riid), ppSpecification);
+    return E_NOTIMPL;
+}
+
+static struct IRowsetInfoVtbl rowset_info_vtbl =
+{
+    rowset_info_QueryInterface,
+    rowset_info_AddRef,
+    rowset_info_Release,
+    rowset_info_GetProperties,
+    rowset_info_GetReferencedRowset,
+    rowset_info_GetSpecification
+};
+
 HRESULT create_mem_rowset(int count, const DBCOLUMNINFO *info, IUnknown **ret)
 {
     struct rowset *rowset;
@@ -548,6 +653,7 @@ HRESULT create_mem_rowset(int count, const DBCOLUMNINFO *info, IUnknown **ret)
     rowset->IColumnsInfo_iface.lpVtbl = &columns_info_vtbl;
     rowset->IRowsetChange_iface.lpVtbl = &rowset_change_vtbl;
     rowset->IAccessor_iface.lpVtbl = &accessor_vtbl;
+    rowset->IRowsetInfo_iface.lpVtbl = &rowset_info_vtbl;
     rowset->refs = 1;
 
     rowset->columns_cnt = count;

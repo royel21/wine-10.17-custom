@@ -305,6 +305,7 @@ struct __abi_type_descriptor
 struct platform_type
 {
     IInspectable IInspectable_iface;
+    IStringable IPrintable_iface;
     IClosable IClosable_iface;
     IUnknown *marshal;
     const struct __abi_type_descriptor *desc;
@@ -327,6 +328,11 @@ HRESULT WINAPI platform_type_QueryInterface(IInspectable *iface, const GUID *iid
         IsEqualGUID(iid, &IID_IAgileObject))
     {
         IInspectable_AddRef((*out = &impl->IInspectable_iface));
+        return S_OK;
+    }
+    if (IsEqualGUID(iid, &IID_IPrintable))
+    {
+        IStringable_AddRef((*out = &impl->IPrintable_iface));
         return S_OK;
     }
     if (IsEqualGUID(iid, &IID_IClosable))
@@ -394,6 +400,29 @@ COM_VTABLE_ENTRY(platform_type_GetRuntimeClassName)
 COM_VTABLE_ENTRY(platform_type_GetTrustLevel)
 COM_VTABLE_RTTI_END;
 
+DEFINE_IINSPECTABLE_(platform_type_printable, IStringable, struct platform_type,
+    impl_platform_type_from_IStringable, IPrintable_iface, &impl->IInspectable_iface);
+
+static HRESULT WINAPI platform_type_printable_ToString(IStringable *iface, HSTRING *str)
+{
+    struct platform_type *impl = impl_platform_type_from_IStringable(iface);
+
+    TRACE("(%p, %p)\n", iface, str);
+
+    return WindowsCreateString(impl->desc->name, impl->desc->name ? wcslen(impl->desc->name ) : 0, str);
+}
+
+DEFINE_RTTI_DATA(platform_type_printable, offsetof(struct platform_type, IPrintable_iface), ".?AVType@Platform@@");
+COM_VTABLE_RTTI_START(IStringable, platform_type_printable)
+COM_VTABLE_ENTRY(platform_type_printable_QueryInterface)
+COM_VTABLE_ENTRY(platform_type_printable_AddRef)
+COM_VTABLE_ENTRY(platform_type_printable_Release)
+COM_VTABLE_ENTRY(platform_type_printable_GetIids)
+COM_VTABLE_ENTRY(platform_type_printable_GetRuntimeClassName)
+COM_VTABLE_ENTRY(platform_type_printable_GetTrustLevel)
+COM_VTABLE_ENTRY(platform_type_printable_ToString)
+COM_VTABLE_RTTI_END;
+
 DEFINE_IINSPECTABLE(platform_type_closable, IClosable, struct platform_type, IInspectable_iface);
 
 static HRESULT WINAPI platform_type_closable_Close(IClosable *iface)
@@ -417,6 +446,7 @@ static void init_platform_type(void *base)
 {
     INIT_RTTI(type_info, base);
     INIT_RTTI(platform_type, base);
+    INIT_RTTI(platform_type_printable, base);
     INIT_RTTI(platform_type_closable, base);
 }
 
@@ -430,7 +460,7 @@ static const char *debugstr_abi_type_descriptor(const struct __abi_type_descript
 void *WINAPI __abi_make_type_id(const struct __abi_type_descriptor *desc)
 {
     /* TODO:
-     * Implement IEquatable and IPrintable. */
+     * Implement IEquatable. */
     struct platform_type *obj;
     HRESULT hr;
 
@@ -438,6 +468,7 @@ void *WINAPI __abi_make_type_id(const struct __abi_type_descriptor *desc)
 
     obj = Allocate(sizeof(*obj));
     obj->IInspectable_iface.lpVtbl = &platform_type_vtable.vtable;
+    obj->IPrintable_iface.lpVtbl = &platform_type_printable_vtable.vtable;
     obj->IClosable_iface.lpVtbl = &platform_type_closable_vtable.vtable;
     obj->desc = desc;
     obj->ref = 1;
@@ -471,8 +502,7 @@ HSTRING __cdecl platform_type_ToString(struct platform_type *this)
 
     TRACE("(%p)\n", this);
 
-    hr = WindowsCreateString(this->desc->name, this->desc->name ? wcslen(this->desc->name) : 0, &str);
-    if (FAILED(hr))
+    if (FAILED(hr = IStringable_ToString(&this->IPrintable_iface, &str)))
         __abi_WinRTraiseCOMException(hr);
     return str;
 }
@@ -609,6 +639,254 @@ void *WINAPI CreateValue(int typecode, const void *val)
     if (FAILED(hr))
         __abi_WinRTraiseCOMException(hr);
     return obj;
+}
+
+static HRESULT hstring_sprintf(HSTRING *out, const WCHAR *fmt, ...)
+{
+    WCHAR buf[100];
+    va_list args;
+    int len;
+
+    va_start(args, fmt);
+    len = vswprintf(buf, ARRAY_SIZE(buf), fmt, args);
+    va_end(args);
+    return WindowsCreateString(buf, len, out);
+}
+
+HSTRING __cdecl Guid_ToString(const GUID *this)
+{
+    HSTRING str;
+    HRESULT hr;
+
+    TRACE("(%s)\n", debugstr_guid(this));
+
+    hr = hstring_sprintf(&str, L"{%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}", this->Data1, this->Data2,
+                         this->Data3, this->Data4[0], this->Data4[1], this->Data4[2], this->Data4[3], this->Data4[4],
+                         this->Data4[5], this->Data4[6], this->Data4[7]);
+    if (FAILED(hr))
+        __abi_WinRTraiseCOMException(hr);
+    return str;
+}
+
+HSTRING __cdecl Boolean_ToString(const boolean *this)
+{
+    const WCHAR *strW;
+    HSTRING str;
+    HRESULT hr;
+
+    TRACE("(%p)\n", this);
+
+    strW = *this ? L"true" : L"false";
+    if (FAILED((hr = WindowsCreateString(strW, wcslen(strW), &str))))
+        __abi_WinRTraiseCOMException(hr);
+    return str;
+}
+
+HSTRING __cdecl char16_ToString(const WCHAR *this)
+{
+    HSTRING str;
+    HRESULT hr;
+
+    TRACE("(%p): stub!\n", this);
+
+    if (FAILED((hr = hstring_sprintf(&str, L"%c", *this))))
+        __abi_WinRTraiseCOMException(hr);
+    return str;
+}
+
+HSTRING __cdecl float32_ToString(const FLOAT *this)
+{
+    HSTRING str;
+    HRESULT hr;
+
+    TRACE("(%p)\n", this);
+
+    if (FAILED((hr = hstring_sprintf(&str, L"%g", *this))))
+        __abi_WinRTraiseCOMException(hr);
+    return str;
+}
+
+HSTRING __cdecl float64_ToString(const DOUBLE *this)
+{
+    HSTRING str;
+    HRESULT hr;
+
+    TRACE("(%p)\n", this);
+
+    if (FAILED((hr = hstring_sprintf(&str, L"%g", *this))))
+        __abi_WinRTraiseCOMException(hr);
+    return str;
+}
+
+HSTRING __cdecl int16_ToString(const INT16 *this)
+{
+    HSTRING str;
+    HRESULT hr;
+
+    TRACE("(%p)\n", this);
+
+    if (FAILED((hr = hstring_sprintf(&str, L"%hd", *this))))
+        __abi_WinRTraiseCOMException(hr);
+    return str;
+}
+
+HSTRING __cdecl int32_ToString(const INT32 *this)
+{
+    HSTRING str;
+    HRESULT hr;
+
+    TRACE("(%p)\n", this);
+
+    if (FAILED((hr = hstring_sprintf(&str, L"%I32d", *this))))
+        __abi_WinRTraiseCOMException(hr);
+    return str;
+}
+
+HSTRING __cdecl int64_ToString(const INT64 *this)
+{
+    HSTRING str;
+    HRESULT hr;
+
+    TRACE("(%p)\n", this);
+
+    if (FAILED((hr = hstring_sprintf(&str, L"%I64d", *this))))
+        __abi_WinRTraiseCOMException(hr);
+    return str;
+}
+
+HSTRING __cdecl int8_ToString(const INT8 *this)
+{
+    HSTRING str;
+    HRESULT hr;
+
+    TRACE("(%p)\n", this);
+
+    if (FAILED((hr = hstring_sprintf(&str, L"%hhd", *this))))
+        __abi_WinRTraiseCOMException(hr);
+    return str;
+}
+
+HSTRING __cdecl uint16_ToString(const UINT16 *this)
+{
+    HSTRING str;
+    HRESULT hr;
+
+    TRACE("(%p)\n", this);
+
+    if (FAILED((hr = hstring_sprintf(&str, L"%hu", *this))))
+        __abi_WinRTraiseCOMException(hr);
+    return str;
+}
+
+HSTRING __cdecl uint32_ToString(const UINT32 *this)
+{
+    HSTRING str;
+    HRESULT hr;
+
+    TRACE("(%p)\n", this);
+
+    if (FAILED((hr = hstring_sprintf(&str, L"%I32u", *this))))
+        __abi_WinRTraiseCOMException(hr);
+    return str;
+}
+
+HSTRING __cdecl uint64_ToString(const UINT64 *this)
+{
+    HSTRING str;
+    HRESULT hr;
+
+    TRACE("(%p)\n", this);
+
+    if (FAILED((hr = hstring_sprintf(&str, L"%I64u", *this))))
+        __abi_WinRTraiseCOMException(hr);
+    return str;
+}
+
+HSTRING __cdecl uint8_ToString(const UINT8 *this)
+{
+    HSTRING str;
+    HRESULT hr;
+
+    TRACE("(%p)\n", this);
+
+    if (FAILED((hr = hstring_sprintf(&str, L"%hhu", *this))))
+        __abi_WinRTraiseCOMException(hr);
+    return str;
+}
+
+HSTRING WINAPI __abi_ObjectToString(IUnknown *obj, bool try_stringable)
+{
+    IInspectable *inspectable;
+    IPropertyValue *propval;
+    IStringable *stringable;
+    HSTRING val = NULL;
+    HRESULT hr = S_OK;
+
+    TRACE("(%p, %d)\n", obj, try_stringable);
+
+    if (!obj) return NULL;
+    /* If try_stringable is true, native will first query for IStringable, and then IPrintable (which is just an alias
+     * for IStringable). */
+    if (try_stringable && (SUCCEEDED(IUnknown_QueryInterface(obj, &IID_IStringable, (void **)&stringable)) ||
+                           SUCCEEDED(IUnknown_QueryInterface(obj, &IID_IPrintable, (void **)&stringable))))
+    {
+        hr = IStringable_ToString(stringable, &val);
+        IStringable_Release(stringable);
+    }
+    /* Next, native checks if this is an boxed type (IPropertyValue) storing a numeric-like or string value. */
+    else if (SUCCEEDED(IUnknown_QueryInterface(obj, &IID_IPropertyValue, (void **)&propval)))
+    {
+        PropertyType type;
+
+        if (SUCCEEDED((hr = IPropertyValue_get_Type(propval, &type))))
+        {
+#define PROPVAL_SIMPLE(prop_type, pfx, c_type)                                        \
+    case PropertyType_##prop_type:                                                    \
+    {                                                                                 \
+        c_type prop_type_##val;                                                       \
+        if (SUCCEEDED(hr = IPropertyValue_Get##prop_type(propval, &prop_type_##val))) \
+        {                                                                             \
+           IPropertyValue_Release(propval);                                           \
+           return pfx##_ToString(&prop_type_##val);                                   \
+        }                                                                             \
+        break;                                                                        \
+    }
+            switch (type)
+            {
+            PROPVAL_SIMPLE(Char16, char16, WCHAR)
+            PROPVAL_SIMPLE(UInt8, uint8, UINT8)
+            PROPVAL_SIMPLE(Int16, int16, INT16)
+            PROPVAL_SIMPLE(UInt16, uint16, UINT16)
+            PROPVAL_SIMPLE(Int32, int32, INT32)
+            PROPVAL_SIMPLE(UInt32, uint32, UINT32)
+            PROPVAL_SIMPLE(Int64, int64, INT64)
+            PROPVAL_SIMPLE(UInt64, uint64, UINT64)
+            PROPVAL_SIMPLE(Single, float32, FLOAT)
+            PROPVAL_SIMPLE(Double, float64, DOUBLE)
+            PROPVAL_SIMPLE(Boolean, Boolean, boolean)
+            PROPVAL_SIMPLE(Guid, Guid, GUID)
+            case PropertyType_String:
+                hr = IPropertyValue_GetString(propval, &val);
+                break;
+            default:
+                /* For other types, use the WinRT class name. */
+                hr = IPropertyValue_GetRuntimeClassName(propval, &val);
+            }
+#undef PROPVAL_SIMPLE
+        }
+        IPropertyValue_Release(propval);
+    }
+    /* Finally, if this is an IInspectable, use the WinRT class name. Otherwise, return NULL. */
+    else if (SUCCEEDED(IUnknown_QueryInterface(obj, &IID_IInspectable, (void **)&inspectable)))
+    {
+        hr = IInspectable_GetRuntimeClassName(inspectable, &val);
+        IInspectable_Release(inspectable);
+    }
+
+    if (FAILED(hr))
+        __abi_WinRTraiseCOMException(hr);
+
+    return val;
 }
 
 BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, void *reserved)

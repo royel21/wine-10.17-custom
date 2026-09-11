@@ -151,6 +151,7 @@ static void *(WINAPI *pCreateValue)(int type, const void *);
 static void *(__cdecl *pCreateException)(HRESULT);
 static void *(__cdecl *pCreateExceptionWithMessage)(HRESULT, HSTRING);
 static HSTRING (__cdecl *p_platform_exception_get_Message)(void *);
+static HSTRING (__cdecl *p_platform_exception_ToString)(void *);
 static void *(__cdecl *pAllocateException)(size_t);
 static void *(__cdecl *pAllocateExceptionWithWeakRef)(ptrdiff_t, size_t);
 static void (__cdecl *pFreeException)(void *);
@@ -165,6 +166,20 @@ WINRT_EXCEPTIONS
 #undef WINRT_EXCEPTION
 static IWeakReference *(WINAPI *p_GetWeakReference)(IUnknown *);
 static IUnknown *(WINAPI *p_ResolveWeakReference)(const GUID *, IWeakReference **);
+static void *(WINAPI *p__abi_ObjectToString)(void *, bool stringable);
+static HSTRING (*__cdecl p_Boolean_ToString)(const boolean *);
+static HSTRING (*__cdecl p_Guid_ToString)(const GUID *);
+static HSTRING (__cdecl *p_char16_ToString)(const WCHAR *);
+static HSTRING (__cdecl *p_float32_ToString)(const FLOAT *);
+static HSTRING (__cdecl *p_float64_ToString)(const DOUBLE *);
+static HSTRING (__cdecl *p_int16_ToString)(const INT16 *);
+static HSTRING (__cdecl *p_int32_ToString)(const INT32 *);
+static HSTRING (__cdecl *p_int64_ToString)(const INT64 *);
+static HSTRING (__cdecl *p_int8_ToString)(const INT8 *);
+static HSTRING (__cdecl *p_uint16_ToString)(const UINT16 *);
+static HSTRING (__cdecl *p_uint32_ToString)(const UINT32 *);
+static HSTRING (__cdecl *p_uint64_ToString)(const UINT64 *);
+static HSTRING (__cdecl *p_uint8_ToString)(const UINT8 *);
 
 static void *(__cdecl *p__RTtypeid)(const void *);
 static const char *(__thiscall *p_type_info_name)(void *);
@@ -215,6 +230,8 @@ static BOOL init(void)
             "?CreateException@Exception@Platform@@SAP$AAV12@HP$AAVString@2@@Z");
     p_platform_exception_get_Message = (void *)GetProcAddress(hmod,
             "?get@Message@Exception@Platform@@Q$AAAP$AAVString@3@XZ");
+    p_platform_exception_ToString = (void *)GetProcAddress(hmod,
+            "?ToString@Exception@Platform@@U$AAAP$AAVString@2@XZ");
     pAllocateException = (void *)GetProcAddress(hmod, "?AllocateException@Heap@Details@Platform@@SAPAXI@Z");
     pAllocateExceptionWithWeakRef = (void *)GetProcAddress(hmod,
             "?AllocateException@Heap@Details@Platform@@SAPAXII@Z");
@@ -236,6 +253,21 @@ static BOOL init(void)
             "?GetWeakReference@Details@Platform@@YAPAU__abi_IUnknown@@Q$ADVObject@2@@Z");
     p_ResolveWeakReference = (void *)GetProcAddress(hmod,
             "?ResolveWeakReference@Details@Platform@@YAP$AAVObject@2@ABU_GUID@@PAPAU__abi_IUnknown@@@Z");
+    p__abi_ObjectToString = (void *)GetProcAddress(hmod,
+            "?__abi_ObjectToString@__abi_details@@YAP$AAVString@Platform@@P$AAVObject@3@_N@Z");
+    p_Boolean_ToString = (void *)GetProcAddress(hmod, "?ToString@Boolean@Platform@@QAAP$AAVString@2@XZ");
+    p_Guid_ToString = (void *)GetProcAddress(hmod, "?ToString@Guid@Platform@@QAAP$AAVString@2@XZ");
+    p_char16_ToString = (void *)GetProcAddress(hmod, "?ToString@char16@default@@QAAP$AAVString@Platform@@XZ");
+    p_float32_ToString = (void *)GetProcAddress(hmod, "?ToString@float32@default@@QAAP$AAVString@Platform@@XZ");
+    p_float64_ToString = (void *)GetProcAddress(hmod, "?ToString@float64@default@@QAAP$AAVString@Platform@@XZ");
+    p_int16_ToString = (void *)GetProcAddress(hmod, "?ToString@int16@default@@QAAP$AAVString@Platform@@XZ");
+    p_int32_ToString = (void *)GetProcAddress(hmod, "?ToString@int32@default@@QAAP$AAVString@Platform@@XZ");
+    p_int64_ToString = (void *)GetProcAddress(hmod, "?ToString@int64@default@@QAAP$AAVString@Platform@@XZ");
+    p_int8_ToString = (void *)GetProcAddress(hmod, "?ToString@int8@default@@QAAP$AAVString@Platform@@XZ");
+    p_uint16_ToString = (void *)GetProcAddress(hmod, "?ToString@uint16@default@@QAAP$AAVString@Platform@@XZ");
+    p_uint32_ToString = (void *)GetProcAddress(hmod, "?ToString@uint32@default@@QAAP$AAVString@Platform@@XZ");
+    p_uint64_ToString = (void *)GetProcAddress(hmod, "?ToString@uint64@default@@QAAP$AAVString@Platform@@XZ");
+    p_uint8_ToString = (void *)GetProcAddress(hmod, "?ToString@uint8@default@@QAAP$AAVString@Platform@@XZ");
 
     p_type_info_name = (void *)GetProcAddress(msvcrt, "?name@type_info@@QBAPBDXZ");
     p_type_info_raw_name = (void *)GetProcAddress(msvcrt, "?raw_name@type_info@@QBAPBDXZ");
@@ -268,6 +300,8 @@ static BOOL init(void)
                 "?CreateException@Exception@Platform@@SAPE$AAV12@HPE$AAVString@2@@Z");
         p_platform_exception_get_Message = (void *)GetProcAddress(hmod,
                 "?get@Message@Exception@Platform@@QE$AAAPE$AAVString@3@XZ");
+        p_platform_exception_ToString = (void *)GetProcAddress(hmod,
+                "?ToString@Exception@Platform@@UE$AAAPE$AAVString@2@XZ");
         pAllocateException = (void *)GetProcAddress(hmod, "?AllocateException@Heap@Details@Platform@@SAPEAX_K@Z");
         pAllocateExceptionWithWeakRef = (void *)GetProcAddress(hmod,
                 "?AllocateException@Heap@Details@Platform@@SAPEAX_K0@Z");
@@ -290,6 +324,21 @@ static BOOL init(void)
                 "?GetWeakReference@Details@Platform@@YAPEAU__abi_IUnknown@@QE$ADVObject@2@@Z");
         p_ResolveWeakReference = (void *)GetProcAddress(hmod,
                 "?ResolveWeakReference@Details@Platform@@YAPE$AAVObject@2@AEBU_GUID@@PEAPEAU__abi_IUnknown@@@Z");
+        p__abi_ObjectToString = (void *)GetProcAddress(hmod,
+                "?__abi_ObjectToString@__abi_details@@YAPE$AAVString@Platform@@PE$AAVObject@3@_N@Z");
+        p_Boolean_ToString = (void *)GetProcAddress(hmod, "?ToString@Boolean@Platform@@QEAAPE$AAVString@2@XZ");
+        p_Guid_ToString = (void *)GetProcAddress(hmod, "?ToString@Guid@Platform@@QEAAPE$AAVString@2@XZ");
+        p_char16_ToString = (void *)GetProcAddress(hmod, "?ToString@char16@default@@QEAAPE$AAVString@Platform@@XZ");
+        p_float32_ToString = (void *)GetProcAddress(hmod, "?ToString@float32@default@@QEAAPE$AAVString@Platform@@XZ");
+        p_float64_ToString = (void *)GetProcAddress(hmod, "?ToString@float64@default@@QEAAPE$AAVString@Platform@@XZ");
+        p_int16_ToString = (void *)GetProcAddress(hmod, "?ToString@int16@default@@QEAAPE$AAVString@Platform@@XZ");
+        p_int32_ToString = (void *)GetProcAddress(hmod, "?ToString@int32@default@@QEAAPE$AAVString@Platform@@XZ");
+        p_int64_ToString = (void *)GetProcAddress(hmod, "?ToString@int64@default@@QEAAPE$AAVString@Platform@@XZ");
+        p_int8_ToString = (void *)GetProcAddress(hmod, "?ToString@int8@default@@QEAAPE$AAVString@Platform@@XZ");
+        p_uint16_ToString = (void *)GetProcAddress(hmod, "?ToString@uint16@default@@QEAAPE$AAVString@Platform@@XZ");
+        p_uint32_ToString = (void *)GetProcAddress(hmod, "?ToString@uint32@default@@QEAAPE$AAVString@Platform@@XZ");
+        p_uint64_ToString = (void *)GetProcAddress(hmod, "?ToString@uint64@default@@QEAAPE$AAVString@Platform@@XZ");
+        p_uint8_ToString = (void *)GetProcAddress(hmod, "?ToString@uint8@default@@QEAAPE$AAVString@Platform@@XZ");
 
         p_type_info_name = (void *)GetProcAddress(msvcrt, "?name@type_info@@QEBAPEBDXZ");
         p_type_info_raw_name = (void *)GetProcAddress(msvcrt, "?raw_name@type_info@@QEBAPEBDXZ");
@@ -321,6 +370,8 @@ static BOOL init(void)
                 "?CreateException@Exception@Platform@@SAP$AAV12@HP$AAVString@2@@Z");
         p_platform_exception_get_Message = (void *)GetProcAddress(hmod,
                     "?get@Message@Exception@Platform@@Q$AAAP$AAVString@3@XZ");
+        p_platform_exception_ToString = (void *)GetProcAddress(hmod,
+                    "?ToString@Exception@Platform@@U$AAAP$AAVString@2@XZ");
         pAllocateException = (void *)GetProcAddress(hmod, "?AllocateException@Heap@Details@Platform@@SAPAXI@Z");
         pAllocateExceptionWithWeakRef = (void *)GetProcAddress(hmod,
                     "?AllocateException@Heap@Details@Platform@@SAPAXII@Z");
@@ -343,6 +394,21 @@ static BOOL init(void)
                "?GetWeakReference@Details@Platform@@YGPAU__abi_IUnknown@@Q$ADVObject@2@@Z");
         p_ResolveWeakReference = (void *)GetProcAddress(hmod,
                 "?ResolveWeakReference@Details@Platform@@YGP$AAVObject@2@ABU_GUID@@PAPAU__abi_IUnknown@@@Z");
+        p__abi_ObjectToString = (void *)GetProcAddress(hmod,
+                "?__abi_ObjectToString@__abi_details@@YGP$AAVString@Platform@@P$AAVObject@3@_N@Z");
+        p_Boolean_ToString = (void *)GetProcAddress(hmod, "?ToString@Boolean@Platform@@QAAP$AAVString@2@XZ");
+        p_Guid_ToString = (void *)GetProcAddress(hmod, "?ToString@Guid@Platform@@QAAP$AAVString@2@XZ");
+        p_char16_ToString = (void *)GetProcAddress(hmod, "?ToString@char16@default@@QAAP$AAVString@Platform@@XZ");
+        p_float32_ToString = (void *)GetProcAddress(hmod, "?ToString@float32@default@@QAAP$AAVString@Platform@@XZ");
+        p_float64_ToString = (void *)GetProcAddress(hmod, "?ToString@float64@default@@QAAP$AAVString@Platform@@XZ");
+        p_int16_ToString = (void *)GetProcAddress(hmod, "?ToString@int16@default@@QAAP$AAVString@Platform@@XZ");
+        p_int32_ToString = (void *)GetProcAddress(hmod, "?ToString@int32@default@@QAAP$AAVString@Platform@@XZ");
+        p_int64_ToString = (void *)GetProcAddress(hmod, "?ToString@int64@default@@QAAP$AAVString@Platform@@XZ");
+        p_int8_ToString = (void *)GetProcAddress(hmod, "?ToString@int8@default@@QAAP$AAVString@Platform@@XZ");
+        p_uint16_ToString = (void *)GetProcAddress(hmod, "?ToString@uint16@default@@QAAP$AAVString@Platform@@XZ");
+        p_uint32_ToString = (void *)GetProcAddress(hmod, "?ToString@uint32@default@@QAAP$AAVString@Platform@@XZ");
+        p_uint64_ToString = (void *)GetProcAddress(hmod, "?ToString@uint64@default@@QAAP$AAVString@Platform@@XZ");
+        p_uint8_ToString = (void *)GetProcAddress(hmod, "?ToString@uint8@default@@QAAP$AAVString@Platform@@XZ");
 
         p_type_info_name = (void *)GetProcAddress(msvcrt, "?name@type_info@@QBEPBDXZ");
         p_type_info_raw_name = (void *)GetProcAddress(msvcrt, "?raw_name@type_info@@QBEPBDXZ");
@@ -365,6 +431,7 @@ static BOOL init(void)
     ok(pCreateException != NULL, "CreateException not available\n");
     ok(pCreateExceptionWithMessage != NULL, "CreateExceptionWithMessage not available\n");
     ok(p_platform_exception_get_Message != NULL, "Platform::Exception::Message::get not available\n");
+    ok(p_platform_exception_ToString != NULL, "Platform::Exception::ToString not available\n");
     ok(pAllocateException != NULL, "AllocateException not available\n");
     ok(pAllocateExceptionWithWeakRef != NULL, "AllocateExceptionWithWeakRef not available.\n");
     ok(pFreeException != NULL, "FreeException not available\n");
@@ -380,6 +447,20 @@ static BOOL init(void)
 #undef WINRT_EXCEPTION
     ok(p_GetWeakReference != NULL, "GetWeakReference not available.\n");
     ok(p_ResolveWeakReference != NULL, "ResolveWeakReference is not available.\n");
+    ok(p__abi_ObjectToString != NULL, "__abi_ObjectToString not available.\n");
+    ok(p_Boolean_ToString != NULL, "Platform::Boolean::ToString not available.\n");
+    ok(p_Guid_ToString != NULL, "Platform::Guid::ToString not available.\n");
+    ok(p_char16_ToString != NULL, "default::char16::ToString not available.\n");
+    ok(p_float32_ToString != NULL, "default::float32::ToString not available.\n");
+    ok(p_float64_ToString != NULL, "default::float64::ToString not available.\n");
+    ok(p_int16_ToString != NULL, "default::int16::ToString not available.\n");
+    ok(p_int32_ToString != NULL, "default::int32::ToString not available.\n");
+    ok(p_int64_ToString != NULL, "default::int64::ToString not available.\n");
+    ok(p_int8_ToString != NULL, "default::int8::ToString not available.\n");
+    ok(p_uint16_ToString != NULL, "default::uint16::ToString not available.\n");
+    ok(p_uint32_ToString != NULL, "default::uint32::ToString not available.\n");
+    ok(p_uint64_ToString != NULL, "default::uint64::ToString not available.\n");
+    ok(p_uint8_ToString != NULL, "default::uint8::ToString not available.\n");
 
     ok(p_type_info_name != NULL, "type_info::name not available\n");
     ok(p_type_info_raw_name != NULL, "type_info::raw_name not available\n");
@@ -1054,7 +1135,7 @@ static void test___abi_make_type_id(void)
     check_interface(type_obj, &IID_IMarshal);
     check_interface(type_obj, &IID_IAgileObject);
     todo_wine check_interface(type_obj, &IID_IEquatable);
-    todo_wine check_interface(type_obj, &IID_IPrintable);
+    check_interface(type_obj, &IID_IPrintable);
 
     hr = IInspectable_GetRuntimeClassName(type_obj, &str);
     ok(hr == S_OK, "got hr %#lx\n", hr);
@@ -1077,6 +1158,16 @@ static void test___abi_make_type_id(void)
 
     str = p_platform_type_get_FullName(type_obj);
     ok(str != NULL, "got str %p\n", str);
+    buf = WindowsGetStringRawBuffer(str, NULL);
+    ok(buf && !wcscmp(buf, L"foo"), "got buf %s != %s\n", debugstr_w(buf), debugstr_w(L"foo"));
+    WindowsDeleteString(str);
+
+    str = p__abi_ObjectToString(type_obj, FALSE);
+    buf = WindowsGetStringRawBuffer(str, NULL);
+    ok(buf && !wcscmp(buf, L"Platform.Type"), "got buf %s != %s\n", debugstr_w(buf), debugstr_w(L"Platform.Type"));
+    WindowsDeleteString(str);
+
+    str = p__abi_ObjectToString(type_obj, TRUE);
     buf = WindowsGetStringRawBuffer(str, NULL);
     ok(buf && !wcscmp(buf, L"foo"), "got buf %s != %s\n", debugstr_w(buf), debugstr_w(L"foo"));
     WindowsDeleteString(str);
@@ -1114,7 +1205,7 @@ static void test___abi_make_type_id(void)
     check_interface(type_obj2, &IID_IMarshal);
     check_interface(type_obj2, &IID_IAgileObject);
     todo_wine check_interface(type_obj2, &IID_IEquatable);
-    todo_wine check_interface(type_obj2, &IID_IPrintable);
+    check_interface(type_obj2, &IID_IPrintable);
 
     equals = p_platform_type_Equals_Object(type_obj2, type_obj);
     ok(equals, "got equals %d\n", equals);
@@ -1201,24 +1292,26 @@ static void test_CreateValue(void)
         union value value;
         PropertyType exp_winrt_type;
         SIZE_T size;
+        const WCHAR *exp_str;
     } test_cases[] = {
-        {TYPECODE_BOOLEAN, {.boolean = true}, PropertyType_Boolean, sizeof(boolean)},
-        {TYPECODE_CHAR16, {.uint16 = 0xbeef}, PropertyType_Char16, sizeof(UINT16)},
-        {TYPECODE_UINT8, {.uint8 = 0xbe}, PropertyType_UInt8, sizeof(UINT8)},
-        {TYPECODE_INT16, {.uint16 = 0xbeef}, PropertyType_Int16, sizeof(INT16)},
-        {TYPECODE_UINT16, {.uint16 = 0xbeef}, PropertyType_UInt16, sizeof(UINT16)},
-        {TYPECODE_INT32, {.uint32 = 0xdeadbeef}, PropertyType_Int32, sizeof(INT32)},
-        {TYPECODE_UINT32, {.uint32 = 0xdeadbeef}, PropertyType_UInt32, sizeof(UINT32)},
-        {TYPECODE_INT64, {.uint64 = 0xdeadbeefdeadbeef}, PropertyType_Int64, sizeof(INT64)},
-        {TYPECODE_UINT64, {.uint64 = 0xdeadbeefdeadbeef}, PropertyType_UInt64, sizeof(UINT64)},
-        {TYPECODE_SINGLE, {.single = 2.71828}, PropertyType_Single, sizeof(FLOAT)},
-        {TYPECODE_DOUBLE, {.dbl = 2.7182818284}, PropertyType_Double, sizeof(DOUBLE)},
+        {TYPECODE_BOOLEAN, {.boolean = true}, PropertyType_Boolean, sizeof(boolean), L"true"},
+        {TYPECODE_CHAR16, {.uint16 = 0xbeef}, PropertyType_Char16, sizeof(UINT16), L"\xbeef"},
+        {TYPECODE_UINT8, {.uint8 = 0xbe}, PropertyType_UInt8, sizeof(UINT8), L"190"},
+        {TYPECODE_INT16, {.uint16 = 0xbeef}, PropertyType_Int16, sizeof(INT16), L"-16657"},
+        {TYPECODE_UINT16, {.uint16 = 0xbeef}, PropertyType_UInt16, sizeof(UINT16), L"48879"},
+        {TYPECODE_INT32, {.uint32 = 0xdeadbeef}, PropertyType_Int32, sizeof(INT32), L"-559038737"},
+        {TYPECODE_UINT32, {.uint32 = 0xdeadbeef}, PropertyType_UInt32, sizeof(UINT32), L"3735928559"},
+        {TYPECODE_INT64, {.uint64 = 0xdeadbeefdeadbeef}, PropertyType_Int64, sizeof(INT64), L"-2401053088876216593"},
+        {TYPECODE_UINT64, {.uint64 = 0xdeadbeefdeadbeef}, PropertyType_UInt64, sizeof(UINT64), L"16045690984833335023"},
+        {TYPECODE_SINGLE, {.single = 2.71828}, PropertyType_Single, sizeof(FLOAT), L"2.71828"},
+        {TYPECODE_SINGLE, {.single = 2.71828182}, PropertyType_Single, sizeof(FLOAT), L"2.71828"},
+        {TYPECODE_DOUBLE, {.dbl = 2.7182818284}, PropertyType_Double, sizeof(DOUBLE), L"2.71828"},
         {TYPECODE_DATETIME, {.time = {0xdeadbeefdeadbeef}}, PropertyType_DateTime, sizeof(DateTime)},
         {TYPECODE_TIMESPAN, {.span = {0xdeadbeefdeadbeef}}, PropertyType_TimeSpan, sizeof(TimeSpan)},
         {TYPECODE_POINT, {.point = {2.71828, 3.14159}}, PropertyType_Point, sizeof(Point)},
         {TYPECODE_SIZE, {.size = {2.71828, 3.14159}}, PropertyType_Size, sizeof(Size)},
         {TYPECODE_RECT, {.rect = {2.71828, 3.14159, 23.140692, 0.20787}}, PropertyType_Rect, sizeof(Rect)},
-        {TYPECODE_GUID, {.guid = IID_IInspectable}, PropertyType_Guid, sizeof(GUID)},
+        {TYPECODE_GUID, {.guid = IID_IInspectable}, PropertyType_Guid, sizeof(GUID), L"{af86e2e0-b12d-4c6a-9c5a-d7aa65101e90}"},
     };
     static const int null_typecodes[] = {0, 1, 2, 5,15, 17};
     PropertyType type;
@@ -1234,6 +1327,9 @@ static void test_CreateValue(void)
     for (i = 0; i < ARRAY_SIZE(test_cases); i++)
     {
         union value value = {0};
+        const WCHAR *exp_str;
+        HSTRING name = NULL;
+
         type = PropertyType_Empty;
 
         winetest_push_context("test_cases[%lu]", i);
@@ -1243,6 +1339,28 @@ static void test_CreateValue(void)
 
         check_interface(obj, &IID_IInspectable);
         check_interface(obj, &IID_IPropertyValue);
+
+        if (!(exp_str = test_cases[i].exp_str))
+        {
+            /* For record-like values, __abi_ObjectToString returns the string from GetRuntimeClassName. */
+            hr = IPropertyValue_GetRuntimeClassName(obj, &name);
+            todo_wine ok(hr == S_OK, "got hr %#lx\n", hr);
+            exp_str = WindowsGetStringRawBuffer(name, NULL);
+        }
+
+        if (wcslen(exp_str))
+        {
+            str = p__abi_ObjectToString(obj, FALSE);
+            buf = WindowsGetStringRawBuffer(str, NULL);
+            ok(!wcscmp(buf, exp_str), "got str %s != %s\n", debugstr_hstring(str), debugstr_w(exp_str));
+            WindowsDeleteString(str);
+
+            str = p__abi_ObjectToString(obj, TRUE);
+            buf = WindowsGetStringRawBuffer(str, NULL);
+            ok(!wcscmp(buf, exp_str), "got str %s != %s\n", debugstr_hstring(str), debugstr_w(exp_str));
+            WindowsDeleteString(str);
+        }
+        WindowsDeleteString(name);
 
         hr = IPropertyValue_get_Type(obj, &type);
         ok(hr == S_OK, "got hr %#lx\n", hr);
@@ -1330,6 +1448,17 @@ static void test_CreateValue(void)
         buf = WindowsGetStringRawBuffer(str, NULL);
         ok(buf && !wcscmp(buf, L"foo"), "got buf %s\n", debugstr_w(buf));
         WindowsDeleteString(str);
+
+        str = p__abi_ObjectToString(obj, TRUE);
+        buf = WindowsGetStringRawBuffer(str, NULL);
+        ok(!wcscmp(buf, L"foo"), "got buf %s\n", debugstr_w(buf));
+        WindowsDeleteString(str);
+
+        str = p__abi_ObjectToString(obj, FALSE);
+        buf = WindowsGetStringRawBuffer(str, NULL);
+        ok(!wcscmp(buf, L"foo"), "got buf %s\n", debugstr_w(buf));
+        WindowsDeleteString(str);
+
         count = IPropertyValue_Release(obj);
         ok(count == 0, "got count %lu\n", count);
     }
@@ -1514,11 +1643,18 @@ static void test_exceptions(void)
         test_interface_layout(obj, &IID_IUnknown, &obj->IInspectable_iface);
         test_interface_layout(obj, &IID_IInspectable, &obj->IInspectable_iface);
         test_interface_layout(obj, &IID_IAgileObject, &obj->IInspectable_iface);
-        todo_wine test_interface_layout(obj, &IID_IPrintable, &obj->IPrintable_iface);
+        test_interface_layout(obj, &IID_IPrintable, &obj->IPrintable_iface);
         todo_wine test_interface_layout(obj, &IID_IEquatable, &obj->IEquatable_iface);
         test_interface_layout(obj, &IID_IClosable, &obj->IClosable_iface);
 
         hr = IInspectable_GetRuntimeClassName(inspectable, &str);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        bufW = WindowsGetStringRawBuffer(str, NULL);
+        ok(!wcscmp(cur_test->exp_winrt_name, bufW), "got str %s != %s\n", debugstr_hstring(str),
+           debugstr_w(cur_test->exp_winrt_name));
+        WindowsDeleteString(str);
+
+        str = p__abi_ObjectToString(obj, FALSE);
         ok(hr == S_OK, "got hr %#lx\n", hr);
         bufW = WindowsGetStringRawBuffer(str, NULL);
         ok(!wcscmp(cur_test->exp_winrt_name, bufW), "got str %s != %s\n", debugstr_hstring(str),
@@ -1580,8 +1716,17 @@ static void test_exceptions(void)
         {
             bufW = WindowsGetStringRawBuffer(str, NULL);
             ok(!wcscmp(bufW, buf), "got str %s != %s\n", debugstr_hstring(str), debugstr_w(buf));
+            WindowsDeleteString(str);
+
+            str = p__abi_ObjectToString(obj, TRUE);
+            bufW = WindowsGetStringRawBuffer(str, NULL);
+            ok(!wcscmp(bufW, buf), "got str %s != %s\n", debugstr_hstring(str), debugstr_w(buf));
+            WindowsDeleteString(str);
+
+            str = p_platform_exception_ToString(obj);
+            bufW = WindowsGetStringRawBuffer(str, NULL);
+            todo_wine ok(!wcscmp(bufW, buf), "got str %s != %s\n", debugstr_hstring(str), debugstr_w(buf));
         }
-        WindowsDeleteString(str);
 
         inner = *(const struct exception_inner **)((ULONG_PTR)obj - sizeof(ULONG_PTR));
         ok(inner == &obj->inner, "got inner %p != %p\n", inner, &obj->inner);
@@ -1672,6 +1817,24 @@ static void test_exceptions(void)
         ok(!ret, "got str %s != %s\n", debugstr_hstring(str), debugstr_hstring(msg));
         WindowsDeleteString(str);
 
+        str = p__abi_ObjectToString(inspectable, FALSE);
+        bufW = WindowsGetStringRawBuffer(str, NULL);
+        ok(!wcscmp(cur_test->exp_winrt_name, bufW), "got str %s != %s\n", debugstr_hstring(str),
+           debugstr_w(cur_test->exp_winrt_name));
+        WindowsDeleteString(str);
+
+        str = p__abi_ObjectToString(inspectable, TRUE);
+        hr = WindowsCompareStringOrdinal(str, msg, &ret);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        ok(!ret, "got str %s != %s\n", debugstr_hstring(str), debugstr_hstring(msg));
+        WindowsDeleteString(str);
+
+        str = p_platform_exception_ToString(inspectable);
+        hr = WindowsCompareStringOrdinal(str, msg, &ret);
+        ok(hr == S_OK, "got hr %#lx\n", hr);
+        todo_wine ok(!ret, "got str %s != %s\n", debugstr_hstring(str), debugstr_hstring(msg));
+        WindowsDeleteString(str);
+
         inner = (const struct exception_inner *)*(ULONG_PTR *)((ULONG_PTR)inspectable - sizeof(ULONG_PTR));
         ok(inner->description == NULL, "got description %p\n", inner->description);
         ok(inner->restricted_desc != NULL, "got restricted_desc %p\n", inner->restricted_desc);
@@ -1699,7 +1862,7 @@ static void test_exceptions(void)
             test_interface_layout(obj, &IID_IUnknown, &obj->IInspectable_iface);
             test_interface_layout(obj, &IID_IInspectable, &obj->IInspectable_iface);
             test_interface_layout(obj, &IID_IAgileObject, &obj->IInspectable_iface);
-            todo_wine test_interface_layout(obj, &IID_IPrintable, &obj->IPrintable_iface);
+            test_interface_layout(obj, &IID_IPrintable, &obj->IPrintable_iface);
             todo_wine test_interface_layout(obj, &IID_IEquatable, &obj->IEquatable_iface);
             test_interface_layout(obj, &IID_IClosable, &obj->IClosable_iface);
             ok((ULONG_PTR)obj->marshal == UINTPTR_MAX, "got marshal %p\n", obj->marshal);
@@ -1755,7 +1918,7 @@ static void test_exceptions(void)
             test_interface_layout(obj, &IID_IUnknown, &obj->IInspectable_iface);
             test_interface_layout(obj, &IID_IInspectable, &obj->IInspectable_iface);
             test_interface_layout(obj, &IID_IAgileObject, &obj->IInspectable_iface);
-            todo_wine test_interface_layout(obj, &IID_IPrintable, &obj->IPrintable_iface);
+            test_interface_layout(obj, &IID_IPrintable, &obj->IPrintable_iface);
             todo_wine test_interface_layout(obj, &IID_IEquatable, &obj->IEquatable_iface);
             test_interface_layout(obj, &IID_IClosable, &obj->IClosable_iface);
             ok((ULONG_PTR)obj->marshal == UINTPTR_MAX, "got marshal %p\n", obj->marshal);
@@ -1810,6 +1973,205 @@ static void test_exceptions(void)
     }
 }
 
+struct tostring_impl
+{
+    IStringable IStringable_iface;
+    bool have_inspectable;
+    bool have_stringable;
+    bool have_printable;
+    LONG ref;
+};
+
+static inline struct tostring_impl *impl_tostring_from_IStringable(IStringable *iface)
+{
+    return CONTAINING_RECORD(iface, struct tostring_impl, IStringable_iface);
+}
+
+static HRESULT WINAPI tostring_QueryInterface(IStringable *iface, const GUID *iid, void **out)
+{
+    struct tostring_impl *impl = impl_tostring_from_IStringable(iface);
+
+    if (IsEqualGUID(iid, &IID_IUnknown) ||
+        (impl->have_inspectable && IsEqualGUID(iid, &IID_IInspectable)) ||
+        (impl->have_stringable && IsEqualGUID(iid, &IID_IStringable)) ||
+        (impl->have_printable && IsEqualGUID(iid, &IID_IPrintable)))
+    {
+        IStringable_AddRef((*out = iface));
+        return S_OK;
+    }
+
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+static ULONG WINAPI tostring_AddRef(IStringable *iface)
+{
+    struct tostring_impl *impl = impl_tostring_from_IStringable(iface);
+
+    return InterlockedIncrement(&impl->ref);
+}
+
+static ULONG WINAPI tostring_Release(IStringable *iface)
+{
+    struct tostring_impl *impl = impl_tostring_from_IStringable(iface);
+
+    return InterlockedDecrement(&impl->ref);
+}
+
+static HRESULT WINAPI tostring_GetIIds(IStringable *iface, ULONG *count, GUID **iids)
+{
+    ok(0, "unexpected call\n");
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI tostring_GetRuntimeClassName(IStringable *iface, HSTRING *name)
+{
+    const WCHAR *buf = L"ClassName.Foo";
+    return WindowsCreateString(buf, wcslen(buf), name);
+}
+
+static HRESULT WINAPI tostring_GetTrustLevel(IStringable *iface, TrustLevel *level)
+{
+    ok(0, "unexpected call\n");
+    return E_NOTIMPL;
+}
+
+static HRESULT WINAPI tostring_ToString(IStringable *iface, HSTRING *out)
+{
+    const WCHAR *buf = L"ToString.Foo";
+    return WindowsCreateString(buf, wcslen(buf), out);
+}
+
+static const IStringableVtbl tostring_stringable_vtbl =
+{
+    /* IUnknown */
+    tostring_QueryInterface,
+    tostring_AddRef,
+    tostring_Release,
+    /* IInspectable */
+    tostring_GetIIds,
+    tostring_GetRuntimeClassName,
+    tostring_GetTrustLevel,
+    /* IStringable */
+    tostring_ToString,
+};
+
+static void test___abi_ObjectToString(void)
+{
+    static const WCHAR *class_name = L"ClassName.Foo", *stringable_val = L"ToString.Foo";
+    struct tostring_impl impl = {{&tostring_stringable_vtbl}};
+    const WCHAR *buf;
+    HSTRING str;
+
+    str = p__abi_ObjectToString(NULL, TRUE);
+    ok(str == NULL, "got str %p\n", str);
+    str = p__abi_ObjectToString(NULL, FALSE);
+    ok(str == NULL, "got str %p\n", str);
+
+    impl.ref = 1;
+    impl.have_inspectable = impl.have_stringable = impl.have_printable = FALSE;
+    str = p__abi_ObjectToString(&impl.IStringable_iface, TRUE);
+    ok(str == NULL, "got str %p\n", str);
+    str = p__abi_ObjectToString(&impl.IStringable_iface, FALSE);
+    ok(str == NULL, "got str %p\n", str);
+
+    /* If only IInspectable is available, ObjectToString uses the value returned by GetRuntimeClassName. */
+    impl.have_inspectable = TRUE;
+    str = p__abi_ObjectToString(&impl.IStringable_iface, TRUE);
+    buf = WindowsGetStringRawBuffer(str, NULL);
+    ok(!wcscmp(buf, class_name), "Got str %s\n", debugstr_hstring(str));
+    WindowsDeleteString(str);
+    str = p__abi_ObjectToString(&impl.IStringable_iface, FALSE);
+    buf = WindowsGetStringRawBuffer(str, NULL);
+    ok(!wcscmp(buf, class_name), "Got str %s\n", debugstr_hstring(str));
+    WindowsDeleteString(str);
+
+    /* The second parameter controls whether the IStringable/IPrintable interfaces should be used for getting the string
+     * value. */
+    impl.have_stringable = TRUE;
+    str = p__abi_ObjectToString(&impl.IStringable_iface, TRUE);
+    buf = WindowsGetStringRawBuffer(str, NULL);
+    ok(!wcscmp(buf, stringable_val), "Got str %s\n", debugstr_hstring(str));
+    WindowsDeleteString(str);
+    str = p__abi_ObjectToString(&impl.IStringable_iface, FALSE);
+    buf = WindowsGetStringRawBuffer(str, NULL);
+    ok(!wcscmp(buf, class_name), "Got str %s\n", debugstr_hstring(str));
+    WindowsDeleteString(str);
+
+    /* IPrintable seems to be a C++/CX specific alias for IStringable. */
+    impl.have_stringable = FALSE;
+    impl.have_printable = TRUE;
+    str = p__abi_ObjectToString(&impl.IStringable_iface, TRUE);
+    buf = WindowsGetStringRawBuffer(str, NULL);
+    ok(!wcscmp(buf, stringable_val), "Got str %s\n", debugstr_hstring(str));
+    WindowsDeleteString(str);
+    str = p__abi_ObjectToString(&impl.IStringable_iface, FALSE);
+    buf = WindowsGetStringRawBuffer(str, NULL);
+    ok(!wcscmp(buf, class_name), "Got str %s\n", debugstr_hstring(str));
+    WindowsDeleteString(str);
+
+    ok(impl.ref == 1, "got ref %lu\n", impl.ref);
+}
+
+#define test_hstring(str, exp_str) test_hstring_(__LINE__, str, (exp_str))
+static void test_hstring_(int line, HSTRING str, const WCHAR *exp_str)
+{
+    const WCHAR *buf;
+    buf = WindowsGetStringRawBuffer(str, NULL);
+    ok_(__FILE__, line)(!wcscmp(buf, exp_str), "got str %s != %s\n", debugstr_hstring(str), debugstr_w(exp_str));
+    WindowsDeleteString(str);
+}
+
+static void test_ToString(void)
+{
+    static const UINT64 uint64 = 0xdeadbeefdeadbeef;
+    static const INT64 int64 = 0xdeadbeefdeadbeef;
+    static const GUID guid = IID_IInspectable;
+    static const DOUBLE float64 = 2.71828182;
+    static const FLOAT float32 = 2.71828182;
+    static const UINT32 uint32 = 0xdeadbeef;
+    static const INT32 int32 = 0xdeadbeef;
+    static const UINT16 uint16 = 0xbeef;
+    static const INT16 int16 = 0xbeef;
+    static const WCHAR char16 = L'a';
+    static const UINT8 uint8 = 0xff;
+    static const INT8 int8 = 0xff;
+    boolean bool_val = true;
+    HSTRING str;
+
+    str = p_uint64_ToString(&uint64);
+    test_hstring(str, L"16045690984833335023");
+    str = p_int64_ToString(&int64);
+    test_hstring(str, L"-2401053088876216593");
+    str = p_float64_ToString(&float64);
+    test_hstring(str, L"2.71828");
+    str = p_float32_ToString(&float32);
+    test_hstring(str, L"2.71828");
+    str = p_uint32_ToString(&uint32);
+    test_hstring(str, L"3735928559");
+    str = p_int32_ToString(&int32);
+    test_hstring(str, L"-559038737");
+    str = p_uint16_ToString(&uint16);
+    test_hstring(str, L"48879");
+    str = p_int16_ToString(&int16);
+    test_hstring(str, L"-16657");
+    str = p_int8_ToString(&int8);
+    test_hstring(str, L"-1");
+    str = p_uint8_ToString(&uint8);
+    test_hstring(str, L"255");
+    str = p_char16_ToString(&char16);
+    test_hstring(str, L"a");
+
+    str = p_Boolean_ToString(&bool_val);
+    test_hstring(str, L"true");
+    bool_val = false;
+    str = p_Boolean_ToString(&bool_val);
+    test_hstring(str, L"false");
+
+    str = p_Guid_ToString(&guid);
+    test_hstring(str, L"{af86e2e0-b12d-4c6a-9c5a-d7aa65101e90}");
+}
+
 START_TEST(vccorlib)
 {
     if(!init())
@@ -1825,4 +2187,6 @@ START_TEST(vccorlib)
     test_CreateValue();
     test_exceptions();
     test_GetWeakReference();
+    test___abi_ObjectToString();
+    test_ToString();
 }
