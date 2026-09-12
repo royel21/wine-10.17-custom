@@ -2407,7 +2407,7 @@ static struct buffer *create_buffer_storage( TEB *teb, GLenum target, GLuint nam
     int fd;
     VkResult vr;
 
-    if (!(vk_device = ctx->buffers->vk_device) || !vk_device->vk_device) return NULL;
+   if (!(flags & (GL_MAP_READ_BIT | GL_MAP_WRITE_BIT))) return NULL;
 
     /* FIXME: For now, just use any host-visible coherent memory type. We can do better and take into account GL flags. */
     for (i = 0; i < vk_device->memory_properties.memoryTypeCount; i++)
@@ -2607,7 +2607,7 @@ void wow64_glBufferStorage( TEB *teb, GLenum target, GLsizeiptr size, const void
     const struct opengl_funcs *funcs = teb->glTable;
     struct buffer *buffer = NULL;
 
-    if (flags & (GL_MAP_READ_BIT | GL_MAP_WRITE_BIT))
+    if (flags & GL_MAP_PERSISTENT_BIT)
         buffer = create_buffer_storage( teb, target, 0, size, data, flags );
 
     if (!buffer) funcs->p_glBufferStorage( target, size, data, flags );
@@ -2618,7 +2618,7 @@ void wow64_glNamedBufferStorage( TEB *teb, GLuint name, GLsizeiptr size, const v
     const struct opengl_funcs *funcs = teb->glTable;
     struct buffer *buffer = NULL;
 
-    if (flags & (GL_MAP_READ_BIT | GL_MAP_WRITE_BIT))
+    if (flags & GL_MAP_PERSISTENT_BIT)
         buffer = create_buffer_storage( teb, 0, name, size, data, flags );
 
     if (!buffer) funcs->p_glNamedBufferStorage( name, size, data, flags );
@@ -2629,7 +2629,7 @@ void wow64_glNamedBufferStorageEXT( TEB *teb, GLuint name, GLsizeiptr size, cons
     const struct opengl_funcs *funcs = teb->glTable;
     struct buffer *buffer = NULL;
 
-    if (flags & (GL_MAP_READ_BIT | GL_MAP_WRITE_BIT))
+    if (flags & GL_MAP_PERSISTENT_BIT)
         buffer = create_buffer_storage( teb, 0, name, size, data, flags );
 
     if (!buffer) funcs->p_glNamedBufferStorageEXT( name, size, data, flags );
