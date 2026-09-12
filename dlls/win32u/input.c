@@ -2001,7 +2001,7 @@ BOOL set_active_window( HWND hwnd, HWND *prev, BOOL mouse, BOOL focus, DWORD new
         {
             send_message( previous, WM_NCACTIVATE, FALSE, (LPARAM)hwnd );
             send_message( previous, WM_ACTIVATE,
-                          MAKEWPARAM( WA_INACTIVE, is_iconic(previous) ), (LPARAM)hwnd );
+                          MAKEWPARAM( WA_INACTIVE, is_iconic(previous) ? 0x20 : 0 ), (LPARAM)hwnd );
         }
     }
 
