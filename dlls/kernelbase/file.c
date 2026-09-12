@@ -1032,7 +1032,7 @@ BOOL WINAPI CreateHardLinkW( LPCWSTR dest, LPCWSTR source, SECURITY_ATTRIBUTES *
 
     InitializeObjectAttributes( &attr, &ntSource, OBJ_CASE_INSENSITIVE, 0, NULL );
     if (!(ret = set_ntstatus( NtOpenFile( &file, SYNCHRONIZE, &attr, &io, FILE_SHARE_READ | FILE_SHARE_WRITE,
-            FILE_SYNCHRONOUS_IO_NONALERT ) )))
+            FILE_SYNCHRONOUS_IO_NONALERT | FILE_OPEN_REPARSE_POINT ) )))
         goto done;
 
     info->ReplaceIfExists = FALSE;
@@ -2856,7 +2856,7 @@ BOOL WINAPI DECLSPEC_HOTPATCH ReplaceFileW( const WCHAR *replaced, const WCHAR *
     }
     attr.ObjectName = &nt_replacement_name;
     status = NtOpenFile( &hReplacement, GENERIC_READ | GENERIC_WRITE | DELETE | WRITE_DAC | SYNCHRONIZE,
-                         &attr, &io, 0, FILE_SYNCHRONOUS_IO_NONALERT | FILE_NON_DIRECTORY_FILE );
+                         &attr, &io, 0, FILE_SYNCHRONOUS_IO_NONALERT | FILE_NON_DIRECTORY_FILE | FILE_OPEN_REPARSE_POINT );
     RtlFreeUnicodeString(&nt_replacement_name);
     if (!set_ntstatus( status )) return FALSE;
     NtClose( hReplacement );
@@ -3094,8 +3094,9 @@ BOOL WINAPI DECLSPEC_HOTPATCH SetFileAttributesW( LPCWSTR name, DWORD attributes
     }
 
     InitializeObjectAttributes( &attr, &nt_name, OBJ_CASE_INSENSITIVE, 0, NULL );
-    status = NtOpenFile( &handle, SYNCHRONIZE, &attr, &io, 0, FILE_SYNCHRONOUS_IO_NONALERT );
-    RtlFreeUnicodeString( &nt_name );
+    status = NtOpenFile( &handle, SYNCHRONIZE, &attr, &io, 0,
+                         FILE_SYNCHRONOUS_IO_NONALERT | FILE_OPEN_REPARSE_POINT );
+     RtlFreeUnicodeString( &nt_name );
 
     if (status == STATUS_SUCCESS)
     {
