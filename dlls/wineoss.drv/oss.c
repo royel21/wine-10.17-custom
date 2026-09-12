@@ -476,12 +476,14 @@ static WAVEFORMATEXTENSIBLE *clone_format(const WAVEFORMATEX *fmt)
     return ret;
 }
 
-static HRESULT setup_oss_device(AUDCLNT_SHAREMODE share, int fd, const WAVEFORMATEX *fmt)
+static HRESULT setup_oss_device(AUDCLNT_SHAREMODE share, int fd,
+                                const WAVEFORMATEX *fmt, WAVEFORMATEXTENSIBLE *out)
 {
     const WAVEFORMATEXTENSIBLE *fmtex = (const WAVEFORMATEXTENSIBLE *)fmt;
     int tmp, oss_format;
     double tenth;
     HRESULT ret = S_OK;
+    WAVEFORMATEXTENSIBLE *closest;
 
     tmp = oss_format = get_oss_format(fmt);
     if(oss_format < 0)
@@ -504,24 +506,35 @@ static HRESULT setup_oss_device(AUDCLNT_SHAREMODE share, int fd, const WAVEFORMA
     if(fmt->nChannels == 0)
         return AUDCLNT_E_UNSUPPORTED_FORMAT;
 
+    closest = clone_format(fmt);
+    if(!closest)
+        return E_OUTOFMEMORY;
+
     tmp = fmt->nSamplesPerSec;
     if(ioctl(fd, SNDCTL_DSP_SPEED, &tmp) < 0){
         WARN("SPEED failed: %d (%s)\n", errno, strerror(errno));
+        free(closest);
         return E_FAIL;
     }
     tenth = fmt->nSamplesPerSec * 0.1;
     if(tmp > fmt->nSamplesPerSec + tenth || tmp < fmt->nSamplesPerSec - tenth){
         ret = S_FALSE;
+        closest->Format.nSamplesPerSec = tmp;
     }
 
     tmp = fmt->nChannels;
     if(ioctl(fd, SNDCTL_DSP_CHANNELS, &tmp) < 0){
         WARN("CHANNELS failed: %d (%s)\n", errno, strerror(errno));
+        free(closest);
         return E_FAIL;
     }
     if(tmp != fmt->nChannels){
         ret = S_FALSE;
+        closest->Format.nChannels = tmp;
     }
+
+    if(closest->Format.wFormatTag == WAVE_FORMAT_EXTENSIBLE)
+        closest->dwChannelMask = get_channel_mask(closest->Format.nChannels);
 
     if(fmt->nBlockAlign != fmt->nChannels * fmt->wBitsPerSample / 8 ||
             fmt->nAvgBytesPerSec != fmt->nBlockAlign * fmt->nSamplesPerSec ||
@@ -534,6 +547,20 @@ static HRESULT setup_oss_device(AUDCLNT_SHAREMODE share, int fd, const WAVEFORMA
         if(fmtex->dwChannelMask == 0 || fmtex->dwChannelMask & SPEAKER_RESERVED)
             ret = S_FALSE;
     }
+
+    if(ret == S_FALSE && !out)
+        ret = AUDCLNT_E_UNSUPPORTED_FORMAT;
+
+    if(ret == S_FALSE){
+        closest->Format.nBlockAlign =
+            closest->Format.nChannels * closest->Format.wBitsPerSample / 8;
+        closest->Format.nAvgBytesPerSec =
+            closest->Format.nBlockAlign * closest->Format.nSamplesPerSec;
+        if(closest->Format.wFormatTag == WAVE_FORMAT_EXTENSIBLE)
+            closest->Samples.wValidBitsPerSample = closest->Format.wBitsPerSample;
+        memcpy(out, closest, closest->Format.cbSize + sizeof(WAVEFORMATEX));
+    }
+    free(closest);
 
     TRACE("returning: %08x\n", (unsigned)ret);
     return ret;
@@ -585,7 +612,7 @@ static NTSTATUS oss_create_stream(void *args)
     TRACE("min_channels: %d\n", ai.min_channels);
     TRACE("max_channels: %d\n", ai.max_channels);
 
-    params->result = setup_oss_device(params->share, stream->fd, params->fmt);
+    params->result = setup_oss_device(params->share, stream->fd, params->fmt, NULL);
     if(FAILED(params->result))
         goto exit;
 
@@ -1120,7 +1147,7 @@ static NTSTATUS oss_is_format_supported(void *args)
         params->result = AUDCLNT_E_DEVICE_INVALIDATED;
         return STATUS_SUCCESS;
     }
-    params->result = setup_oss_device(params->share, fd, params->fmt_in);
+    params->result = setup_oss_device(params->share, fd, params->fmt_in, params->fmt_out);
     close(fd);
 
     return STATUS_SUCCESS;
@@ -1855,6 +1882,7 @@ static NTSTATUS oss_wow64_is_format_supported(void *args)
         .flow = params32->flow,
         .share = params32->share,
         .fmt_in = ULongToPtr(params32->fmt_in),
+        .fmt_out = ULongToPtr(params32->fmt_out)
     };
     oss_is_format_supported(&params);
     params32->result = params.result;

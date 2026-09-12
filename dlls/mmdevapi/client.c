@@ -892,39 +892,28 @@ static HRESULT WINAPI client_IsFormatSupported(IAudioClient3 *iface, AUDCLNT_SHA
     if (!fmt || (mode == AUDCLNT_SHAREMODE_SHARED && !out))
         return E_POINTER;
 
-    dump_fmt(fmt);
+        dump_fmt(fmt);
 
-    hr = validate_wfx(fmt, mode);
-
-    if (FAILED(hr))
+    if (FAILED(hr = validate_wfx(fmt, mode)))
         return hr;
 
-    if (hr == S_OK) {
-        params.device  = This->device_name;
-        params.flow    = This->dataflow;
-        params.share   = mode;
-        params.fmt_in  = fmt;
+    params.device  = This->device_name;
+    params.flow    = This->dataflow;
+    params.share   = mode;
+    params.fmt_in  = fmt;
+    params.fmt_out = NULL;
 
-        wine_unix_call(is_format_supported, &params);
+    if (out && mode == AUDCLNT_SHAREMODE_SHARED)
+        params.fmt_out = CoTaskMemAlloc(sizeof(*params.fmt_out));
 
-        hr = params.result;
-    }
+    wine_unix_call(is_format_supported, &params);
 
-    if (hr == S_FALSE) {
-        if (mode == AUDCLNT_SHAREMODE_EXCLUSIVE) {
-            return AUDCLNT_E_UNSUPPORTED_FORMAT;
-        } else {
-            if (FAILED(hr = IAudioClient3_GetMixFormat(iface, out)))
-                return hr;
-            return S_FALSE;
-        }
-    }
+    if (params.result == S_FALSE)
+        *out = &params.fmt_out->Format;
+    else
+        CoTaskMemFree(params.fmt_out);
 
-    if (hr == AUDCLNT_E_EXCLUSIVE_MODE_NOT_ALLOWED && This->dataflow == eCapture)
-        hr = AUDCLNT_E_UNSUPPORTED_FORMAT;
-
-    return hr;
-
+    return params.result;
 }
 
 static HRESULT WINAPI client_GetMixFormat(IAudioClient3 *iface, WAVEFORMATEX **pwfx)
