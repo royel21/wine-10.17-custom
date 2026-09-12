@@ -147,8 +147,6 @@ typedef struct
 #define TAB_HOTTRACK_TIMER            1
 #define TAB_HOTTRACK_TIMER_INTERVAL   100   /* milliseconds */
 
-static const WCHAR themeClass[] = L"Tab";
-
 static inline TAB_ITEM* TAB_GetItem(const TAB_INFO *infoPtr, INT i)
 {
     assert(i >= 0 && i < infoPtr->uNumItem);
@@ -743,7 +741,7 @@ static inline void hottrack_refresh(const TAB_INFO *infoPtr, int tabIndex)
 {
     if (tabIndex == -1) return;
 
-    if (GetWindowTheme (infoPtr->hwnd))
+    if (COMCTL32_IsThemed(infoPtr->hwnd))
     {
         RECT rect;
         TAB_InternalGetItemRect(infoPtr, tabIndex, &rect, NULL);
@@ -833,7 +831,7 @@ TAB_RecalcHotTrack
   if (out_redrawEnter != NULL)
     *out_redrawEnter = -1;
 
-  if ((infoPtr->dwStyle & TCS_HOTTRACK) || GetWindowTheme(infoPtr->hwnd))
+  if ((infoPtr->dwStyle & TCS_HOTTRACK) || COMCTL32_IsThemed(infoPtr->hwnd))
   {
     POINT pt;
     UINT  flags;
@@ -1517,7 +1515,7 @@ TAB_EraseTabInterior(const TAB_INFO *infoPtr, HDC hdc, INT iItem, const RECT *dr
     else /* !TCS_BUTTONS */
     {
         InflateRect(&rTemp, -2, -2);
-        if (!GetWindowTheme (infoPtr->hwnd))
+        if (!COMCTL32_IsThemed(infoPtr->hwnd))
 	    FillRect(hdc, &rTemp, hbr);
     }
 
@@ -1689,7 +1687,7 @@ TAB_DrawItemInterior(const TAB_INFO *infoPtr, HDC hdc, INT iItem, RECT *drawRect
    * Setup for text output
   */
   oldBkMode = SetBkMode(hdc, TRANSPARENT);
-  if (!GetWindowTheme (infoPtr->hwnd) || (infoPtr->dwStyle & TCS_BUTTONS))
+  if (!COMCTL32_IsThemed(infoPtr->hwnd) || (infoPtr->dwStyle & TCS_BUTTONS))
   {
     if ((infoPtr->dwStyle & TCS_HOTTRACK) && (iItem == infoPtr->iHotTracked) &&
         !(infoPtr->dwStyle & TCS_FLATBUTTONS))
@@ -1946,6 +1944,54 @@ TAB_DrawItemInterior(const TAB_INFO *infoPtr, HDC hdc, INT iItem, RECT *drawRect
   DeleteObject( htextPen );
 }
 
+static void TAB_DrawItemThemeBackground(const TAB_INFO *infoPtr, HDC hdc, INT iItem,
+                                        const RECT *selectedRect, RECT *contentRect)
+{
+#if __WINE_COMCTL32_VERSION == 6
+    static const int partIds[8] =
+    {
+        /* Normal item */
+        TABP_TABITEM,
+        TABP_TABITEMLEFTEDGE,
+        TABP_TABITEMRIGHTEDGE,
+        TABP_TABITEMBOTHEDGE,
+        /* Selected tab */
+        TABP_TOPTABITEM,
+        TABP_TOPTABITEMLEFTEDGE,
+        TABP_TOPTABITEMRIGHTEDGE,
+        TABP_TOPTABITEMBOTHEDGE,
+    };
+    HTHEME theme = GetWindowTheme(infoPtr->hwnd);
+    int partIndex = 0, stateId = TIS_NORMAL;
+    RECT rect;
+
+    /* selected and unselected tabs have different parts */
+    if (iItem == infoPtr->iSelected)
+        partIndex += 4;
+    /* The part also differs on the position of a tab on a line.
+     * "Visually" determining the position works well enough. */
+    GetClientRect(infoPtr->hwnd, &rect);
+    if (selectedRect->left == 0)
+        partIndex += 1;
+    if (selectedRect->right == rect.right)
+        partIndex += 2;
+
+    if (iItem == infoPtr->iSelected)
+        stateId = TIS_SELECTED;
+    else if (iItem == infoPtr->iHotTracked)
+        stateId = TIS_HOT;
+    else if (iItem == infoPtr->uFocus)
+        stateId = TIS_FOCUSED;
+
+    /* Adjust rectangle for bottommost row */
+    if (TAB_GetItem(infoPtr, iItem)->rect.top == infoPtr->uNumRows - 1)
+        contentRect->bottom += 3;
+
+    DrawThemeBackground(theme, hdc, partIds[partIndex], stateId, contentRect, NULL);
+    GetThemeBackgroundContentRect(theme, hdc, partIds[partIndex], stateId, contentRect, contentRect);
+#endif /* __WINE_COMCTL32_VERSION == 6 */
+}
+
 /******************************************************************************
  * TAB_DrawItem
  *
@@ -1960,7 +2006,6 @@ static void TAB_DrawItem(const TAB_INFO *infoPtr, HDC  hdc, INT  iItem)
   INT       clRight = 0;
   INT       clBottom = 0;
   COLORREF  bkgnd, corner;
-  HTHEME    theme;
 
   /*
    * Get the rectangle for the item.
@@ -2046,48 +2091,9 @@ static void TAB_DrawItem(const TAB_INFO *infoPtr, HDC  hdc, INT  iItem)
        * Windows draws even side or bottom tabs themed, with wacky results.
        * However, since in Wine apps may get themed that did not opt in via
        * a manifest avoid theming when we know the result will be wrong */
-      if ((theme = GetWindowTheme (infoPtr->hwnd))
-          && ((infoPtr->dwStyle & (TCS_VERTICAL | TCS_BOTTOM)) == 0))
+      if (COMCTL32_IsThemed(infoPtr->hwnd) && ((infoPtr->dwStyle & (TCS_VERTICAL | TCS_BOTTOM)) == 0))
       {
-          static const int partIds[8] = {
-              /* Normal item */
-              TABP_TABITEM,
-              TABP_TABITEMLEFTEDGE,
-              TABP_TABITEMRIGHTEDGE,
-              TABP_TABITEMBOTHEDGE,
-              /* Selected tab */
-              TABP_TOPTABITEM,
-              TABP_TOPTABITEMLEFTEDGE,
-              TABP_TOPTABITEMRIGHTEDGE,
-              TABP_TOPTABITEMBOTHEDGE,
-          };
-          int partIndex = 0;
-          int stateId = TIS_NORMAL;
-
-          /* selected and unselected tabs have different parts */
-          if (iItem == infoPtr->iSelected)
-              partIndex += 4;
-          /* The part also differs on the position of a tab on a line.
-           * "Visually" determining the position works well enough. */
-          GetClientRect(infoPtr->hwnd, &r1);
-          if(selectedRect.left == 0)
-              partIndex += 1;
-          if(selectedRect.right == r1.right)
-              partIndex += 2;
-
-          if (iItem == infoPtr->iSelected)
-              stateId = TIS_SELECTED;
-          else if (iItem == infoPtr->iHotTracked)
-              stateId = TIS_HOT;
-          else if (iItem == infoPtr->uFocus)
-              stateId = TIS_FOCUSED;
-
-          /* Adjust rectangle for bottommost row */
-          if (TAB_GetItem(infoPtr, iItem)->rect.top == infoPtr->uNumRows-1)
-            r.bottom += 3;
-
-          DrawThemeBackground (theme, hdc, partIds[partIndex], stateId, &r, NULL);
-          GetThemeBackgroundContentRect (theme, hdc, partIds[partIndex], stateId, &r, &r);
+        TAB_DrawItemThemeBackground(infoPtr, hdc, iItem, &selectedRect, &r);
       }
       else if(infoPtr->dwStyle & TCS_VERTICAL)
       {
@@ -2278,6 +2284,7 @@ static void TAB_DrawItem(const TAB_INFO *infoPtr, HDC  hdc, INT  iItem)
 
 static void TAB_DrawBorderBackground(const TAB_INFO *infoPtr, HDC hdc, RECT *rect)
 {
+#if __WINE_COMCTL32_VERSION == 6
   HTHEME theme = GetWindowTheme(infoPtr->hwnd);
 
   if (theme)
@@ -2286,7 +2293,7 @@ static void TAB_DrawBorderBackground(const TAB_INFO *infoPtr, HDC hdc, RECT *rec
       DrawThemeBackground(theme, hdc, TABP_PANE, 0, rect, NULL);
       return;
   }
-
+#endif
   DrawEdge(hdc, rect, EDGE_RAISED, BF_SOFT | BF_RECT);
 }
 
@@ -3033,7 +3040,7 @@ static LRESULT TAB_Create (HWND hwnd, LPARAM lParam)
     }
   }
 
-  OpenThemeData (infoPtr->hwnd, themeClass);
+  COMCTL32_OpenThemeForWindow (infoPtr->hwnd, L"Tab");
 
   /*
    * We need to get text information so we need a DC and we need to select
@@ -3095,20 +3102,10 @@ TAB_Destroy (TAB_INFO *infoPtr)
   if (infoPtr->iHotTracked >= 0)
     KillTimer(infoPtr->hwnd, TAB_HOTTRACK_TIMER);
 
-  CloseThemeData (GetWindowTheme (infoPtr->hwnd));
+  COMCTL32_CloseThemeForWindow (infoPtr->hwnd);
 
   Free (infoPtr);
   return 0;
-}
-
-/* update theme after a WM_THEMECHANGED message */
-static LRESULT theme_changed(const TAB_INFO *infoPtr)
-{
-    HTHEME theme = GetWindowTheme (infoPtr->hwnd);
-    CloseThemeData (theme);
-    OpenThemeData (infoPtr->hwnd, themeClass);
-    InvalidateRect (infoPtr->hwnd, NULL, TRUE);
-    return 0;
 }
 
 static LRESULT TAB_NCCalcSize(WPARAM wParam)
@@ -3411,7 +3408,7 @@ TAB_WindowProc (HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
       return 0;
 
     case WM_THEMECHANGED:
-      return theme_changed (infoPtr);
+      return COMCTL32_ThemeChanged (infoPtr->hwnd, L"Tab", TRUE, TRUE);
 
     case WM_KILLFOCUS:
       TAB_KillFocus(infoPtr);

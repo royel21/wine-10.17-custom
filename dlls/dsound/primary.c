@@ -114,33 +114,31 @@ static HRESULT DSOUND_WaveFormat(DirectSoundDevice *device, IAudioClient *client
     HRESULT hr;
 
     if (!forcewave) {
-        WAVEFORMATEXTENSIBLE *mixwfe, testwfe;
+        WAVEFORMATEXTENSIBLE *mixwfe, wfe;
 
         hr = IAudioClient_GetMixFormat(client, (WAVEFORMATEX**)&mixwfe);
-
         if (FAILED(hr))
             return hr;
 
-        if (mixwfe->Format.nChannels < device->num_speakers) {
-            device->speaker_config = DSOUND_FindSpeakerConfig(device->mmdevice, mixwfe->Format.nChannels);
+        wfe = *mixwfe;
+        CoTaskMemFree(mixwfe);
+
+        wfe.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
+        wfe.SubFormat = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
+        wfe.Samples.wValidBitsPerSample = wfe.Format.wBitsPerSample = 32;
+
+        if (wfe.Format.nChannels < device->num_speakers) {
+            device->speaker_config = DSOUND_FindSpeakerConfig(device->mmdevice, wfe.Format.nChannels);
             DSOUND_ParseSpeakerConfig(device);
-        } else if (mixwfe->Format.nChannels > device->num_speakers) {
-            mixwfe->Format.nChannels = device->num_speakers;
-            mixwfe->Format.nBlockAlign = mixwfe->Format.nChannels * mixwfe->Format.wBitsPerSample / 8;
-            mixwfe->Format.nAvgBytesPerSec = mixwfe->Format.nSamplesPerSec * mixwfe->Format.nBlockAlign;
-            mixwfe->dwChannelMask = speaker_config_to_channel_mask(device->speaker_config);
+        } else if (wfe.Format.nChannels > device->num_speakers) {
+            wfe.Format.nChannels = device->num_speakers;
+            wfe.dwChannelMask = speaker_config_to_channel_mask(device->speaker_config);
         }
 
-        testwfe = *mixwfe;
+        wfe.Format.nBlockAlign = wfe.Format.nChannels * wfe.Format.wBitsPerSample / 8;
+        wfe.Format.nAvgBytesPerSec = wfe.Format.nSamplesPerSec * wfe.Format.nBlockAlign;
 
-        testwfe.SubFormat = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
-        testwfe.Samples.wValidBitsPerSample = testwfe.Format.wBitsPerSample = 32;
-        testwfe.Format.nBlockAlign = testwfe.Format.nChannels * testwfe.Format.wBitsPerSample / 8;
-        testwfe.Format.nAvgBytesPerSec = testwfe.Format.nSamplesPerSec * testwfe.Format.nBlockAlign;
-
-        w = DSOUND_CopyFormat(&testwfe.Format);
-
-        CoTaskMemFree(mixwfe);
+        w = DSOUND_CopyFormat(&wfe.Format);
     } else if (device->primary_pwfx->wFormatTag == WAVE_FORMAT_PCM ||
                device->primary_pwfx->wFormatTag == WAVE_FORMAT_IEEE_FLOAT) {
         WAVEFORMATEX *wi = device->primary_pwfx;
@@ -727,7 +725,7 @@ static HRESULT WINAPI PrimaryBufferImpl_GetCurrentPosition(IDirectSoundBuffer8 *
 	LeaveCriticalSection(&(device->mixlock));
 	/* **** */
 
-	TRACE("playpos = %ld, writepos = %ld (%p, time=%ld)\n", playpos?*playpos:0, writepos?*writepos:0, device, GetTickCount());
+	TRACE("playpos = %ld, writepos = %ld (%p, time=%lu)\n", playpos?*playpos:0, writepos?*writepos:0, device, GetTickCount());
 	return DS_OK;
 }
 
@@ -791,7 +789,7 @@ static HRESULT WINAPI PrimaryBufferImpl_Lock(IDirectSoundBuffer8 *iface, DWORD w
 	HRESULT hres;
         IDirectSoundBufferImpl *This = impl_from_IDirectSoundBuffer8(iface);
         DirectSoundDevice *device = This->device;
-	TRACE("(%p,%ld,%ld,%p,%p,%p,%p,0x%08lx) at %ld\n",
+	TRACE("(%p,%ld,%ld,%p,%p,%p,%p,0x%08lx) at %lu\n",
 		iface,
 		writecursor,
 		writebytes,
