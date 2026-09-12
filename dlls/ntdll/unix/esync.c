@@ -864,8 +864,11 @@ static NTSTATUS __esync_wait_objects( unsigned int count, const HANDLE *handles,
     if (objs[count - 1] && objs[count - 1]->type == ESYNC_QUEUE)
         msgwait = TRUE;
 
-    if (has_esync && has_server)
+  if (has_esync && has_server)
+    {
         FIXME("Can't wait on esync and server objects at the same time!\n");
+        return STATUS_SUCCESS;
+    }
     else if (has_server)
         return STATUS_NOT_IMPLEMENTED;
 

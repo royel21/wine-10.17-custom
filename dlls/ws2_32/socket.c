@@ -634,7 +634,7 @@ static HANDLE get_sync_event(void)
 static DWORD wait_event_alertable( HANDLE event )
 {
     DWORD ret;
-
+    WARN("wait_event_alertable");
     while ((ret = WaitForSingleObjectEx( event, INFINITE, TRUE )) == WAIT_IO_COMPLETION)
         ;
     return ret;

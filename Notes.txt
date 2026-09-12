@@ -1,0 +1,14 @@
+function:
+    DWORD WINAPI DECLSPEC_HOTPATCH WaitForSingleObjectEx
+
+problem: synchronisation
+    if (NT_ERROR(status))
+    {
+        WARN("NtWaitForSingleObject JUMP");
+        // SetLastError( RtlNtStatusToDosError(status) );
+        // status = WAIT_FAILED;
+       return WaitForMultipleObjectsEx( 1, &handle, FALSE, timeout, alertable ); // this is a temp fix
+    }
+
+Problem:
+    0104:err:msvcrt:_wassert (L"iface->lpVtbl == &ddraw_clipper_vtbl",L"../dlls/ddraw/clipper.c",393)

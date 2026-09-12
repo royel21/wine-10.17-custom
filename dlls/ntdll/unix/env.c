@@ -335,6 +335,10 @@ static BOOL is_special_env_var( const char *var )
             STARTS_WITH( var, "TEMP=" ) ||
             STARTS_WITH( var, "TMP=" ) ||
             STARTS_WITH( var, "QT_" ) ||
+            STARTS_WITH( var, "SDL_AUDIODRIVER=" ) ||
+            STARTS_WITH( var, "SDL_AUDIO_DRIVER=" ) ||
+            STARTS_WITH( var, "SDL_VIDEODRIVER=" ) ||
+            STARTS_WITH( var, "SDL_VIDEO_DRIVER=" ) ||
             STARTS_WITH( var, "VK_" ) ||
             STARTS_WITH( var, "XDG_" ));
 }
@@ -814,6 +818,19 @@ void init_environment(void)
     }
 }
 
+/* check if a WINE_HOST_ prefixed variable already exists in the environment */
+static BOOL host_var_exists( const char *name )
+{
+    char *end = strchr( name, '=' );
+
+    if (!end) return FALSE;
+    for (char **e = environ; *e; e++)
+    {
+        if (!STARTS_WITH( *e, "WINE_HOST_" )) continue;
+        if (!strncmp( *e + 10, name, end + 1 - name )) return TRUE;
+    }
+    return FALSE;
+}
 
 static const char overrides_help_message[] =
     "Syntax:\n"
@@ -863,11 +880,12 @@ static WCHAR *get_initial_environment( SIZE_T *pos, SIZE_T *size )
                 exit(0);
             }
         }
-        else if (is_special_env_var( str )) /* prefix it with UNIX_ */
+        else if (host_var_exists( str )) continue;
+        else if (is_special_env_var( str )) /* prefix it with WINE_HOST_ */
         {
-            static const WCHAR unixW[] = {'U','N','I','X','_'};
-            memcpy( ptr, unixW, sizeof(unixW) );
-            ptr += ARRAY_SIZE(unixW);
+            static const WCHAR hostW[] = {'W','I','N','E','_','H','O','S','T','_'};
+            memcpy( ptr, hostW, sizeof(hostW) );
+            ptr += ARRAY_SIZE(hostW);
         }
 
         ptr += ntdll_umbstowcs( str, strlen(str) + 1, ptr, end - ptr );

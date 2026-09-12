@@ -412,6 +412,7 @@ DWORD WINAPI DECLSPEC_HOTPATCH WaitForSingleObjectEx( HANDLE handle, DWORD timeo
 
     if (NT_ERROR(status))
     {
+        WARN("NtWaitForSingleObject JUMP");
         // SetLastError( RtlNtStatusToDosError(status) );
         // status = WAIT_FAILED;
        return WaitForMultipleObjectsEx( 1, &handle, FALSE, timeout, alertable );
