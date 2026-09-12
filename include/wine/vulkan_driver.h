@@ -27,6 +27,8 @@
 #include <windef.h>
 #include <winbase.h>
 
+#include "wine/vulkan.h"
+
 /* Base 'class' for our Vulkan dispatchable objects such as VkDevice and VkInstance.
  * This structure MUST be the first element of a dispatchable object as the ICD
  * loader depends on it. For now only contains loader_magic, but over time more common
@@ -41,9 +43,48 @@ struct vulkan_client_object
     UINT64 unix_handle;
 };
 
+struct vulkan_instance_extensions
+{
+#define USE_VK_EXT(x) unsigned has_ ## x : 1;
+    ALL_VK_INSTANCE_EXTS
+#undef USE_VK_EXT
+};
+
+struct vulkan_device_extensions
+{
+#define USE_VK_EXT(x) unsigned has_ ## x : 1;
+    ALL_VK_DEVICE_EXTS
+#undef USE_VK_EXT
+};
+
+struct VkPhysicalDevice_T
+{
+    struct vulkan_client_object obj;
+    struct vulkan_device_extensions extensions;
+};
+
+struct VkInstance_T
+{
+    struct vulkan_client_object obj;
+    struct vulkan_instance_extensions extensions;
+    uint32_t phys_dev_count;
+    struct VkPhysicalDevice_T phys_devs[1];
+};
+
+struct VkQueue_T
+{
+    struct vulkan_client_object obj;
+};
+
+struct VkDevice_T
+{
+    struct vulkan_client_object obj;
+    struct vulkan_device_extensions extensions;
+    struct VkQueue_T queues[1];
+};
+
 #ifdef WINE_UNIX_LIB
 
-#include "wine/vulkan.h"
 #include "wine/rbtree.h"
 
 /* Wine internal vulkan driver version, needs to be bumped upon vulkan_funcs changes. */
@@ -74,6 +115,7 @@ static inline void vulkan_object_init( struct vulkan_object *obj, UINT64 host_ha
 struct vulkan_instance
 {
     VULKAN_OBJECT_HEADER( VkInstance, instance );
+    struct vulkan_instance_extensions extensions;
 #define USE_VK_FUNC(x) PFN_ ## x p_ ## x;
     ALL_VK_INSTANCE_FUNCS
 #undef USE_VK_FUNC
@@ -94,11 +136,7 @@ struct vulkan_physical_device
 {
     VULKAN_OBJECT_HEADER( VkPhysicalDevice, physical_device );
     struct vulkan_instance *instance;
-    bool has_surface_maintenance1;
-    bool has_swapchain_maintenance1;
-
-    VkExtensionProperties *extensions;
-    uint32_t extension_count;
+    struct vulkan_device_extensions extensions;
 
     /* for WOW64 memory mapping with VK_EXT_external_memory_host */
     VkPhysicalDeviceMemoryProperties memory_properties;
@@ -116,7 +154,7 @@ struct vulkan_device
 {
     VULKAN_OBJECT_HEADER( VkDevice, device );
     struct vulkan_physical_device *physical_device;
-    bool has_win32_keyed_mutex;
+    struct vulkan_device_extensions extensions;
 #define USE_VK_FUNC(x) PFN_ ## x p_ ## x;
     ALL_VK_DEVICE_FUNCS
 #undef USE_VK_FUNC
@@ -260,7 +298,8 @@ struct vulkan_funcs
     PFN_vkUnmapMemory2KHR p_vkUnmapMemory2KHR;
 
     /* winevulkan specific functions */
-    const char *(*p_get_host_extension)( const char *name );
+    void (*p_map_instance_extensions)( struct vulkan_instance_extensions *extensions );
+    void (*p_map_device_extensions)( struct vulkan_device_extensions *extensions );
 };
 
 /* interface between win32u and the user drivers */
@@ -269,7 +308,8 @@ struct vulkan_driver_funcs
 {
     VkResult (*p_vulkan_surface_create)(HWND, const struct vulkan_instance *, VkSurfaceKHR *, struct client_surface **);
     VkBool32 (*p_get_physical_device_presentation_support)(struct vulkan_physical_device *, uint32_t);
-    const char *(*p_get_host_extension)( const char *name );
+    void (*p_map_instance_extensions)( struct vulkan_instance_extensions *extensions );
+    void (*p_map_device_extensions)( struct vulkan_device_extensions *extensions );
 };
 
 #endif /* WINE_UNIX_LIB */
