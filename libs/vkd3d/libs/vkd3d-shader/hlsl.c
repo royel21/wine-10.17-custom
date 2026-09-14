@@ -153,6 +153,25 @@ void hlsl_free_state_block(struct hlsl_state_block *state_block)
     vkd3d_free(state_block);
 }
 
+void hlsl_free_default_value(struct hlsl_default_value *value)
+{
+    vkd3d_free((void *)value->string);
+}
+
+void hlsl_free_default_values(struct hlsl_ir_var *decl)
+{
+    unsigned int component_count;
+
+    if (!decl->default_values)
+        return;
+
+    component_count = hlsl_type_component_count(decl->data_type);
+    for (size_t i = 0; i < component_count; ++i)
+        hlsl_free_default_value(&decl->default_values[i]);
+    vkd3d_free(decl->default_values);
+    decl->default_values = NULL;
+}
+
 void hlsl_free_var(struct hlsl_ir_var *decl)
 {
     unsigned int k, i;
@@ -162,14 +181,7 @@ void hlsl_free_var(struct hlsl_ir_var *decl)
     for (k = 0; k <= HLSL_REGSET_LAST_OBJECT; ++k)
         vkd3d_free((void *)decl->objects_usage[k]);
 
-    if (decl->default_values)
-    {
-        unsigned int component_count = hlsl_type_component_count(decl->data_type);
-
-        for (k = 0; k < component_count; ++k)
-            vkd3d_free((void *)decl->default_values[k].string);
-        vkd3d_free(decl->default_values);
-    }
+    hlsl_free_default_values(decl);
 
     for (i = 0; i < decl->state_block_count; ++i)
         hlsl_free_state_block(decl->state_blocks[i]);
@@ -1737,6 +1749,12 @@ struct hlsl_ir_node *hlsl_new_constant(struct hlsl_ctx *ctx, struct hlsl_type *t
     return &c->node;
 }
 
+struct hlsl_ir_node *hlsl_block_add_constant(struct hlsl_ctx *ctx, struct hlsl_block *block,
+        struct hlsl_type *type, const struct hlsl_constant_value *value, const struct vkd3d_shader_location *loc)
+{
+    return append_new_instr(ctx, block, hlsl_new_constant(ctx, type, value, loc));
+}
+
 struct hlsl_ir_node *hlsl_new_bool_constant(struct hlsl_ctx *ctx, bool b, const struct vkd3d_shader_location *loc)
 {
     struct hlsl_constant_value value;
@@ -1970,14 +1988,15 @@ static struct hlsl_ir_node *hlsl_new_error_expr(struct hlsl_ctx *ctx)
     return hlsl_new_expr(ctx, HLSL_OP0_ERROR, operands, ctx->builtin_types.error, &loc);
 }
 
-struct hlsl_ir_node *hlsl_new_if(struct hlsl_ctx *ctx, struct hlsl_ir_node *condition,
-        struct hlsl_block *then_block, struct hlsl_block *else_block, const struct vkd3d_shader_location *loc)
+struct hlsl_ir_node *hlsl_new_if(struct hlsl_ctx *ctx, struct hlsl_ir_node *condition, struct hlsl_block *then_block,
+        struct hlsl_block *else_block, enum hlsl_if_flatten_type flatten_type, const struct vkd3d_shader_location *loc)
 {
     struct hlsl_ir_if *iff;
 
     if (!(iff = hlsl_alloc(ctx, sizeof(*iff))))
         return NULL;
     init_node(&iff->node, HLSL_IR_IF, NULL, loc);
+    iff->flatten_type = flatten_type;
     hlsl_src_from_node(&iff->condition, condition);
     hlsl_block_init(&iff->then_block);
     hlsl_block_add_block(&iff->then_block, then_block);
@@ -1987,10 +2006,11 @@ struct hlsl_ir_node *hlsl_new_if(struct hlsl_ctx *ctx, struct hlsl_ir_node *cond
     return &iff->node;
 }
 
-void hlsl_block_add_if(struct hlsl_ctx *ctx, struct hlsl_block *block, struct hlsl_ir_node *condition,
-        struct hlsl_block *then_block, struct hlsl_block *else_block, const struct vkd3d_shader_location *loc)
+void hlsl_block_add_if(struct hlsl_ctx *ctx, struct hlsl_block *block,
+        struct hlsl_ir_node *condition, struct hlsl_block *then_block, struct hlsl_block *else_block,
+        enum hlsl_if_flatten_type flatten_type, const struct vkd3d_shader_location *loc)
 {
-    struct hlsl_ir_node *instr = hlsl_new_if(ctx, condition, then_block, else_block, loc);
+    struct hlsl_ir_node *instr = hlsl_new_if(ctx, condition, then_block, else_block, flatten_type, loc);
 
     if (instr)
     {
@@ -2179,9 +2199,15 @@ static struct hlsl_ir_resource_load *hlsl_new_resource_load(struct hlsl_ctx *ctx
 struct hlsl_ir_node *hlsl_block_add_resource_load(struct hlsl_ctx *ctx, struct hlsl_block *block,
         const struct hlsl_resource_load_params *params, const struct vkd3d_shader_location *loc)
 {
-    struct hlsl_ir_resource_load *load = hlsl_new_resource_load(ctx, params, loc);
+    struct hlsl_ir_resource_load *load;
 
-    if (load && load->sampling_dim == HLSL_SAMPLER_DIM_STRUCTURED_BUFFER)
+    if (!(load = hlsl_new_resource_load(ctx, params, loc)))
+    {
+        block->value = ctx->error_instr;
+        return ctx->error_instr;
+    }
+
+    if (load->sampling_dim == HLSL_SAMPLER_DIM_STRUCTURED_BUFFER)
         hlsl_src_from_node(&load->byte_offset, hlsl_block_add_uint_constant(ctx, block, 0, loc));
 
     return append_new_instr(ctx, block, &load->node);
@@ -2668,7 +2694,8 @@ static struct hlsl_ir_node *clone_if(struct hlsl_ctx *ctx, struct clone_instr_ma
         return NULL;
     }
 
-    if (!(dst = hlsl_new_if(ctx, map_instr(map, src->condition.node), &then_block, &else_block, &src->node.loc)))
+    if (!(dst = hlsl_new_if(ctx, map_instr(map, src->condition.node),
+            &then_block, &else_block, src->flatten_type, &src->node.loc)))
     {
         hlsl_block_cleanup(&then_block);
         hlsl_block_cleanup(&else_block);
@@ -3842,6 +3869,13 @@ static void dump_ir_jump(struct vkd3d_string_buffer *buffer, const struct hlsl_i
         case HLSL_IR_JUMP_UNRESOLVED_CONTINUE:
             vkd3d_string_buffer_printf(buffer, "unresolved_continue");
             break;
+    }
+
+    if (jump->condition.node)
+    {
+        vkd3d_string_buffer_printf(buffer, " (");
+        dump_src(buffer, &jump->condition);
+        vkd3d_string_buffer_printf(buffer, ")");
     }
 }
 

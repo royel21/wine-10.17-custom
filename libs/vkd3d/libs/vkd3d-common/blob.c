@@ -20,7 +20,6 @@
 #define WIDL_C_INLINE_WRAPPERS
 #endif
 #define COBJMACROS
-
 #define CONST_VTABLE
 #include "vkd3d.h"
 #include "vkd3d_blob.h"

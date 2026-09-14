@@ -110,6 +110,7 @@ enum vkd3d_shader_error
     VKD3D_SHADER_WARNING_SPV_INVALID_SWIZZLE            = 2300,
     VKD3D_SHADER_WARNING_SPV_INVALID_UAV_FLAGS          = 2301,
     VKD3D_SHADER_WARNING_SPV_IGNORING_FLAG              = 2302,
+    VKD3D_SHADER_WARNING_SPV_INVALID_SIZE               = 2303,
 
     VKD3D_SHADER_ERROR_RS_OUT_OF_MEMORY                 = 3000,
     VKD3D_SHADER_ERROR_RS_INVALID_VERSION               = 3001,
@@ -175,6 +176,7 @@ enum vkd3d_shader_error
     VKD3D_SHADER_ERROR_HLSL_MISSING_PRIMITIVE_TYPE      = 5043,
     VKD3D_SHADER_ERROR_HLSL_MISPLACED_STREAM_OUTPUT     = 5044,
     VKD3D_SHADER_ERROR_HLSL_MISSING_INPUT_PATCH         = 5045,
+    VKD3D_SHADER_ERROR_HLSL_CANNOT_FLATTEN              = 5046,
 
     VKD3D_SHADER_WARNING_HLSL_IMPLICIT_TRUNCATION       = 5300,
     VKD3D_SHADER_WARNING_HLSL_DIVISION_BY_ZERO          = 5301,
@@ -1610,6 +1612,7 @@ struct vsir_program
     uint8_t diffuse_written_mask;
     enum vsir_control_flow_type cf_type;
     enum vsir_normalisation_level normalisation_level;
+    bool has_no_modifiers;
     enum vkd3d_tessellator_domain tess_domain;
     enum vkd3d_shader_tessellator_partitioning tess_partitioning;
     enum vkd3d_shader_tessellator_output_primitive tess_output_primitive;

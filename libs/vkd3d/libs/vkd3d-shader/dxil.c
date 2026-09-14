@@ -647,13 +647,13 @@ enum sm6_value_type
 {
     VALUE_TYPE_INVALID,
     VALUE_TYPE_FUNCTION,
-    VALUE_TYPE_DATA,
     VALUE_TYPE_HANDLE,
     VALUE_TYPE_SSA,
     VALUE_TYPE_ICB,
     VALUE_TYPE_IDXTEMP,
     VALUE_TYPE_GROUPSHAREDMEM,
     VALUE_TYPE_CONSTANT,
+    VALUE_TYPE_CONSTANT_ARRAY,
     VALUE_TYPE_UNDEFINED,
 };
 
@@ -706,6 +706,12 @@ struct sm6_constant_data
     union vsir_immediate_constant immconst;
 };
 
+struct sm6_constant_array_data
+{
+    const struct vkd3d_shader_immediate_constant_buffer *icb;
+    const uint64_t *elements;
+};
+
 struct sm6_value
 {
     const struct sm6_type *type;
@@ -716,13 +722,13 @@ struct sm6_value
     union
     {
         struct sm6_function_data function;
-        const struct vkd3d_shader_immediate_constant_buffer *data;
         struct sm6_handle_data handle;
         struct sm6_ssa_data ssa;
         struct sm6_icb_data icb;
         struct sm6_idxtemp_data idxtemp;
         struct sm6_groupsharedmem_data groupsharedmem;
         struct sm6_constant_data constant;
+        struct sm6_constant_array_data constant_array;
     } u;
 };
 
@@ -2280,6 +2286,11 @@ static inline bool sm6_value_is_constant(const struct sm6_value *value)
     return value->value_type == VALUE_TYPE_CONSTANT;
 }
 
+static bool sm6_value_is_constant_array(const struct sm6_value *value)
+{
+    return value->value_type == VALUE_TYPE_CONSTANT_ARRAY;
+}
+
 static bool sm6_value_is_constant_zero(const struct sm6_value *value)
 {
     if (value->value_type != VALUE_TYPE_CONSTANT)
@@ -2321,11 +2332,6 @@ static bool sm6_value_vector_is_constant_or_undef(const struct sm6_value **value
         if (!sm6_value_is_constant(values[i]) && !sm6_value_is_undef(values[i]))
             return false;
     return true;
-}
-
-static bool sm6_value_is_data(const struct sm6_value *value)
-{
-    return value->value_type == VALUE_TYPE_DATA;
 }
 
 static bool sm6_value_is_ssa(const struct sm6_value *value)
@@ -2662,7 +2668,7 @@ static void vsir_register_from_dxil_value(struct vkd3d_shader_register *reg,
 
         case VALUE_TYPE_FUNCTION:
         case VALUE_TYPE_HANDLE:
-        case VALUE_TYPE_DATA:
+        case VALUE_TYPE_CONSTANT_ARRAY:
             vkd3d_unreachable();
     }
 
@@ -3067,7 +3073,7 @@ static bool sm6_value_validate_is_i32(const struct sm6_value *value, struct sm6_
     return true;
 }
 
-static const struct sm6_value *sm6_parser_get_value_safe(struct sm6_parser *sm6, unsigned int idx)
+static struct sm6_value *sm6_parser_get_value_safe(struct sm6_parser *sm6, unsigned int idx)
 {
     if (idx < sm6->value_count)
         return &sm6->values[idx];
@@ -3209,107 +3215,6 @@ static inline uint64_t decode_rotated_signed_value(uint64_t value)
         return neg ? -value : value;
     }
     return value << 63;
-}
-
-static enum vkd3d_result value_allocate_constant_array(struct sm6_value *dst, const struct sm6_type *type,
-        const uint64_t *operands, struct sm6_parser *sm6)
-{
-    struct vkd3d_shader_immediate_constant_buffer *icb;
-    const struct sm6_type *elem_type;
-    unsigned int i, size, count;
-    uint64_t *data64;
-
-    elem_type = type->u.array.elem_type;
-    /* Multidimensional arrays are emitted in flattened form. */
-    if (elem_type->class != TYPE_CLASS_INTEGER && elem_type->class != TYPE_CLASS_FLOAT)
-    {
-        vkd3d_shader_parser_error(&sm6->p, VKD3D_SHADER_ERROR_DXIL_NOT_IMPLEMENTED,
-                "The element data type for an immediate constant buffer is not scalar integer or floating point.");
-        return VKD3D_ERROR_INVALID_SHADER;
-    }
-
-    /* Arrays of bool are not used in DXIL. dxc will emit an array of int32 instead if necessary. */
-    if (!(size = elem_type->u.width / CHAR_BIT))
-    {
-        WARN("Invalid data type width %u.\n", elem_type->u.width);
-        vkd3d_shader_parser_error(&sm6->p, VKD3D_SHADER_ERROR_DXIL_INVALID_OPERAND,
-                "An immediate constant buffer is declared with boolean elements.");
-        return VKD3D_ERROR_INVALID_SHADER;
-    }
-    size = max(size, sizeof(icb->data[0]));
-    count = operands ? type->u.array.count * size / sizeof(icb->data[0]) : 0;
-
-    if (!(icb = vkd3d_malloc(offsetof(struct vkd3d_shader_immediate_constant_buffer, data[count]))))
-    {
-        ERR("Failed to allocate buffer, count %u.\n", count);
-        vkd3d_shader_parser_error(&sm6->p, VKD3D_SHADER_ERROR_DXIL_OUT_OF_MEMORY,
-                "Out of memory allocating an immediate constant buffer of count %u.", count);
-        return VKD3D_ERROR_OUT_OF_MEMORY;
-    }
-    if (!vsir_program_add_icb(sm6->program, icb))
-    {
-        ERR("Failed to store icb object.\n");
-        vkd3d_free(icb);
-        vkd3d_shader_parser_error(&sm6->p, VKD3D_SHADER_ERROR_DXIL_OUT_OF_MEMORY,
-                "Out of memory storing an immediate constant buffer object.");
-        return VKD3D_ERROR_OUT_OF_MEMORY;
-    }
-
-    dst->value_type = VALUE_TYPE_DATA;
-    dst->u.data = icb;
-
-    icb->register_idx = sm6->icb_count++;
-    icb->data_type = vsir_data_type_from_dxil(elem_type, 0, sm6);
-    icb->element_count = type->u.array.count;
-    icb->component_count = 1;
-    icb->is_null = !operands;
-
-    if (!operands)
-        return VKD3D_OK;
-
-    count = type->u.array.count;
-    switch (icb->data_type)
-    {
-        case VSIR_DATA_F16:
-            for (i = 0; i < count; ++i)
-                icb->data[i] = half_to_float(operands[i]);
-            icb->data_type = VSIR_DATA_F32;
-            break;
-
-        case VSIR_DATA_I16:
-            for (i = 0; i < count; ++i)
-                icb->data[i] = (int16_t)operands[i];
-            icb->data_type = VSIR_DATA_I32;
-            break;
-
-        case VSIR_DATA_U16:
-            for (i = 0; i < count; ++i)
-                icb->data[i] = (int16_t)operands[i];
-            icb->data_type = VSIR_DATA_U32;
-            break;
-
-        case VSIR_DATA_F32:
-        case VSIR_DATA_I32:
-        case VSIR_DATA_U32:
-            for (i = 0; i < count; ++i)
-                icb->data[i] = operands[i];
-            break;
-
-        case VSIR_DATA_F64:
-        case VSIR_DATA_I64:
-        case VSIR_DATA_U64:
-            data64 = (uint64_t *)icb->data;
-            for (i = 0; i < count; ++i)
-                data64[i] = operands[i];
-            break;
-
-        default:
-            vkd3d_shader_parser_error(&sm6->p, VKD3D_SHADER_ERROR_DXIL_INVALID_OPERAND,
-                    "Invalid array of type %u.", icb->data_type);
-            return VKD3D_ERROR_INVALID_SHADER;
-    }
-
-    return VKD3D_OK;
 }
 
 static struct sm6_index *sm6_get_value_index(struct sm6_parser *sm6, struct sm6_value *value)
@@ -3498,8 +3403,8 @@ static enum vkd3d_result sm6_parser_constants_init(struct sm6_parser *sm6, const
             case CST_CODE_NULL:
                 if (sm6_type_is_array(type))
                 {
-                    if ((ret = value_allocate_constant_array(dst, type, NULL, sm6)) < 0)
-                        return ret;
+                    dst->value_type = VALUE_TYPE_CONSTANT_ARRAY;
+                    dst->u.constant_array.elements = NULL;
                 }
                 else
                 {
@@ -3559,8 +3464,8 @@ static enum vkd3d_result sm6_parser_constants_init(struct sm6_parser *sm6, const
                 if (!dxil_record_validate_operand_count(record, type->u.array.count, type->u.array.count, sm6))
                     return VKD3D_ERROR_INVALID_SHADER;
 
-                if ((ret = value_allocate_constant_array(dst, type, record->operands, sm6)) < 0)
-                    return ret;
+                dst->value_type = VALUE_TYPE_CONSTANT_ARRAY;
+                dst->u.constant_array.elements = record->operands;
 
                 break;
 
@@ -3943,20 +3848,129 @@ static bool sm6_parser_declare_global(struct sm6_parser *sm6, const struct dxil_
 static const struct vkd3d_shader_immediate_constant_buffer *resolve_forward_initialiser(
         size_t index, struct sm6_parser *sm6)
 {
-    const struct sm6_value *value;
+    struct sm6_value *value;
 
     VKD3D_ASSERT(index);
     --index;
-    if (!(value = sm6_parser_get_value_safe(sm6, index)) || (!sm6_value_is_data(value) && !sm6_value_is_undef(value)))
+    if (!(value = sm6_parser_get_value_safe(sm6, index))
+            || (!sm6_value_is_constant_array(value) && !sm6_value_is_undef(value)))
     {
         WARN("Invalid initialiser index %zu.\n", index);
         vkd3d_shader_parser_error(&sm6->p, VKD3D_SHADER_ERROR_DXIL_INVALID_OPERAND,
                 "Global variable initialiser value index %zu is invalid.", index);
         return NULL;
     }
-    else if (sm6_value_is_data(value))
+    else if (sm6_value_is_constant_array(value))
     {
-        return value->u.data;
+        const uint64_t *elements = value->u.constant_array.elements;
+        struct vkd3d_shader_immediate_constant_buffer *icb;
+        const struct sm6_array_info *array;
+        const struct sm6_type *elem_type;
+        unsigned int i, size, count;
+        uint64_t *data64;
+
+        if (value->u.constant_array.icb)
+            return value->u.constant_array.icb;
+
+        array = &value->type->u.array;
+        elem_type = array->elem_type;
+        /* Multidimensional arrays are emitted in flattened form. */
+        if (elem_type->class != TYPE_CLASS_INTEGER && elem_type->class != TYPE_CLASS_FLOAT)
+        {
+            vkd3d_shader_parser_error(&sm6->p, VKD3D_SHADER_ERROR_DXIL_NOT_IMPLEMENTED,
+                    "The element data type for an immediate constant buffer is not scalar integer or floating point.");
+            return NULL;
+        }
+
+        /* Arrays of bool are not used in DXIL. dxc will emit an array of int32 instead if necessary. */
+        if (!(size = elem_type->u.width / CHAR_BIT))
+        {
+            WARN("Invalid data type width %u.\n", elem_type->u.width);
+            vkd3d_shader_parser_error(&sm6->p, VKD3D_SHADER_ERROR_DXIL_INVALID_OPERAND,
+                    "An immediate constant buffer is declared with boolean elements.");
+            return NULL;
+        }
+        size = max(size, sizeof(icb->data[0]));
+        count = elements ? array->count * size / sizeof(icb->data[0]) : 0;
+
+        if (!(icb = vkd3d_malloc(offsetof(struct vkd3d_shader_immediate_constant_buffer, data[count]))))
+        {
+            vkd3d_shader_parser_error(&sm6->p, VKD3D_SHADER_ERROR_DXIL_OUT_OF_MEMORY,
+                    "Out of memory allocating an immediate constant buffer of count %u.", count);
+            return NULL;
+        }
+
+        if (!vsir_program_add_icb(sm6->program, icb))
+        {
+            vkd3d_free(icb);
+            vkd3d_shader_parser_error(&sm6->p, VKD3D_SHADER_ERROR_DXIL_OUT_OF_MEMORY,
+                    "Out of memory storing an immediate constant buffer object.");
+            return NULL;
+        }
+
+        count = array->count;
+        icb->register_idx = sm6->icb_count++;
+        icb->data_type = vsir_data_type_from_dxil(elem_type, 0, sm6);
+        icb->element_count = count;
+        icb->component_count = 1;
+        icb->is_null = !elements;
+        value->u.constant_array.icb = icb;
+
+        if (!elements)
+            return icb;
+
+        switch (icb->data_type)
+        {
+            case VSIR_DATA_F16:
+                icb->data_type = VSIR_DATA_F32;
+                for (i = 0; i < count; ++i)
+                {
+                    icb->data[i] = half_to_float(elements[i]);
+                }
+                break;
+
+            case VSIR_DATA_I16:
+                icb->data_type = VSIR_DATA_I32;
+                for (i = 0; i < count; ++i)
+                {
+                    icb->data[i] = (int16_t)elements[i];
+                }
+                break;
+
+            case VSIR_DATA_U16:
+                icb->data_type = VSIR_DATA_U32;
+                for (i = 0; i < count; ++i)
+                {
+                    icb->data[i] = (int16_t)elements[i];
+                }
+                break;
+
+            case VSIR_DATA_F32:
+            case VSIR_DATA_I32:
+            case VSIR_DATA_U32:
+                for (i = 0; i < count; ++i)
+                {
+                    icb->data[i] = elements[i];
+                }
+                break;
+
+            case VSIR_DATA_F64:
+            case VSIR_DATA_I64:
+            case VSIR_DATA_U64:
+                data64 = (uint64_t *)icb->data;
+                for (i = 0; i < count; ++i)
+                {
+                    data64[i] = elements[i];
+                }
+                break;
+
+            default:
+                vkd3d_shader_parser_error(&sm6->p, VKD3D_SHADER_ERROR_DXIL_INVALID_OPERAND,
+                        "Invalid array of type %u.", icb->data_type);
+                return NULL;
+        }
+
+        return icb;
     }
     /* In VSIR, initialisation with undefined values of objects is implied, not explicit. */
     return NULL;
@@ -3970,15 +3984,16 @@ static bool resolve_forward_zero_initialiser(size_t index, struct sm6_parser *sm
         return false;
 
     --index;
-    if (!(value = sm6_parser_get_value_safe(sm6, index))
-            || (!sm6_value_is_data(value) && !sm6_value_is_constant(value) && !sm6_value_is_undef(value)))
+    if (!(value = sm6_parser_get_value_safe(sm6, index)) || (!sm6_value_is_constant_array(value)
+            && !sm6_value_is_constant(value) && !sm6_value_is_undef(value)))
     {
         WARN("Invalid initialiser index %zu.\n", index);
         vkd3d_shader_parser_error(&sm6->p, VKD3D_SHADER_ERROR_DXIL_INVALID_OPERAND,
                 "TGSM initialiser value index %zu is invalid.", index);
         return false;
     }
-    else if ((sm6_value_is_data(value) && value->u.data->is_null) || sm6_value_is_constant_zero(value))
+    else if ((sm6_value_is_constant_array(value) && !value->u.constant_array.elements)
+            || sm6_value_is_constant_zero(value))
     {
         return true;
     }
@@ -6127,11 +6142,14 @@ static unsigned int sm6_value_get_texel_offset(const struct sm6_value *value, st
 }
 
 static void instruction_set_texel_offset(struct vkd3d_shader_instruction *ins,
-        const struct sm6_value **operands, struct sm6_parser *sm6)
+        const struct sm6_value **operands, unsigned int count, struct sm6_parser *sm6)
 {
     ins->texel_offset.u = sm6_value_get_texel_offset(operands[0], sm6);
     ins->texel_offset.v = sm6_value_get_texel_offset(operands[1], sm6);
-    ins->texel_offset.w = sm6_value_get_texel_offset(operands[2], sm6);
+    if (count == 3)
+        ins->texel_offset.w = sm6_value_get_texel_offset(operands[2], sm6);
+    else
+        ins->texel_offset.w = 0;
 }
 
 static void sm6_parser_emit_dx_sample(struct sm6_parser *sm6, enum dx_intrinsic_opcode op,
@@ -6213,7 +6231,7 @@ static void sm6_parser_emit_dx_sample(struct sm6_parser *sm6, enum dx_intrinsic_
     src_param_init_vector_from_reg(&src_params[0], &coord);
     src_param_init_vector_from_handle(sm6, &src_params[1], &resource->u.handle);
     src_param_init_vector_from_handle(sm6, &src_params[2], &sampler->u.handle);
-    instruction_set_texel_offset(ins, &operands[6], sm6);
+    instruction_set_texel_offset(ins, &operands[6], 3, sm6);
 
     instruction_dst_param_init_ssa_vector(ins, component_count, sm6);
 }
@@ -6299,8 +6317,7 @@ static void sm6_parser_emit_dx_store_output(struct sm6_parser *sm6, enum dx_intr
         return;
     }
     e = &signature->elements[row_index];
-    if (!e->sysval_semantic)
-        column_index += vsir_write_mask_get_component_idx(e->mask);
+    column_index += vsir_write_mask_get_component_idx(e->mask);
 
     if (column_index >= VKD3D_VEC4_SIZE)
     {
@@ -6388,7 +6405,7 @@ static void sm6_parser_emit_dx_texture_gather(struct sm6_parser *sm6, enum dx_in
     if (extended_offset)
         src_param_init_vector_from_reg(&src_params[1], &offset);
     else
-        instruction_set_texel_offset(ins, &operands[6], sm6);
+        instruction_set_texel_offset(ins, &operands[6], 2, sm6);
     src_param_init_vector_from_handle(sm6, &src_params[1 + extended_offset], &resource->u.handle);
     src_param_init_vector_from_handle(sm6, &src_params[2 + extended_offset], &sampler->u.handle);
     /* Swizzle stored in the sampler parameter is the scalar component index to be gathered. */
@@ -6434,7 +6451,7 @@ static void sm6_parser_emit_dx_texture_load(struct sm6_parser *sm6, enum dx_intr
     ins = state->ins;
     instruction_init_with_resource(ins, is_uav ? VSIR_OP_LD_UAV_TYPED
             : is_multisample ? VSIR_OP_LD2DMS : VSIR_OP_LD, resource, sm6);
-    instruction_set_texel_offset(ins, &operands[5], sm6);
+    instruction_set_texel_offset(ins, &operands[5], 3, sm6);
 
     for (i = 0; i < VKD3D_VEC4_SIZE; ++i)
         ins->resource_data_type[i] = resource->u.handle.d->resource_data_type;
@@ -8911,8 +8928,8 @@ static enum vkd3d_result sm6_parser_metadata_init(struct sm6_parser *sm6, const 
                 if (!(value = sm6_parser_get_value_safe(sm6, value_idx)))
                     return VKD3D_ERROR_INVALID_SHADER;
 
-                if (!sm6_value_is_constant(value) && !sm6_value_is_undef(value) && !sm6_value_is_data(value)
-                        && !sm6_value_is_function_dcl(value))
+                if (!sm6_value_is_constant(value) && !sm6_value_is_undef(value)
+                        && !sm6_value_is_constant_array(value) && !sm6_value_is_function_dcl(value))
                 {
                     WARN("Value at index %u is not a constant or a function declaration.\n", value_idx);
                     vkd3d_shader_parser_error(&sm6->p, VKD3D_SHADER_ERROR_DXIL_INVALID_METADATA,

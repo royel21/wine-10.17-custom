@@ -23,8 +23,6 @@
 #include <stdio.h>
 #include <math.h>
 
-/* VKD3D_DEBUG_ENV_NAME("VKD3D_SHADER_DEBUG"); */
-
 static inline int char_to_int(char c)
 {
     if ('0' <= c && c <= '9')
@@ -268,7 +266,7 @@ void vkd3d_shader_trace_text_(const char *text, size_t size, const char *functio
             q = end;
         else
             ++q;
-        vkd3d_dbg_printf(VKD3D_DBG_LEVEL_TRACE, function, "%.*s", (int)(q - p), p);
+        vkd3d_dbg_printf(VKD3D_DEBUG_ENV_NAME, VKD3D_DBG_LEVEL_TRACE, function, "%.*s", (int)(q - p), p);
     }
 }
 
@@ -1503,8 +1501,6 @@ static int vkd3d_shader_scan_instruction(struct vkd3d_shader_scan_context *conte
             if (context->cf_info_count)
                 context->cf_info[context->cf_info_count - 1].inside_block = false;
             break;
-        case VSIR_OP_TEXBEM:
-        case VSIR_OP_TEXBEML:
         case VSIR_OP_TEXDP3TEX:
         case VSIR_OP_TEXM3x2TEX:
         case VSIR_OP_TEXM3x3SPEC:

@@ -398,12 +398,41 @@ static void shader_dump_resource_data_type(struct vkd3d_d3d_asm_compiler *compil
 {
     int i;
 
+    /* We want the D3D names here, not the vsir ones. */
+    static const char * const names[] =
+    {
+        [VSIR_DATA_BOOL     ] = "bool",
+        [VSIR_DATA_F16      ] = "half",
+        [VSIR_DATA_F32      ] = "float",
+        [VSIR_DATA_F64      ] = "double",
+        [VSIR_DATA_I8       ] = "int8",
+        [VSIR_DATA_I16      ] = "int16",
+        [VSIR_DATA_I32      ] = "int",
+        [VSIR_DATA_I64      ] = "int64",
+        [VSIR_DATA_U8       ] = "uint8",
+        [VSIR_DATA_U16      ] = "uint16",
+        [VSIR_DATA_U32      ] = "uint",
+        [VSIR_DATA_U64      ] = "uint64",
+        [VSIR_DATA_SNORM    ] = "snorm",
+        [VSIR_DATA_UNORM    ] = "unorm",
+        [VSIR_DATA_OPAQUE   ] = "opaque",
+        [VSIR_DATA_MIXED    ] = "mixed",
+        [VSIR_DATA_CONTINUED] = "<continued>",
+        [VSIR_DATA_UNUSED   ] = "<unused>",
+    };
+
     vkd3d_string_buffer_printf(&compiler->buffer, "(");
 
     for (i = 0; i < 4; i++)
     {
+        size_t t = type[i];
+
         vkd3d_string_buffer_printf(&compiler->buffer, "%s", i == 0 ? "" : ",");
-        shader_print_data_type(compiler, type[i]);
+        if (t < ARRAY_SIZE(names) && names[t])
+            vkd3d_string_buffer_printf(&compiler->buffer, "%s", names[t]);
+        else
+            vkd3d_string_buffer_printf(&compiler->buffer, "%s<unhandled data type %#zx>%s",
+                    compiler->colours.error, t, compiler->colours.reset);
     }
 
     vkd3d_string_buffer_printf(&compiler->buffer, ")");

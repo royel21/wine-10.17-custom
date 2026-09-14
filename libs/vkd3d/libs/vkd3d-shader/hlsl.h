@@ -661,12 +661,20 @@ struct hlsl_ir_call
     struct hlsl_ir_function_decl *decl;
 };
 
+enum hlsl_if_flatten_type
+{
+    HLSL_IF_FLATTEN_DEFAULT,
+    HLSL_IF_FORCE_FLATTEN,
+    HLSL_IF_FORCE_BRANCH
+};
+
 struct hlsl_ir_if
 {
     struct hlsl_ir_node node;
     struct hlsl_src condition;
     struct hlsl_block then_block;
     struct hlsl_block else_block;
+    enum hlsl_if_flatten_type flatten_type;
 };
 
 enum hlsl_loop_unroll_type
@@ -1579,13 +1587,16 @@ struct hlsl_ir_node *hlsl_block_add_binary_expr(struct hlsl_ctx *ctx, struct hls
         enum hlsl_ir_expr_op op, struct hlsl_ir_node *arg1, struct hlsl_ir_node *arg2);
 struct hlsl_ir_node *hlsl_block_add_cast(struct hlsl_ctx *ctx, struct hlsl_block *block,
         struct hlsl_ir_node *arg, struct hlsl_type *type, const struct vkd3d_shader_location *loc);
+struct hlsl_ir_node *hlsl_block_add_constant(struct hlsl_ctx *ctx, struct hlsl_block *block,
+        struct hlsl_type *type, const struct hlsl_constant_value *value, const struct vkd3d_shader_location *loc);
 struct hlsl_ir_node *hlsl_block_add_expr(struct hlsl_ctx *ctx, struct hlsl_block *block,
         enum hlsl_ir_expr_op op, struct hlsl_ir_node *operands[HLSL_MAX_OPERANDS],
         struct hlsl_type *data_type, const struct vkd3d_shader_location *loc);
 struct hlsl_ir_node *hlsl_block_add_float_constant(struct hlsl_ctx *ctx, struct hlsl_block *block,
         float f, const struct vkd3d_shader_location *loc);
-void hlsl_block_add_if(struct hlsl_ctx *ctx, struct hlsl_block *block, struct hlsl_ir_node *condition,
-        struct hlsl_block *then_block, struct hlsl_block *else_block, const struct vkd3d_shader_location *loc);
+void hlsl_block_add_if(struct hlsl_ctx *ctx, struct hlsl_block *block,
+        struct hlsl_ir_node *condition, struct hlsl_block *then_block, struct hlsl_block *else_block,
+        enum hlsl_if_flatten_type flatten_type, const struct vkd3d_shader_location *loc);
 struct hlsl_ir_node *hlsl_block_add_index(struct hlsl_ctx *ctx, struct hlsl_block *block,
         struct hlsl_ir_node *val, struct hlsl_ir_node *idx, const struct vkd3d_shader_location *loc);
 struct hlsl_ir_node *hlsl_block_add_int_constant(struct hlsl_ctx *ctx, struct hlsl_block *block,
@@ -1664,6 +1675,8 @@ void hlsl_free_ir_switch_case(struct hlsl_ir_switch_case *c);
 void hlsl_replace_node(struct hlsl_ir_node *old, struct hlsl_ir_node *new);
 
 void hlsl_free_attribute(struct hlsl_attribute *attr);
+void hlsl_free_default_value(struct hlsl_default_value *value);
+void hlsl_free_default_values(struct hlsl_ir_var *decl);
 void hlsl_free_instr(struct hlsl_ir_node *node);
 void hlsl_free_instr_list(struct list *list);
 void hlsl_free_state_block(struct hlsl_state_block *state_block);
@@ -1702,8 +1715,8 @@ struct hlsl_ir_node *hlsl_new_copy(struct hlsl_ctx *ctx, struct hlsl_ir_node *no
 struct hlsl_ir_function_decl *hlsl_new_func_decl(struct hlsl_ctx *ctx,
         struct hlsl_type *return_type, const struct hlsl_func_parameters *parameters,
         const struct hlsl_semantic *semantic, const struct vkd3d_shader_location *loc);
-struct hlsl_ir_node *hlsl_new_if(struct hlsl_ctx *ctx, struct hlsl_ir_node *condition,
-        struct hlsl_block *then_block, struct hlsl_block *else_block, const struct vkd3d_shader_location *loc);
+struct hlsl_ir_node *hlsl_new_if(struct hlsl_ctx *ctx, struct hlsl_ir_node *condition, struct hlsl_block *then_block,
+        struct hlsl_block *else_block, enum hlsl_if_flatten_type flatten_type, const struct vkd3d_shader_location *loc);
 struct hlsl_type *hlsl_new_stream_output_type(struct hlsl_ctx *ctx,
         enum hlsl_so_object_type so_type, struct hlsl_type *type);
 struct hlsl_ir_node *hlsl_new_ternary_expr(struct hlsl_ctx *ctx, enum hlsl_ir_expr_op op,
@@ -1833,15 +1846,19 @@ unsigned int hlsl_offset_from_deref_safe(struct hlsl_ctx *ctx, const struct hlsl
 struct hlsl_reg hlsl_reg_from_deref(struct hlsl_ctx *ctx, const struct hlsl_deref *deref);
 
 bool hlsl_copy_propagation_execute(struct hlsl_ctx *ctx, struct hlsl_block *block);
-bool hlsl_fold_constant_exprs(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, void *context);
-bool hlsl_fold_constant_identities(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, void *context);
-bool hlsl_normalize_binary_exprs(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, void *context);
-bool hlsl_fold_constant_swizzles(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, void *context);
+struct hlsl_ir_node *hlsl_fold_binary_exprs(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, struct hlsl_block *block);
+struct hlsl_ir_node *hlsl_fold_constant_exprs(struct hlsl_ctx *ctx,
+        struct hlsl_ir_node *instr, struct hlsl_block *block);
+struct hlsl_ir_node *hlsl_fold_constant_identities(struct hlsl_ctx *ctx,
+        struct hlsl_ir_node *instr, struct hlsl_block *block);
+struct hlsl_ir_node *hlsl_fold_constant_swizzles(struct hlsl_ctx *ctx,
+        struct hlsl_ir_node *instr, struct hlsl_block *block);
 bool hlsl_transform_ir(struct hlsl_ctx *ctx, bool (*func)(struct hlsl_ctx *ctx, struct hlsl_ir_node *, void *),
         struct hlsl_block *block, void *context);
 
 D3DXPARAMETER_CLASS hlsl_sm1_class(const struct hlsl_type *type);
-D3DXPARAMETER_TYPE hlsl_sm1_base_type(const struct hlsl_type *type, bool is_combined_sampler);
+D3DXPARAMETER_TYPE hlsl_sm1_base_type(const struct hlsl_type *type,
+        bool is_combined_sampler, enum hlsl_sampler_dim sampler_dim);
 
 struct extern_resource
 {
