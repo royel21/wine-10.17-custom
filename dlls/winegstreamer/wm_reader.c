@@ -2506,8 +2506,8 @@ static HRESULT WINAPI reader_SetOutputProps(IWMSyncReader2 *iface, DWORD output,
 
     if (!(stream = get_stream_by_output_number(reader, output)))
     {
-        LeaveCriticalSection(&reader->cs);
-        return E_INVALIDARG;
+        hr = E_INVALIDARG;
+        goto out;
     }
 
     wg_parser_stream_get_current_format(stream->wg_stream, &pref_format);
@@ -2545,8 +2545,7 @@ static HRESULT WINAPI reader_SetOutputProps(IWMSyncReader2 *iface, DWORD output,
     if (FAILED(hr))
     {
         WARN("Unsupported media type, returning %#lx.\n", hr);
-        LeaveCriticalSection(&reader->cs);
-        return hr;
+        goto out;
     }
 
     stream->format = format;
@@ -2568,10 +2567,11 @@ static HRESULT WINAPI reader_SetOutputProps(IWMSyncReader2 *iface, DWORD output,
     wg_parser_stream_seek(reader->streams[0].wg_stream, 1.0, reader->start_time, 0,
             AM_SEEKING_AbsolutePositioning, AM_SEEKING_NoPositioning);
 
+out:
     LeaveCriticalSection(&reader->cs);
     if (WaitForSingleObject(reader->read_sem, INFINITE) != WAIT_OBJECT_0)
         ERR("Failed to wait for read thread to pause.\n");
-    return S_OK;
+    return hr;
 }
 
 static HRESULT WINAPI reader_SetOutputSetting(IWMSyncReader2 *iface, DWORD output,

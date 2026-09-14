@@ -63,7 +63,7 @@ typedef struct
 
 #define FIND_FIRST_MAGIC  0xc0ffee11
 
-static const UINT max_entry_size = offsetof( FILE_BOTH_DIRECTORY_INFORMATION, FileName[256] );
+static const UINT max_entry_size = offsetof( FILE_ID_EXTD_BOTH_DIRECTORY_INFORMATION, FileName[256] );
 
 const WCHAR windows_dir[] = L"C:\\windows";
 const WCHAR system_dir[] = L"C:\\windows\\system32";
@@ -1053,108 +1053,98 @@ done:
 /*************************************************************************
  *	CreateSymbolicLinkW   (kernelbase.@)
  */
-BOOLEAN WINAPI /* DECLSPEC_HOTPATCH */ CreateSymbolicLinkW( LPCWSTR link, LPCWSTR target, DWORD flags )
+BOOLEAN WINAPI DECLSPEC_HOTPATCH CreateSymbolicLinkW( const WCHAR *link, const WCHAR *target, DWORD flags )
 {
-    static INT struct_size = offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer[0]);
-    static INT header_size = offsetof(REPARSE_DATA_BUFFER, GenericReparseBuffer);
-    INT buffer_size, data_size, string_len, prefix_len;
-    WCHAR *subst_dest, *print_dest, *string;
-    REPARSE_DATA_BUFFER *buffer;
-    LPWSTR target_path = NULL;
-    BOOL is_relative, is_dir;
-    int target_path_len = 0;
-    UNICODE_STRING nt_name;
-    BOOLEAN bret = FALSE;
+    unsigned int target_len = wcslen( target );
+    ULONG options = FILE_OPEN_REPARSE_POINT;
+    UNICODE_STRING nt_link, nt_target;
+    REPARSE_DATA_BUFFER *data;
+    OBJECT_ATTRIBUTES attr;
+    IO_STATUS_BLOCK io;
+    unsigned int size;
+    BOOL is_relative;
     NTSTATUS status;
-    HANDLE hlink;
-    DWORD dwret;
+    HANDLE file;
 
-    TRACE( "(%s %s %ld): stub\n", debugstr_w(link), debugstr_w(target), flags );
+    TRACE( "link %s, target %s, flags %#lx\n", debugstr_w(link), debugstr_w(target), flags );
 
-    is_relative = (RtlDetermineDosPathNameType_U( target ) == RtlPathTypeRelative);
-    is_dir = (flags & SYMBOLIC_LINK_FLAG_DIRECTORY);
-    if (is_dir && !CreateDirectoryW( link, NULL ))
-        return FALSE;
-    hlink = CreateFileW( link, GENERIC_READ | GENERIC_WRITE, 0, 0,
-                         is_dir ? OPEN_EXISTING : CREATE_NEW,
-                         FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, 0 );
-    if (hlink == INVALID_HANDLE_VALUE)
-        goto cleanup;
+    if (flags & ~(SYMBOLIC_LINK_FLAG_DIRECTORY | SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE))
+        FIXME( "ignoring unknown flags %#lx\n", flags );
+
+    status = RtlDosPathNameToNtPathName_U_WithStatus( link, &nt_link, NULL, NULL );
+    if (status) return set_ntstatus( status );
+
+    is_relative = RtlDetermineDosPathNameType_U( target ) == RtlPathTypeRelative;
+
+    if (!is_relative)
+    {
+        status = RtlDosPathNameToNtPathName_U_WithStatus( target, &nt_target, NULL, NULL );
+        if (status)
+        {
+            RtlFreeUnicodeString( &nt_link );
+            return set_ntstatus( status );
+        }
+    }
+
+    size = offsetof( REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer );
+    if (is_relative)
+        size += (target_len + 1) * sizeof(WCHAR);
+    else
+        size += nt_target.Length + sizeof(WCHAR);
+    size += (target_len + 1) * sizeof(WCHAR);
+    if (!(data = HeapAlloc( GetProcessHeap(), 0, size )))
+    {
+        if (!is_relative) RtlFreeUnicodeString( &nt_target );
+        RtlFreeUnicodeString( &nt_link );
+        return set_ntstatus( status );
+    }
+
+    data->ReparseTag = IO_REPARSE_TAG_SYMLINK;
+    data->ReparseDataLength = size - offsetof( REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer );
+    data->Reserved = 0;
+    data->SymbolicLinkReparseBuffer.SubstituteNameOffset = 0;
+    data->SymbolicLinkReparseBuffer.PrintNameLength = target_len * sizeof(WCHAR);
     if (is_relative)
     {
-        UNICODE_STRING nt_path;
-        int len;
-
-        status = RtlDosPathNameToNtPathName_U_WithStatus( link, &nt_path, NULL, NULL );
-        if (status != STATUS_SUCCESS)
-        {
-            SetLastError( RtlNtStatusToDosError(status) );
-            goto cleanup;
-        }
-        /* obtain the path of the link */
-        for (; nt_path.Length > 0; nt_path.Length -= sizeof(WCHAR))
-        {
-            WCHAR c = nt_path.Buffer[nt_path.Length/sizeof(WCHAR)];
-            if (c == '/' || c == '\\')
-            {
-                nt_path.Length += sizeof(WCHAR);
-                break;
-            }
-        }
-        /* append the target to the link path */
-        target_path_len = nt_path.Length / sizeof(WCHAR);
-        len = target_path_len + (lstrlenW( target ) + 1);
-        target_path = HeapAlloc( GetProcessHeap(), HEAP_ZERO_MEMORY, len*sizeof(WCHAR) );
-        lstrcpynW( target_path, nt_path.Buffer, target_path_len+1 );
-        target_path[target_path_len+1] = 0;
-        lstrcatW( target_path, target );
-        RtlFreeUnicodeString( &nt_path );
+        data->SymbolicLinkReparseBuffer.Flags = SYMLINK_FLAG_RELATIVE;
+        data->SymbolicLinkReparseBuffer.SubstituteNameLength = target_len * sizeof(WCHAR);
+        data->SymbolicLinkReparseBuffer.PrintNameOffset = (target_len + 1) * sizeof(WCHAR);
+        memcpy( data->SymbolicLinkReparseBuffer.PathBuffer,
+                target, (target_len + 1) * sizeof(WCHAR) );
+        memcpy( data->SymbolicLinkReparseBuffer.PathBuffer + target_len + 1,
+                target, (target_len + 1) * sizeof(WCHAR) );
     }
     else
-        target_path = (LPWSTR)target;
-    status = RtlDosPathNameToNtPathName_U_WithStatus( target_path, &nt_name, NULL, NULL );
-    if (status != STATUS_SUCCESS)
     {
-        SetLastError( RtlNtStatusToDosError(status) );
-        goto cleanup;
+        data->SymbolicLinkReparseBuffer.Flags = 0;
+        data->SymbolicLinkReparseBuffer.SubstituteNameLength = nt_target.Length;
+        data->SymbolicLinkReparseBuffer.PrintNameOffset = nt_target.Length + sizeof(WCHAR);
+        memcpy( data->SymbolicLinkReparseBuffer.PathBuffer,
+                nt_target.Buffer, nt_target.Length + sizeof(WCHAR) );
+        memcpy( data->SymbolicLinkReparseBuffer.PathBuffer + (nt_target.Length / sizeof(WCHAR)) + 1,
+                target, (target_len + 1) * sizeof(WCHAR) );
+        RtlFreeUnicodeString( &nt_target );
     }
-    if (is_relative && _wcsnicmp( target_path, nt_name.Buffer, target_path_len ) != 0)
-    {
-        SetLastError( RtlNtStatusToDosError(status) );
-        goto cleanup;
-    }
-    prefix_len = is_relative ? 0 : strlen("\\??\\");
-    string = &nt_name.Buffer[target_path_len];
-    string_len = lstrlenW( &string[prefix_len] );
-    data_size = (prefix_len + 2 * string_len + 2) * sizeof(WCHAR);
-    buffer_size = struct_size + data_size;
-    buffer = HeapAlloc( GetProcessHeap(), HEAP_ZERO_MEMORY, buffer_size );
-    buffer->ReparseTag = IO_REPARSE_TAG_SYMLINK;
-    buffer->ReparseDataLength = struct_size - header_size + data_size;
-    buffer->SymbolicLinkReparseBuffer.SubstituteNameLength = (prefix_len + string_len) * sizeof(WCHAR);
-    buffer->SymbolicLinkReparseBuffer.PrintNameOffset = (prefix_len + string_len + 1) * sizeof(WCHAR);
-    buffer->SymbolicLinkReparseBuffer.PrintNameLength = string_len * sizeof(WCHAR);
-    buffer->SymbolicLinkReparseBuffer.Flags = is_relative ? SYMLINK_FLAG_RELATIVE : 0;
-    subst_dest = &buffer->SymbolicLinkReparseBuffer.PathBuffer[0];
-    print_dest = &buffer->SymbolicLinkReparseBuffer.PathBuffer[prefix_len + string_len + 1];
-    lstrcpyW( subst_dest, string );
-    lstrcpyW( print_dest, &string[prefix_len] );
-    RtlFreeUnicodeString( &nt_name );
-    bret = DeviceIoControl( hlink, FSCTL_SET_REPARSE_POINT, (LPVOID)buffer, buffer_size, NULL, 0,
-                            &dwret, 0 );
-    HeapFree( GetProcessHeap(), 0, buffer );
 
-cleanup:
-    CloseHandle( hlink );
-    if (!bret)
+
+    if (flags & SYMBOLIC_LINK_FLAG_DIRECTORY)
+        options |= FILE_DIRECTORY_FILE;
+    else
+        options |= FILE_NON_DIRECTORY_FILE;
+
+    InitializeObjectAttributes( &attr, &nt_link, OBJ_CASE_INSENSITIVE, 0, NULL );
+    status = NtCreateFile( &file, GENERIC_WRITE, &attr, &io, NULL, 0, 0, FILE_CREATE, options, NULL, 0 );
+    RtlFreeUnicodeString( &nt_link );
+    if (status)
     {
-        if (is_dir)
-            RemoveDirectoryW( link );
-        else
-            DeleteFileW( link );
+        HeapFree( GetProcessHeap(), 0, data );
+        return set_ntstatus( status );
     }
-    if (is_relative) HeapFree( GetProcessHeap(), 0, target_path );
-    return bret;
+
+    status = NtDeviceIoControlFile( file, NULL, NULL, NULL, &io, FSCTL_SET_REPARSE_POINT, data, size, NULL, 0 );
+    HeapFree( GetProcessHeap(), 0, data );
+    NtClose( file );
+    return set_ntstatus( status );
 }
 
 
@@ -1477,7 +1467,7 @@ HANDLE WINAPI DECLSPEC_HOTPATCH FindFirstFileExW( LPCWSTR filename, FINDEX_INFO_
         {
             RtlInitUnicodeString( &mask_str, fixedup_mask );
             status = NtQueryDirectoryFile( info->handle, 0, NULL, NULL, &io, info->data, info->data_size,
-                                           FileBothDirectoryInformation, FALSE, &mask_str, TRUE );
+                                           FileIdExtdBothDirectoryInformation, FALSE, &mask_str, TRUE );
         }
         if (fixedup_mask != mask) HeapFree( GetProcessHeap(), 0, fixedup_mask );
         if (status)
@@ -1577,7 +1567,7 @@ BOOL WINAPI DECLSPEC_HOTPATCH FindNextFileA( HANDLE handle, WIN32_FIND_DATAA *da
 BOOL WINAPI DECLSPEC_HOTPATCH FindNextFileW( HANDLE handle, WIN32_FIND_DATAW *data )
 {
     FIND_FIRST_INFO *info = handle;
-    FILE_BOTH_DIR_INFORMATION *dir_info;
+    FILE_ID_EXTD_BOTH_DIRECTORY_INFORMATION *dir_info;
     BOOL ret = FALSE;
     NTSTATUS status;
 
@@ -1600,7 +1590,7 @@ BOOL WINAPI DECLSPEC_HOTPATCH FindNextFileW( HANDLE handle, WIN32_FIND_DATAW *da
 
             if (info->data_size)
                 status = NtQueryDirectoryFile( info->handle, 0, NULL, NULL, &io, info->data, info->data_size,
-                                               FileBothDirectoryInformation, FALSE, NULL, FALSE );
+                                               FileIdExtdBothDirectoryInformation, FALSE, NULL, FALSE );
             else
                 status = STATUS_NO_MORE_FILES;
 
@@ -1617,7 +1607,7 @@ BOOL WINAPI DECLSPEC_HOTPATCH FindNextFileW( HANDLE handle, WIN32_FIND_DATAW *da
             info->data_pos = 0;
         }
 
-        dir_info = (FILE_BOTH_DIR_INFORMATION *)(info->data + info->data_pos);
+        dir_info = (FILE_ID_EXTD_BOTH_DIRECTORY_INFORMATION *)(info->data + info->data_pos);
 
         if (dir_info->NextEntryOffset) info->data_pos += dir_info->NextEntryOffset;
         else info->data_pos = info->data_len;
@@ -1637,7 +1627,7 @@ BOOL WINAPI DECLSPEC_HOTPATCH FindNextFileW( HANDLE handle, WIN32_FIND_DATAW *da
         data->ftLastWriteTime  = *(FILETIME *)&dir_info->LastWriteTime;
         data->nFileSizeHigh    = dir_info->EndOfFile.QuadPart >> 32;
         data->nFileSizeLow     = (DWORD)dir_info->EndOfFile.QuadPart;
-        data->dwReserved0      = 0;
+        data->dwReserved0      = dir_info->ReparsePointTag;
         data->dwReserved1      = 0;
 
         memcpy( data->cFileName, dir_info->FileName, dir_info->FileNameLength );
