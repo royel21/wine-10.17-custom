@@ -188,7 +188,7 @@ static inline void EDIT_EM_EmptyUndoBuffer(EDITSTATE *es)
  * applications with an expected version 0f 4.0 or higher.
  *
  */
-static DWORD get_app_version(void)
+DWORD get_app_version(void)
 {
     static DWORD version;
     if (!version)
@@ -2312,7 +2312,7 @@ static void EDIT_AdjustFormatRect(EDITSTATE *es)
 
 	if ((es->style & ES_MULTILINE) && !(es->style & ES_AUTOHSCROLL))
 		EDIT_BuildLineDefs_ML(es, 0, get_text_length(es), 0, NULL);
-	
+
 	EDIT_SetCaretPos(es, es->selection_end, es->flags & EF_AFTER_WRAP);
 }
 
@@ -2356,7 +2356,7 @@ static void EDIT_SetRectNP(EDITSTATE *es, const RECT *rc)
         if (ExStyle & WS_EX_CLIENTEDGE && !too_large) {
 		es->format_rect.left++;
 		es->format_rect.right--;
-		
+
 		if (es->format_rect.bottom - es->format_rect.top
 		    >= es->line_height + 2)
 		{
@@ -2371,7 +2371,7 @@ static void EDIT_SetRectNP(EDITSTATE *es, const RECT *rc)
                 if (es->format_rect.bottom - es->format_rect.top >= es->line_height + 2 * bh)
                     InflateRect(&es->format_rect, 0, -bh);
 	}
-	
+
 	es->format_rect.left += es->left_margin;
 	es->format_rect.right -= es->right_margin;
 	EDIT_AdjustFormatRect(es);
@@ -2411,11 +2411,11 @@ static LRESULT EDIT_EM_CharFromPos(EDITSTATE *es, INT x, INT y)
  *	EM_FMTLINES
  *
  * Enable or disable soft breaks.
- * 
+ *
  * This means: insert or remove the soft linebreak character (\r\r\n).
  * Take care to check if the text still fits the buffer after insertion.
  * If not, notify with EN_ERRSPACE.
- * 
+ *
  */
 static BOOL EDIT_EM_FmtLines(EDITSTATE *es, BOOL add_eol)
 {
@@ -2638,7 +2638,7 @@ static void EDIT_EM_ReplaceSel(EDITSTATE *es, BOOL can_undo, const WCHAR *lpsz_r
 				for (i = 0 , p = es->text ; i < e - s ; i++)
 					p[i + s] = buf[i];
                         text_buffer_changed(es);
-			EDIT_BuildLineDefs_ML(es, s, e, 
+			EDIT_BuildLineDefs_ML(es, s, e,
 				abs(es->selection_end - es->selection_start) - strl, hrgn);
 			strl = 0;
 			e = s;
@@ -2663,7 +2663,7 @@ static void EDIT_EM_ReplaceSel(EDITSTATE *es, BOOL can_undo, const WCHAR *lpsz_r
 			if (!notify_parent(es, EN_MAXTEXT)) return;
 		}
 	}
-	
+
 	if (e != s) {
 		if (can_undo) {
 			utl = lstrlenW(es->undo_text);
@@ -2714,7 +2714,7 @@ static void EDIT_EM_ReplaceSel(EDITSTATE *es, BOOL can_undo, const WCHAR *lpsz_r
 	}
 
 	HeapFree(GetProcessHeap(), 0, buf);
- 
+
 	s += strl;
 
 	/* If text has been deleted and we're right or center aligned then scroll rightward */
@@ -2952,12 +2952,12 @@ static void EDIT_EM_SetMargins(EDITSTATE *es, INT action,
 			es->right_margin = default_right_margin;
 		es->format_rect.right -= es->right_margin;
 	}
-	
+
 	if (action & (EC_LEFTMARGIN | EC_RIGHTMARGIN)) {
 		EDIT_AdjustFormatRect(es);
 		if (repaint) EDIT_UpdateText(es, NULL, TRUE);
 	}
-	
+
 	TRACE("left=%d, right=%d\n", es->left_margin, es->right_margin);
 }
 
@@ -3248,7 +3248,7 @@ static LRESULT EDIT_WM_Char(EDITSTATE *es, WCHAR c)
 		/*If Edit control style is ES_NUMBER allow users to key in only numeric values*/
 		if( (es->style & ES_NUMBER) && !( c >= '0' && c <= '9') )
 			break;
-			
+
 		if (!(es->style & ES_READONLY) && (c >= ' ') && (c != 127))
  			EDIT_EM_ReplaceSel(es, TRUE, &c, 1, TRUE, TRUE);
 		break;
@@ -3730,7 +3730,7 @@ static void EDIT_WM_Paint(EDITSTATE *es, HDC hdc)
 
 	/* paint the border and the background */
 	IntersectClipRect(dc, rcClient.left, rcClient.top, rcClient.right, rcClient.bottom);
-	
+
 	if(es->style & WS_BORDER) {
 		bw = GetSystemMetrics(SM_CXBORDER);
 		bh = GetSystemMetrics(SM_CYBORDER);
@@ -3739,7 +3739,7 @@ static void EDIT_WM_Paint(EDITSTATE *es, HDC hdc)
 			if(es->style & WS_HSCROLL) rc.bottom+=bh;
 			if(es->style & WS_VSCROLL) rc.right+=bw;
 		}
-		
+
 		/* Draw the frame. Same code as in nonclient.c */
 		old_brush = SelectObject(dc, GetSysColorBrush(COLOR_WINDOWFRAME));
 		PatBlt(dc, rc.left, rc.top, rc.right - rc.left, bh, PATCOPY);
@@ -3747,12 +3747,12 @@ static void EDIT_WM_Paint(EDITSTATE *es, HDC hdc)
 		PatBlt(dc, rc.left, rc.bottom - 1, rc.right - rc.left, -bw, PATCOPY);
 		PatBlt(dc, rc.right - 1, rc.top, -bw, rc.bottom - rc.top, PATCOPY);
 		SelectObject(dc, old_brush);
-		
+
 		/* Keep the border clean */
 		IntersectClipRect(dc, rc.left+bw, rc.top+bh,
 		    max(rc.right-bw, rc.left+bw), max(rc.bottom-bh, rc.top+bh));
 	}
-	
+
 	GetClipBox(dc, &rc);
 	FillRect(dc, &rc, brush);
 
@@ -3887,7 +3887,7 @@ static void EDIT_WM_SetFont(EDITSTATE *es, HFONT font, BOOL redraw)
 	if (font)
 		SelectObject(dc, old_font);
 	NtUserReleaseDC( es->hwndSelf, dc );
-	
+
 	/* Reset the format rect and the margins */
 	GetClientRect(es->hwndSelf, &clientRect);
 	EDIT_SetRectNP(es, &clientRect);
@@ -3945,14 +3945,14 @@ static void EDIT_WM_SetText(EDITSTATE *es, LPCWSTR text, BOOL unicode)
 	    "selection.\n");
 
     EDIT_EM_SetSel(es, 0, (UINT)-1, FALSE);
-    if (text) 
+    if (text)
     {
 	TRACE("%s\n", debugstr_w(text));
 	EDIT_EM_ReplaceSel(es, FALSE, text, lstrlenW(text), FALSE, FALSE);
 	if(!unicode)
 	    HeapFree(GetProcessHeap(), 0, textW);
-    } 
-    else 
+    }
+    else
     {
 	TRACE("<NULL>\n");
 	EDIT_EM_ReplaceSel(es, FALSE, NULL, 0, FALSE, FALSE);
@@ -3971,7 +3971,7 @@ static void EDIT_WM_SetText(EDITSTATE *es, LPCWSTR text, BOOL unicode)
         if (!notify_parent(es, EN_CHANGE)) return;
     }
     EDIT_EM_ScrollCaret(es);
-    EDIT_UpdateScrollInfo(es);    
+    EDIT_UpdateScrollInfo(es);
     EDIT_InvalidateUniscribeData(es);
 }
 
@@ -4332,7 +4332,7 @@ static LRESULT EDIT_EM_GetThumb(EDITSTATE *es)
 
 
 /********************************************************************
- * 
+ *
  * The Following code is to handle inline editing from IMEs
  */
 
