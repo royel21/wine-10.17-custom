@@ -88,6 +88,7 @@ if [ ! -f "Makefile" ]; then
     --without-coreaudio \
     --without-cups \
     --without-gphoto \
+    --without-sane \
     --without-oss \
     --without-pcap \
     --without-pcsclite \
