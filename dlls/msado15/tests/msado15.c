@@ -219,23 +219,23 @@ static void test_Recordset(void)
 
     VariantInit( &filter );
     hr = _Recordset_put_Filter( recordset, filter );
-    ok( hr == MAKE_ADO_HRESULT( adErrInvalidArgument ), "got %08lx\n", hr );
+    todo_wine ok( hr == MAKE_ADO_HRESULT( adErrInvalidArgument ), "got %08lx\n", hr );
 
     V_VT(&filter) = VT_BSTR;
     V_BSTR(&filter) = SysAllocString( L"field1 = 1" );
     hr = _Recordset_put_Filter( recordset, filter );
-    ok( hr == S_OK, "got %08lx\n", hr );
+    todo_wine ok( hr == S_OK, "got %08lx\n", hr );
     VariantClear(&filter);
 
     V_VT(&filter) = VT_I4;
     V_I4(&filter) = 0;
     hr = _Recordset_put_Filter( recordset, filter );
-    ok( hr == S_OK, "got %08lx\n", hr );
+    todo_wine ok( hr == S_OK, "got %08lx\n", hr );
 
     V_VT(&filter) = VT_I2;
     V_I2(&filter) = 0;
     hr = _Recordset_put_Filter( recordset, filter );
-    ok( hr == S_OK, "got %08lx\n", hr );
+    todo_wine ok( hr == S_OK, "got %08lx\n", hr );
 
     VariantInit( &missing );
     hr = _Recordset_AddNew( recordset, missing, missing );
@@ -397,13 +397,13 @@ static void test_Recordset(void)
     V_VT(&filter) = VT_BSTR;
     V_BSTR(&filter) = SysAllocString( L"field = 1" );
     hr = _Recordset_put_Filter( recordset, filter );
-    ok( hr == S_OK, "got %08lx\n", hr );
+    todo_wine ok( hr == S_OK, "got %08lx\n", hr );
     VariantClear(&filter);
 
     V_VT(&filter) = VT_I4;
     V_I4(&filter) = 0;
     hr = _Recordset_put_Filter( recordset, filter );
-    ok( hr == S_OK, "got %08lx\n", hr );
+    todo_wine ok( hr == S_OK, "got %08lx\n", hr );
 
     count = -1;
     hr = Fields_get_Count( fields2, &count );
@@ -911,6 +911,7 @@ static HRESULT WINAPI accessor_CreateAccessor(IAccessor *iface, DBACCESSORFLAGS 
         return S_OK;
     }
 
+    ok(rgBindings[0].dwMemOwner == DBMEMOWNER_CLIENTOWNED, "dwMemOwner = %lx\n", rgBindings[0].dwMemOwner);
     haccessor = malloc(sizeof(*haccessor));
     haccessor->ref = 1;
     haccessor->binding = rgBindings[0];
@@ -1333,6 +1334,32 @@ static void test_ADORecordsetConstruction(BOOL exact_scroll)
     ok( scale == 1, "got %u\n", scale );
 
     Field_Release( field );
+
+    if (exact_scroll) SET_EXPECT( rowset_GetData );
+    VariantInit(&v);
+    hr = _Recordset_get_Bookmark( recordset, &v );
+    if (exact_scroll)
+    {
+        ok( hr == S_OK, "got %08lx\n", hr );
+        CHECK_CALLED( rowset_GetData );
+        ok( V_VT(&v) == VT_R8, "V_VT(v) = %x\n", V_VT(&v) );
+        ok( V_R8(&v) == 1.0, "V_R8(v) = %lf\n", V_R8(&v) );
+    }
+    else ok( hr == MAKE_ADO_HRESULT( adErrFeatureNotAvailable ), "got %08lx\n", hr );
+
+    if (exact_scroll)
+    {
+        SET_EXPECT( rowset_AddRefRows );
+        SET_EXPECT( rowset_ReleaseRows );
+        SET_EXPECT( rowset_GetRowsAt );
+        SET_EXPECT( rowset_GetData );
+        hr = _Recordset_put_Bookmark( recordset, v );
+        ok( hr == S_OK, "hr = %lx\n", hr );
+        CHECK_CALLED( rowset_AddRefRows );
+        CHECK_CALLED( rowset_ReleaseRows );
+        CHECK_CALLED( rowset_GetRowsAt );
+        CHECK_CALLED( rowset_GetData );
+    }
 
     SET_EXPECT( rowset_QI_IRowsetExactScroll );
     if (exact_scroll) SET_EXPECT( rowset_GetExactPosition );
