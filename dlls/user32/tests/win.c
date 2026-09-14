@@ -31,6 +31,7 @@
 #include "wingdi.h"
 #include "winuser.h"
 #include "winreg.h"
+#include "winternl.h"
 
 #include "wine/test.h"
 
@@ -13764,27 +13765,37 @@ static const struct test_startupinfo_showwindow_test test_startupinfo_showwindow
 static void test_startupinfo_showwindow_proc( int test_id )
 {
     const struct test_startupinfo_showwindow_test *test = &test_startupinfo_showwindow_tests[test_id];
-    static const DWORD ignored_window_styles[] =
+    static const struct
     {
-        WS_CHILD,
-        WS_POPUP, /* WS_POPUP windows are not ignored when used with WS_CAPTION (which is WS_BORDER | WS_DLGFRAME) */
-        WS_CHILD | WS_POPUP,
-        WS_POPUP | WS_BORDER,
-        WS_POPUP | WS_DLGFRAME,
-        WS_POPUP | WS_SYSMENU | WS_THICKFRAME| WS_MINIMIZEBOX | WS_MAXIMIZEBOX,
+        DWORD style;
+        BOOL parent;
+    }
+    ignored_window_styles[] =
+    {
+        { WS_CHILD, TRUE },
+        { WS_POPUP }, /* Unowned WS_POPUP windows are not ignored when used with WS_CAPTION (which is WS_BORDER | WS_DLGFRAME) */
+        { WS_CHILD | WS_POPUP, TRUE },
+        { WS_POPUP | WS_BORDER },
+        { WS_POPUP | WS_DLGFRAME },
+        { WS_POPUP | WS_SYSMENU | WS_THICKFRAME| WS_MINIMIZEBOX | WS_MAXIMIZEBOX },
+        { WS_OVERLAPPED, TRUE }, /* owned window */
+        { WS_POPUP | WS_CAPTION, TRUE }, /* owned window */
     };
+
+    RTL_USER_PROCESS_PARAMETERS *up = NtCurrentTeb()->Peb->ProcessParameters;
     BOOL bval, expected;
-    STARTUPINFOW sa;
     unsigned int i;
     DWORD style;
-    HWND hwnd;
+    HWND parent, hwnd;
 
-    GetStartupInfoW( &sa );
+    winetest_push_context( "test %d", test_id );
 
-    winetest_push_context( "show %u, test %d", sa.wShowWindow, test_id );
+    ok( up->dwFlags & STARTF_USESHOWWINDOW, "got %#lx.\n", up->dwFlags );
+    ok( up->wShowWindow == SW_HIDE, "got %lu.\n.", up->wShowWindow );
 
-    ok( sa.dwFlags & STARTF_USESHOWWINDOW, "got %#lx.\n", sa.dwFlags );
-    ok( sa.wShowWindow == SW_HIDE, "got %u.\n.", sa.wShowWindow );
+    /* Startup window parameters are fetched early and current values don't affect behaviour. */
+    up->dwFlags = 0;
+    up->wShowWindow = SW_SHOW;
 
     /* First test windows which are not affected by startup info. ShowWindow() called for those doesn't count as
      * consuming startup info, it is still used with the next applicable window.
@@ -13792,26 +13803,27 @@ static void test_startupinfo_showwindow_proc( int test_id )
      * SW_ variants for ShowWindow() which are not altered by startup info still consume startup info usage so can
      * only be tested once per process. */
 
-    hwnd = CreateWindowA( "static", "parent", WS_OVERLAPPED, 0, 0, 0, 0, NULL, NULL,
+    parent = CreateWindowA( "static", "parent", WS_OVERLAPPED, 0, 0, 0, 0, NULL, NULL,
                            GetModuleHandleW( NULL ), NULL );
     pump_messages();
     for (i = 0; i < ARRAY_SIZE(ignored_window_styles); ++i)
     {
         winetest_push_context( "%u", i );
-        hwnd = CreateWindowA( "static", "overlapped", ignored_window_styles[i], 0, 0, 0, 0,
-                               ignored_window_styles[i] & WS_CHILD ? hwnd : NULL, NULL,
+        hwnd = CreateWindowA( "static", "overlapped", ignored_window_styles[i].style, 0, 0, 0, 0,
+                               ignored_window_styles[i].parent ? parent : NULL, NULL,
                                GetModuleHandleW( NULL ), NULL );
         ok( !!hwnd, "got NULL.\n" );
         ShowWindow( hwnd, SW_SHOW );
         bval = IsWindowVisible( hwnd );
-        if ((ignored_window_styles[i] & (WS_CHILD | WS_POPUP)) == WS_CHILD)
+        if ((ignored_window_styles[i].style & (WS_CHILD | WS_POPUP)) == WS_CHILD)
             ok( !bval, "unexpectedly visible.\n" );
         else
             ok( bval, "unexpectedly invisible.\n" );
         pump_messages();
+        DestroyWindow( hwnd );
         winetest_pop_context();
     }
-    DestroyWindow( hwnd );
+    DestroyWindow( parent );
     pump_messages();
 
     style = test->style;

@@ -933,6 +933,7 @@ W32KAPI INT     WINAPI NtUserMenuItemFromPoint( HWND hwnd, HMENU handle, int x, 
 W32KAPI BOOL    WINAPI NtUserMessageBeep( UINT type );
 W32KAPI LRESULT WINAPI NtUserMessageCall( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam,
                                           void *result_info, DWORD type, BOOL ansi );
+W32KAPI BOOL    WINAPI NtUserModifyUserStartupInfoFlags( DWORD mask, DWORD flags );
 W32KAPI BOOL    WINAPI NtUserMoveWindow( HWND hwnd, INT x, INT y, INT cx, INT cy, BOOL repaint );
 W32KAPI DWORD   WINAPI NtUserMsgWaitForMultipleObjectsEx( DWORD count, const HANDLE *handles,
                                                           DWORD timeout, DWORD mask, DWORD flags );
@@ -1305,6 +1306,7 @@ enum
     NtUserCallHwnd_IsWindowEnabled,
     NtUserCallHwnd_IsWindowUnicode,
     NtUserCallHwnd_IsWindowVisible,
+    NtUserCallHwnd_SetForegroundWindowInternal,
     /* temporary exports */
     NtUserGetFullWindowHandle,
     NtUserIsCurrentProcessWindow,
@@ -1314,6 +1316,11 @@ enum
 static inline void NtUserActivateOtherWindow( HWND hwnd )
 {
     NtUserCallHwnd( hwnd, NtUserCallHwnd_ActivateOtherWindow );
+}
+
+static inline BOOL NtUserSetForegroundWindowInternal( HWND hwnd )
+{
+    return NtUserCallHwnd( hwnd, NtUserCallHwnd_SetForegroundWindowInternal );
 }
 
 static inline void *NtUserGetDialogInfo( HWND hwnd )

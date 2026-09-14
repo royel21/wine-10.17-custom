@@ -146,6 +146,7 @@ struct context
     GLenum gl_error;               /* wrapped GL error */
     const char **extension_array;  /* array of supported extensions */
     size_t extension_count;        /* size of supported extensions */
+    BOOL use_pinned_memory;        /* use GL_AMD_pinned_memory to emulate persistent maps */
 
     /* semi-stub state tracker for wglCopyContext */
     GLbitfield used;                            /* context state used bits */
@@ -171,6 +172,7 @@ struct buffer
     size_t copy_length;
     void *vm_ptr;
     SIZE_T vm_size;
+    BOOL pinned;
 
     /* members of Vulkan-backed buffer storages */
     struct vk_device *vk_device;
@@ -2380,6 +2382,18 @@ static void flush_buffer( TEB *teb, struct buffer *buffer, size_t offset, size_t
     if (vr) ERR( "vkFlushMappedMemoryRanges failed: %x\n", vr );
 }
 
+
+static int find_vk_memory_type( struct vk_device *vk_device, uint32_t flags, uint32_t mask )
+{
+    uint32_t i;
+    flags &= mask;
+    for (i = 0; i < vk_device->memory_properties.memoryTypeCount; i++)
+    {
+        if ((vk_device->memory_properties.memoryTypes[i].propertyFlags & mask) == flags) return i;
+    }
+    return -1;
+}
+
 static struct buffer *create_buffer_storage( TEB *teb, GLenum target, GLuint name, size_t size, const void *data, GLbitfield flags )
 {
     VkExportMemoryAllocateInfo export_alloc =
@@ -2400,33 +2414,51 @@ static struct buffer *create_buffer_storage( TEB *teb, GLenum target, GLuint nam
     };
     struct opengl_funcs *funcs = teb->glTable;
     GLuint buffer_name = name ? name : get_target_name( teb, target );
+    uint32_t type_mask = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    uint32_t desired_type = type_mask;
     struct context *ctx = get_current_context( teb, NULL, NULL );
     struct vk_device *vk_device;
     struct buffer *buffer;
-    uint32_t i;
-    int fd;
+    int fd, memory_type;
     VkResult vr;
 
-   if (!(flags & (GL_MAP_READ_BIT | GL_MAP_WRITE_BIT))) return NULL;
-
-    /* FIXME: For now, just use any host-visible coherent memory type. We can do better and take into account GL flags. */
-    for (i = 0; i < vk_device->memory_properties.memoryTypeCount; i++)
-    {
-        static const uint32_t mask = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-        if ((vk_device->memory_properties.memoryTypes[i].propertyFlags & mask) == mask) break;
-    }
-    if (i == vk_device->memory_properties.memoryTypeCount)
-    {
-        WARN( "Could not find memory type\n" );
-        return NULL;
-    }
-    alloc_info.memoryTypeIndex = i;
+    if (!(flags & (GL_MAP_READ_BIT | GL_MAP_WRITE_BIT))) return NULL;
+    if ((!(vk_device = ctx->buffers->vk_device) || !vk_device->vk_device) && !ctx->use_pinned_memory) return NULL;
 
     if (!(buffer = calloc( 1, sizeof(*buffer) ))) return NULL;
     buffer->name = buffer_name;
     buffer->flags = flags;
     buffer->size = size;
     buffer->vk_device = vk_device;
+
+    if (ctx->use_pinned_memory)
+    {
+        if (!buffer_vm_alloc( teb, buffer, size )) return NULL;
+        if (data) memcpy( buffer->vm_ptr, data, size );
+        buffer->pinned = TRUE;
+
+        /* FIXME: we may interfere with GL_EXTERNAL_VIRTUAL_MEMORY_BUFFER_AMD if the
+         * application uses it as well. Unlike other targets, there’s no way to query
+         * the currently bound target, so we’d need to track it ourselves if we want
+         * to support it. */
+        funcs->p_glBindBuffer( GL_EXTERNAL_VIRTUAL_MEMORY_BUFFER_AMD, buffer_name );
+        funcs->p_glBufferData( GL_EXTERNAL_VIRTUAL_MEMORY_BUFFER_AMD, size, buffer->vm_ptr, GL_DYNAMIC_COPY );
+        rb_put( &ctx->buffers->map, &buffer->name, &buffer->entry );
+        TRACE( "created buffer %p with pinned memory %p\n", buffer, buffer->vm_ptr );
+        return buffer;
+    }
+
+    if (flags & GL_CLIENT_STORAGE_BIT) desired_type &= ~VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    memory_type = find_vk_memory_type( vk_device, desired_type, type_mask );
+    if (memory_type == -1) /* if we can’t find a matching type, try ignoring GL_CLIENT_STORAGE_BIT */
+        memory_type = find_vk_memory_type( vk_device, desired_type, type_mask & ~VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT );
+    if (memory_type == -1)
+    {
+        WARN( "Could not find memory type\n" );
+        free_buffer( funcs, buffer );
+        return NULL;
+    }
+    alloc_info.memoryTypeIndex = memory_type;
 
     vr = vk_device->p_vkAllocateMemory( vk_device->vk_device, &alloc_info, NULL, &buffer->vk_memory );
     if (vr)
