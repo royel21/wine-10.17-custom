@@ -2039,6 +2039,7 @@ static BOOL window_set_pending_activate( HWND hwnd )
 
     if (!(data = get_win_data( hwnd ))) return FALSE;
     if ((pending = !!data->wm_state_serial)) data->pending_state.activate = TRUE;
+    if (data->pending_state.wm_state == WithdrawnState) pending = TRUE;
     release_win_data( data );
 
     return pending;
@@ -2353,19 +2354,12 @@ void destroy_client_window( HWND hwnd, Window client_window )
  */
 Window create_client_window( HWND hwnd, RECT client_rect, const XVisualInfo *visual, Colormap colormap, const char *gpu_info )
 {
-    struct x11drv_win_data *data = get_win_data( hwnd );
+    struct x11drv_win_data *data = get_win_data( hwnd ), dummy = {0};
     XSetWindowAttributes attr;
     Window ret;
     int x, y, cx, cy;
 
-    if (!data)
-    {
-        Window toplevel = X11DRV_get_whole_window( hwnd );
-        /* explicitly create data for HWND_MESSAGE and foreign windows since they can be used for OpenGL */
-        if (!(data = alloc_win_data( thread_init_display(), hwnd ))) return 0;
-        data->rects.window = data->rects.visible = data->rects.client = client_rect;
-        data->whole_window = toplevel;
-    }
+    if (!data) data = &dummy; /* use a dummy window data for HWND_MESSAGE and foreign windows, to create an offscreen client window */
 
     detach_client_window( data, data->client_window );
 
@@ -2405,7 +2399,8 @@ Window create_client_window( HWND hwnd, RECT client_rect, const XVisualInfo *vis
         }
         TRACE( "%p xwin %lx/%lx\n", data->hwnd, data->whole_window, data->client_window );
     }
-    release_win_data( data );
+
+    if (data != &dummy) release_win_data( data );
     return ret;
 }
 
@@ -3287,6 +3282,14 @@ void X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, HWND owner_hint, UIN
 
     TRACE( "win %p/%lx new_rects %s style %08x flags %08x\n", hwnd, data->whole_window,
            debugstr_window_rects(new_rects), new_style, swp_flags );
+
+    /* visible windows are only hidden after SWP_HIDEWINDOW is used */
+    if (data->pending_state.wm_state != WithdrawnState && !(new_style & WS_VISIBLE) &&
+        !(swp_flags & SWP_HIDEWINDOW))
+    {
+        WARN( "win %p/%lx not yet hidden, delaying unmapping\n", hwnd, data->whole_window );
+        new_style |= WS_VISIBLE;
+    }
 
     /* layered windows are mapped only once their attributes are set */
     if (data->pending_state.wm_state == WithdrawnState && (new_style & WS_VISIBLE) &&

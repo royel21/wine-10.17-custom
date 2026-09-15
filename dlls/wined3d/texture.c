@@ -407,13 +407,6 @@ static void wined3d_texture_update_map_binding(struct wined3d_texture *texture)
     texture->update_map_binding = 0;
 }
 
-static void wined3d_texture_set_map_binding(struct wined3d_texture *texture, DWORD map_binding)
-{
-    texture->update_map_binding = map_binding;
-    if (!texture->resource.map_count)
-        wined3d_texture_update_map_binding(texture);
-}
-
 static void wined3d_texture_dirty_region_add(struct wined3d_texture *texture,
         unsigned int layer, const struct wined3d_box *box)
 {
@@ -1012,7 +1005,7 @@ BOOL wined3d_texture_prepare_location(struct wined3d_texture *texture,
 
 static struct wined3d_texture_sub_resource *wined3d_texture_get_sub_resource(struct wined3d_texture *texture,
         unsigned int sub_resource_idx)
- {
+{
     TRACE("texture %p, sub_resource_idx %u.\n", texture, sub_resource_idx);
 
     if (!wined3d_texture_validate_sub_resource_idx(texture, sub_resource_idx))
@@ -1022,11 +1015,11 @@ static struct wined3d_texture_sub_resource *wined3d_texture_get_sub_resource(str
 
 HRESULT CDECL wined3d_texture_add_dirty_region(struct wined3d_texture *texture,
         UINT layer, const struct wined3d_box *dirty_region)
- {
+{
     TRACE("texture %p, layer %u, dirty_region %s.\n", texture, layer, debug_box(dirty_region));
 
     if (layer >= texture->layer_count)
-     {
+    {
         WARN("Invalid layer %u specified.\n", layer);
         return WINED3DERR_INVALIDCALL;
     }
@@ -1500,6 +1493,11 @@ HRESULT wined3d_texture_init(struct wined3d_texture *texture, const struct wined
             wined3d_texture_cleanup_sync(texture);
             return E_OUTOFMEMORY;
         }
+        if (!wined3d_resource_prepare_sysmem(&texture->resource))
+        {
+            wined3d_texture_cleanup_sync(texture);
+            return E_OUTOFMEMORY;
+        }
         for (i = 0; i < texture->layer_count; ++i)
             wined3d_texture_dirty_region_add(texture, i, NULL);
     }
@@ -1535,7 +1533,10 @@ HRESULT wined3d_texture_init(struct wined3d_texture *texture, const struct wined
         struct wined3d_texture_sub_resource *sub_resource;
 
         sub_resource = &texture->sub_resources[i];
-        sub_resource->locations = WINED3D_LOCATION_CLEARED;
+        if (flags & WINED3D_TEXTURE_CREATE_RECORD_DIRTY_REGIONS)
+            sub_resource->locations = WINED3D_LOCATION_SYSMEM;
+        else
+            sub_resource->locations = WINED3D_LOCATION_CLEARED;
 
         if (FAILED(hr = device_parent->ops->texture_sub_resource_created(device_parent,
                 desc->resource_type, texture, i, &sub_resource->parent, &sub_resource->parent_ops)))
