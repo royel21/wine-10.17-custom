@@ -18,7 +18,7 @@ done
 WINE_SRC_DIR="$(cd "./" && pwd)"
 BUILD_DIR="${WINE_SRC_DIR}/wine"
 INSTALL_PREFIX="/tmp/wine_build"
-WINEVER="10.19"
+WINEVER="10.20"
 OUTPUT_WCP="/mnt/d/winlator/wine-${WINEVER}-custom.wcp"
 
 echo "================================================================="
@@ -54,6 +54,9 @@ mkdir -p "${BUILD_DIR}" "${INSTALL_PREFIX}"
 cd "${BUILD_DIR}"
 
 # 4. Run ./configure ONLY if Makefile does not exist
+# this force wine to show only english text in menu
+# --without-gettext \
+# --with-gettextpo=no
 if [ ! -f "Makefile" ]; then
   echo "==> Running Wine ./configure..."
   ../configure --prefix="${INSTALL_PREFIX}" \
