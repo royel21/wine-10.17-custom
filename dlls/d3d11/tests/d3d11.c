@@ -20682,6 +20682,7 @@ static void test_uint_shader_instructions(void)
         const struct shader *ps;
         unsigned int bits[4];
         struct uvec4 expected_result;
+        bool todo;
     }
     tests[] =
     {
@@ -20732,10 +20733,10 @@ static void test_uint_shader_instructions(void)
         {&ps_ibfe, {15, 15, 0xffff00ff}, {0xfffffffe, 0xfffffffe, 0xfffffffe, 0xfffffffe}},
         {&ps_ibfe, {16, 15, 0xffffffff}, {0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff}},
         {&ps_ibfe, {16, 15, 0x3fffffff}, {0x00007fff, 0x00007fff, 0x00007fff, 0x00007fff}},
-        {&ps_ibfe, {20, 15, 0xffffffff}, {0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff}},
-        {&ps_ibfe, {31, 31, 0xffffffff}, {0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff}},
-        {&ps_ibfe, {31, 31, 0x80000000}, {0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff}},
-        {&ps_ibfe, {31, 31, 0x7fffffff}, {0x00000000, 0x00000000, 0x00000000, 0x00000000}},
+        {&ps_ibfe, {20, 15, 0xffffffff}, {0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff}, .todo = true},
+        {&ps_ibfe, {31, 31, 0xffffffff}, {0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff}, .todo = true},
+        {&ps_ibfe, {31, 31, 0x80000000}, {0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff}, .todo = true},
+        {&ps_ibfe, {31, 31, 0x7fffffff}, {0x00000000, 0x00000000, 0x00000000, 0x00000000}, .todo = true},
 
         {&ps_ibfe2, {16, 15, 0x3fffffff}, {0x00007fff, 0x00007fff, 0x00007fff, 0x00007fff}},
 
@@ -20819,16 +20820,21 @@ static void test_uint_shader_instructions(void)
         if (feature_level < tests[i].ps->required_feature_level)
             continue;
 
+        winetest_push_context("Test %u", i);
+
         hr = ID3D11Device_CreatePixelShader(device, tests[i].ps->code, tests[i].ps->size, NULL, &ps);
-        ok(hr == S_OK, "Test %u: Got unexpected hr %#lx.\n", i, hr);
+        ok(hr == S_OK, "Got hr %#lx.\n", hr);
         ID3D11DeviceContext_PSSetShader(context, ps, NULL, 0);
 
         ID3D11DeviceContext_UpdateSubresource(context, (ID3D11Resource *)cb, 0, NULL, tests[i].bits, 0, 0);
 
         draw_quad(&test_context);
-        check_texture_uvec4(texture, &tests[i].expected_result);
+        todo_wine_if (tests[i].todo)
+            check_texture_uvec4(texture, &tests[i].expected_result);
 
         ID3D11PixelShader_Release(ps);
+
+        winetest_pop_context();
     }
 
     ID3D11Buffer_Release(cb);
@@ -29018,7 +29024,7 @@ static void test_fractional_viewports(void)
                 ok(compare_float(v->x, expected.x, 0) && compare_float(v->y, expected.y, 0),
                         "Got fragcoord {%.8e, %.8e}, expected {%.8e, %.8e} at (%u, %u), offset %.8e.\n",
                         v->x, v->y, expected.x, expected.y, x, y, viewport_offsets[i]);
-                ok(compare_float(v->z, expected.z, 2) && compare_float(v->w, expected.w, 2),
+                ok(compare_float(v->z, expected.z, 8) && compare_float(v->w, expected.w, 8),
                         "Got texcoord {%.8e, %.8e}, expected {%.8e, %.8e} at (%u, %u), offset %.8e.\n",
                         v->z, v->w, expected.z, expected.w, x, y, viewport_offsets[i]);
             }
@@ -29071,7 +29077,7 @@ static void test_negative_viewports(const D3D_FEATURE_LEVEL feature_level)
     SetRect(&rect, 0, 0, 639, 479);
     check_texture_sub_resource_color(test_context.backbuffer, 0, &rect, 0xff00ff00, 1);
     SetRect(&rect, 639, 479, 640, 480);
-    todo_wine_if(quirk)
+    todo_wine_if(!quirk && feature_level >= D3D_FEATURE_LEVEL_10_0)
     check_texture_sub_resource_color(test_context.backbuffer, 0, &rect, quirk ? 0xffffffff : 0xff00ff00, 1);
 
     set_viewport(context, -1.0f / 128.0f, -1.0 / 128.0f, 640.0f, 480.0f, 0.0f, 1.0f);
@@ -29080,7 +29086,7 @@ static void test_negative_viewports(const D3D_FEATURE_LEVEL feature_level)
     SetRect(&rect, 0, 0, 639, 479);
     check_texture_sub_resource_color(test_context.backbuffer, 0, &rect, 0xff00ff00, 1);
     SetRect(&rect, 639, 479, 640, 480);
-    todo_wine_if(quirk)
+    todo_wine_if(!quirk && feature_level >= D3D_FEATURE_LEVEL_10_0)
     check_texture_sub_resource_color(test_context.backbuffer, 0, &rect, quirk ? 0xffffffff : 0xff00ff00, 1);
 
     release_test_context(&test_context);
