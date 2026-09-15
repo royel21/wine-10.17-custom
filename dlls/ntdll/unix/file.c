@@ -6820,28 +6820,47 @@ NTSTATUS WINAPI NtFlushBuffersFileEx( HANDLE handle, ULONG flags, void *params, 
 }
 
 
+static NTSTATUS cancel_io( HANDLE handle, IO_STATUS_BLOCK *io, IO_STATUS_BLOCK *io_status,
+                           BOOL only_thread )
+{
+    HANDLE cancel_handle;
+    unsigned int status;
+
+    SERVER_START_REQ( cancel_async )
+    {
+        req->handle      = wine_server_obj_handle( handle );
+        req->iosb        = wine_server_client_ptr( io );
+        req->only_thread = only_thread;
+        if (!(status = wine_server_call( req )))
+            cancel_handle = wine_server_ptr_handle( reply->cancel_handle );
+    }
+    SERVER_END_REQ;
+
+    if (!status && cancel_handle)
+    {
+        NtWaitForSingleObject( cancel_handle, TRUE, NULL );
+        NtClose( cancel_handle );
+    }
+    else if (status == STATUS_INVALID_HANDLE)
+    {
+        return status;
+    }
+
+    io_status->Status = status;
+    io_status->Information = 0;
+
+    return status;
+}
+
+
 /**************************************************************************
  *           NtCancelIoFile   (NTDLL.@)
  */
 NTSTATUS WINAPI NtCancelIoFile( HANDLE handle, IO_STATUS_BLOCK *io_status )
 {
-    unsigned int status;
-
     TRACE( "%p %p\n", handle, io_status );
 
-    SERVER_START_REQ( cancel_async )
-    {
-        req->handle      = wine_server_obj_handle( handle );
-        req->only_thread = TRUE;
-        if (!(status = wine_server_call( req )))
-        {
-            io_status->Status = status;
-            io_status->Information = 0;
-        }
-    }
-    SERVER_END_REQ;
-
-    return status;
+    return cancel_io( handle, NULL, io_status, TRUE );
 }
 
 
@@ -6850,23 +6869,9 @@ NTSTATUS WINAPI NtCancelIoFile( HANDLE handle, IO_STATUS_BLOCK *io_status )
  */
 NTSTATUS WINAPI NtCancelIoFileEx( HANDLE handle, IO_STATUS_BLOCK *io, IO_STATUS_BLOCK *io_status )
 {
-    unsigned int status;
-
     TRACE( "%p %p %p\n", handle, io, io_status );
 
-    SERVER_START_REQ( cancel_async )
-    {
-        req->handle = wine_server_obj_handle( handle );
-        req->iosb   = wine_server_client_ptr( io );
-        if (!(status = wine_server_call( req )))
-        {
-            io_status->Status = status;
-            io_status->Information = 0;
-        }
-    }
-    SERVER_END_REQ;
-
-    return status;
+    return cancel_io( handle, io, io_status, FALSE );
 }
 
 
