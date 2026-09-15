@@ -98,6 +98,7 @@ struct recordset
     IRowsetLocate     *rowset_locate;
     IRowsetExactScroll *rowset_es;
     IRowsetChange     *rowset_change;
+    IRowsetUpdate     *rowset_update;
     IAccessor         *accessor;
     IRowsetCurrentIndex *rowset_cur_idx;
     EditModeEnum       editmode;
@@ -139,6 +140,17 @@ static inline struct field *impl_from_Properties( Properties *iface )
 static inline BOOL cache_is_empty( struct recordset *recordset )
 {
     return !recordset->cache.fetched;
+}
+
+static HRESULT update_current_row( struct recordset *recordset )
+{
+    VARIANT missing;
+
+    if ( !recordset->current_row ) return S_OK;
+
+    V_VT( &missing ) = VT_ERROR;
+    V_ERROR( &missing ) = DISP_E_PARAMNOTFOUND;
+    return _Recordset_Update( &recordset->Recordset_iface, missing, missing);
 }
 
 static void cache_release( struct recordset *recordset )
@@ -206,6 +218,10 @@ static HRESULT cache_get( struct recordset *recordset, BOOL forward )
 {
     int dir = forward ? 1 : -1;
     LONG off, fetch = 0;
+    HRESULT hr;
+
+    hr = update_current_row( recordset );
+    if (FAILED(hr)) return hr;
 
     if (!recordset->cache.dir)
     {
@@ -234,7 +250,6 @@ static HRESULT cache_get( struct recordset *recordset, BOOL forward )
     {
         DBCOUNTITEM count;
         HROW row = 0;
-        HRESULT hr;
 
         if (!cache_is_empty( recordset ))
         {
@@ -1641,6 +1656,9 @@ static void close_recordset( struct recordset *recordset )
     if ( recordset->rowset_change && recordset->rowset_change != NO_INTERFACE )
         IRowsetChange_Release( recordset->rowset_change );
     recordset->rowset_change = NULL;
+    if ( recordset->rowset_update && recordset->rowset_update != NO_INTERFACE )
+        IRowsetUpdate_Release( recordset->rowset_update );
+    recordset->rowset_update = NULL;
     if ( recordset->rowset_cur_idx && recordset->rowset_cur_idx != NO_INTERFACE )
         IRowsetCurrentIndex_Release( recordset->rowset_cur_idx );
     recordset->rowset_cur_idx = NULL;
@@ -2170,6 +2188,10 @@ static HRESULT WINAPI recordset_AddNew( _Recordset *iface, VARIANT field_list, V
     if (recordset->accessor == NO_INTERFACE)
         return MAKE_ADO_HRESULT( adErrFeatureNotAvailable );
 
+    hr = update_current_row( recordset );
+    if (FAILED(hr)) return hr;
+    cache_release( recordset );
+
     if (!recordset->hacc_empty)
     {
         hr = IAccessor_CreateAccessor( recordset->accessor, DBACCESSOR_ROWDATA,
@@ -2181,7 +2203,6 @@ static HRESULT WINAPI recordset_AddNew( _Recordset *iface, VARIANT field_list, V
     hr = IAccessor_AddRefAccessor( recordset->accessor, recordset->hacc_empty, &refcount );
     if (FAILED(hr))
         return MAKE_ADO_HRESULT( adErrNoCurrentRecord );
-    cache_release( recordset );
     hr = IRowsetChange_InsertRow( recordset->rowset_change, 0,
             recordset->hacc_empty, NULL, &recordset->current_row );
     IAccessor_ReleaseAccessor( recordset->accessor, recordset->hacc_empty, &refcount );
@@ -2196,11 +2217,41 @@ static HRESULT WINAPI recordset_AddNew( _Recordset *iface, VARIANT field_list, V
 static HRESULT WINAPI recordset_CancelUpdate( _Recordset *iface )
 {
     struct recordset *recordset = impl_from_Recordset( iface );
+    DBPENDINGSTATUS pending_status;
+    DBROWSTATUS *status;
+    DBCOUNTITEM count;
+    HRESULT hr;
+    HROW *row;
 
-    FIXME( "%p\n", iface );
+    TRACE( "%p\n", iface );
 
-    if (recordset->active_connection == NULL)
+    if (recordset->state == adStateClosed) return MAKE_ADO_HRESULT( adErrObjectClosed );
+    if (!recordset->current_row) return MAKE_ADO_HRESULT( adErrNoCurrentRecord );
+
+    if (!recordset->rowset_update)
+    {
+        hr = IRowset_QueryInterface( recordset->row_set, &IID_IRowsetUpdate,
+                (void **)&recordset->rowset_update );
+        if (FAILED(hr) || !recordset->rowset_update)
+            recordset->rowset_update = NO_INTERFACE;
+    }
+    if (recordset->rowset_update == NO_INTERFACE) return S_OK;
+
+    hr = IRowsetUpdate_GetRowStatus( recordset->rowset_update, 0,
+            1, &recordset->current_row, &pending_status );
+    if (FAILED(hr)) return S_OK;
+    if (pending_status & (DBPENDINGSTATUS_UNCHANGED | DBPENDINGSTATUS_INVALIDROW)) return S_OK;
+    if (!(pending_status & (DBPENDINGSTATUS_NEW | DBPENDINGSTATUS_CHANGED | DBPENDINGSTATUS_DELETED)))
         return S_OK;
+
+    row = NULL;
+    status = NULL;
+    hr = IRowsetUpdate_Undo( recordset->rowset_update, 0, 1, &recordset->current_row, &count, &row, &status );
+    if (FAILED(hr)) return hr;
+    if (status[0] == DBROWSTATUS_E_CANCELED) FIXME("status = DBROWSTATUS_E_CANCELED\n");
+    if (pending_status & DBPENDINGSTATUS_NEW) cache_release( recordset );
+    CoTaskMemFree( row );
+    CoTaskMemFree( status );
 
     recordset->editmode = adEditNone;
     return S_OK;
@@ -2289,6 +2340,8 @@ static HRESULT WINAPI recordset_MoveFirst( _Recordset *iface )
     }
     else
     {
+        hr = update_current_row( recordset );
+        if (FAILED(hr)) return hr;
         cache_release( recordset );
         hr = IRowset_RestartPosition( recordset->row_set, DB_NULL_HCHAPTER );
         if (FAILED(hr)) return hr;
@@ -2316,6 +2369,8 @@ static HRESULT WINAPI recordset_MoveLast( _Recordset *iface )
     }
     else
     {
+        hr = update_current_row( recordset );
+        if (FAILED(hr)) return hr;
         cache_release( recordset );
         hr = IRowset_RestartPosition( recordset->row_set, DB_NULL_HCHAPTER );
         if (FAILED(hr)) return hr;
@@ -2331,6 +2386,8 @@ static HRESULT get_rowset(struct recordset *recordset, IUnknown *session, BSTR s
     ICommandText *command_text;
     IOpenRowset *openrowset;
     DBROWCOUNT affected;
+    DBPROPSET propset;
+    DBPROP props[3];
     ICommand *cmd;
     DBID table;
     HRESULT hr;
@@ -2341,7 +2398,23 @@ static HRESULT get_rowset(struct recordset *recordset, IUnknown *session, BSTR s
 
     table.eKind = DBKIND_NAME;
     table.uName.pwszName = source;
-    hr = IOpenRowset_OpenRowset(openrowset, NULL, &table, NULL, &IID_IUnknown, 0, NULL, rowset);
+
+    propset.guidPropertySet = DBPROPSET_ROWSET;
+    propset.cProperties = ARRAY_SIZE(props);
+    propset.rgProperties = props;
+    memset(props, 0, sizeof(props));
+    props[0].dwPropertyID = DBPROP_IRowsetChange;
+    V_VT(&props[0].vValue) = VT_BOOL;
+    V_BOOL(&props[0].vValue) = (recordset->lock_type == adLockReadOnly ? VARIANT_FALSE : VARIANT_TRUE);
+    props[1].dwPropertyID = DBPROP_IRowsetUpdate;
+    V_VT(&props[1].vValue) = VT_BOOL;
+    V_BOOL(&props[1].vValue) = (recordset->lock_type == adLockBatchOptimistic ? VARIANT_TRUE : VARIANT_FALSE);
+    props[2].dwPropertyID = DBPROP_UPDATABILITY;
+    V_VT(&props[2].vValue) = VT_I4;
+    V_I4(&props[2].vValue) = (recordset->lock_type == adLockReadOnly ? 0 :
+            DBPROPVAL_UP_CHANGE | DBPROPVAL_UP_DELETE | DBPROPVAL_UP_INSERT);
+
+    hr = IOpenRowset_OpenRowset(openrowset, NULL, &table, NULL, &IID_IUnknown, 1, &propset, rowset);
     if (SUCCEEDED(hr))
     {
         IOpenRowset_Release(openrowset);
@@ -2495,14 +2568,48 @@ static HRESULT WINAPI recordset__xResync( _Recordset *iface, AffectEnum affect_r
 static HRESULT WINAPI recordset_Update( _Recordset *iface, VARIANT fields, VARIANT values )
 {
     struct recordset *recordset = impl_from_Recordset( iface );
+    DBPENDINGSTATUS pending_status;
+    DBROWSTATUS *status;
+    HRESULT hr;
+    HROW *row;
 
-    FIXME( "%p, %s, %s\n", iface, debugstr_variant(&fields), debugstr_variant(&values) );
+    TRACE( "%p, %s, %s\n", iface, debugstr_variant(&fields), debugstr_variant(&values) );
+    if (V_VT(&fields) != VT_ERROR)
+        FIXME( "ignoring field list and values\n" );
 
-    if (recordset->active_connection == NULL)
+    if (recordset->state == adStateClosed) return MAKE_ADO_HRESULT( adErrObjectClosed );
+    if (!recordset->current_row) return MAKE_ADO_HRESULT( adErrNoCurrentRecord );
+
+    if (recordset->lock_type != adLockPessimistic && recordset->lock_type != adLockOptimistic)
         return S_OK;
 
+    if (!recordset->rowset_update)
+    {
+        hr = IRowset_QueryInterface( recordset->row_set, &IID_IRowsetUpdate,
+                (void **)&recordset->rowset_update );
+        if (FAILED(hr) || !recordset->rowset_update)
+            recordset->rowset_update = NO_INTERFACE;
+    }
+    if (recordset->rowset_update == NO_INTERFACE)
+        return S_OK;
+
+    hr = IRowsetUpdate_GetRowStatus( recordset->rowset_update, 0,
+            1, &recordset->current_row, &pending_status );
+    if (FAILED(hr)) return S_OK;
+    if (pending_status & (DBPENDINGSTATUS_UNCHANGED | DBPENDINGSTATUS_INVALIDROW)) return S_OK;
+    if (!(pending_status & (DBPENDINGSTATUS_NEW | DBPENDINGSTATUS_CHANGED | DBPENDINGSTATUS_DELETED)))
+        return S_OK;
+
+    row = NULL;
+    status = NULL;
+    hr = IRowsetUpdate_Update( recordset->rowset_update, 0, 1, &recordset->current_row, NULL, &row, &status );
+    if (FAILED(hr)) return hr;
+    if (status[0] == DBROWSTATUS_E_CANCELED) FIXME("status = DBROWSTATUS_E_CANCELED\n");
+    CoTaskMemFree( row );
+    CoTaskMemFree( status );
+
     recordset->editmode = adEditNone;
-    return E_NOTIMPL;
+    return S_OK;
 }
 
 static HRESULT WINAPI recordset_get_AbsolutePage( _Recordset *iface, PositionEnum_Param *pos )
@@ -2962,6 +3069,8 @@ static HRESULT WINAPI recordset_put_Index( _Recordset *iface, BSTR index )
     if (recordset->rowset_cur_idx == NO_INTERFACE)
         return MAKE_ADO_HRESULT( adErrFeatureNotAvailable );
 
+    hr = update_current_row( recordset );
+    if (FAILED(hr)) return hr;
     cache_release( recordset );
 
     memset( &dbid, 0, sizeof(dbid) );
