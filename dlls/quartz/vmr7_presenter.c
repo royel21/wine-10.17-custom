@@ -180,6 +180,12 @@ static HRESULT WINAPI surface_allocator_AllocateSurface(IVMRSurfaceAllocator *if
 
     TRACE("presenter %p, id %#Ix, info %p, count %p, surface %p.\n", presenter, id, info, count, surface);
 
+    if (info->lpHdr->biSize != sizeof(*info->lpHdr))
+    {
+        WARN("Invalid BITMAPINFOHEADER size %lu.\n", info->lpHdr->biSize);
+        return DDERR_INVALIDPIXELFORMAT;
+    }
+
     surface_desc.dwFlags = DDSD_WIDTH | DDSD_HEIGHT | DDSD_PIXELFORMAT | DDSD_CAPS | DDSD_BACKBUFFERCOUNT;
     surface_desc.dwWidth = info->lpHdr->biWidth;
     surface_desc.dwHeight = info->lpHdr->biHeight;
@@ -187,19 +193,40 @@ static HRESULT WINAPI surface_allocator_AllocateSurface(IVMRSurfaceAllocator *if
     surface_desc.ddsCaps.dwCaps = DDSCAPS_FLIP | DDSCAPS_COMPLEX | DDSCAPS_OFFSCREENPLAIN;
     surface_desc.dwBackBufferCount = *count;
 
-    if (info->lpHdr->biCompression == BI_RGB)
+    if (info->lpHdr->biCompression == BI_RGB || info->lpHdr->biCompression == BI_BITFIELDS)
     {
-        if (info->lpHdr->biBitCount != 32)
-        {
-            FIXME("Unhandled bit depth %u.\n", info->lpHdr->biBitCount);
-            return E_NOTIMPL;
-        }
+        DDSURFACEDESC2 primary_desc;
+        DWORD *mask;
 
-        surface_desc.ddpfPixelFormat.dwFlags = DDPF_RGB;
-        surface_desc.ddpfPixelFormat.dwRGBBitCount = 32;
-        surface_desc.ddpfPixelFormat.dwRBitMask = 0x00ff0000;
-        surface_desc.ddpfPixelFormat.dwGBitMask = 0x0000ff00;
-        surface_desc.ddpfPixelFormat.dwBBitMask = 0x000000ff;
+        primary_desc.dwSize = sizeof(primary_desc);
+        if (FAILED(hr = IDirectDrawSurface7_GetSurfaceDesc(presenter->primary, &primary_desc)))
+            return hr;
+        if (info->lpHdr->biBitCount != primary_desc.ddpfPixelFormat.dwRGBBitCount)
+            return E_FAIL;
+
+        if (info->lpHdr->biCompression == BI_RGB)
+        {
+            if (info->lpHdr->biBitCount != 32)
+            {
+                FIXME("Unhandled bit depth %u.\n", info->lpHdr->biBitCount);
+                return E_NOTIMPL;
+            }
+
+            surface_desc.ddpfPixelFormat.dwFlags = DDPF_RGB;
+            surface_desc.ddpfPixelFormat.dwRGBBitCount = 32;
+            surface_desc.ddpfPixelFormat.dwRBitMask = 0x00ff0000;
+            surface_desc.ddpfPixelFormat.dwGBitMask = 0x0000ff00;
+            surface_desc.ddpfPixelFormat.dwBBitMask = 0x000000ff;
+        }
+        else
+        {
+            mask = (DWORD *)((BITMAPINFO *)info->lpHdr)->bmiColors;
+            surface_desc.ddpfPixelFormat.dwFlags = DDPF_RGB;
+            surface_desc.ddpfPixelFormat.dwRGBBitCount = info->lpHdr->biBitCount;
+            surface_desc.ddpfPixelFormat.dwRBitMask = mask[0];
+            surface_desc.ddpfPixelFormat.dwGBitMask = mask[1];
+            surface_desc.ddpfPixelFormat.dwBBitMask = mask[2];
+        }
     }
     else
     {
