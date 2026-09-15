@@ -53,6 +53,7 @@ static BOOL is_wow64(void)
     return !!NtCurrentTeb()->WowTebOffset;
 }
 
+const struct opengl_funcs *opengl_funcs;
 static UINT64 call_gl_debug_message_callback;
 pthread_mutex_t wgl_lock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -2015,7 +2016,7 @@ void wrap_glGetIntegerv( TEB *teb, GLenum pname, GLint *data )
 {
     const struct opengl_funcs *funcs = teb->glTable;
     if (get_integer( teb, pname, data )) return;
-    funcs->p_glGetIntegerv( pname, data );
+    else funcs->p_glGetIntegerv( pname, data );
 }
 
 void wrap_glGetBooleanv( TEB *teb, GLenum pname, GLboolean *data )
@@ -2031,7 +2032,7 @@ void wrap_glGetDoublev( TEB *teb, GLenum pname, GLdouble *data )
     const struct opengl_funcs *funcs = teb->glTable;
     GLint value;
     if (get_integer( teb, pname, &value )) *data = value;
-    funcs->p_glGetDoublev( pname, data );
+    else funcs->p_glGetDoublev( pname, data );
 }
 
 void wrap_glGetFloatv( TEB *teb, GLenum pname, GLfloat *data )
@@ -2073,6 +2074,8 @@ NTSTATUS process_attach( void *args )
         NtQuerySystemInformation( SystemEmulationBasicInformation, &info, sizeof(info), NULL );
         zero_bits = (ULONG_PTR)info.HighestUserAddress | 0x7fffffff;
     }
+
+    opengl_funcs = __wine_get_opengl_driver( WINE_OPENGL_DRIVER_VERSION );
     return STATUS_SUCCESS;
 }
 
