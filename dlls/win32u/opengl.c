@@ -1631,16 +1631,20 @@ static struct opengl_drawable *get_updated_drawable( HDC hdc, int format, struct
 {
     HWND hwnd = NULL;
 
+    /* return the memory DCs drawables directly */
     if (hdc && !(hwnd = NtUserWindowFromDC( hdc ))) return get_dc_opengl_drawable( hdc );
     if (!hdc && drawable && drawable->client) hwnd = drawable->client->hwnd;
     if (!hwnd) return NULL;
 
-    /* if the window still has a drawable, keep using the one we have */
+    /* if the drawable we were using is for the same window, keep using it */
     if (drawable && is_client_surface_window( drawable->client, hwnd ))
     {
         opengl_drawable_add_ref( drawable );
         return drawable;
     }
+
+    /* retrieve D3D internal drawables from the DCs if they have any */
+    if (hdc && (drawable = get_dc_opengl_drawable( hdc ))) return drawable;
 
     /* get an updated drawable with the desired format */
     return get_window_unused_drawable( hwnd, format );
@@ -1652,11 +1656,7 @@ static BOOL context_sync_drawables( struct wgl_context *context, HDC draw_hdc, H
     struct wgl_context *previous = NtCurrentTeb()->glContext;
     BOOL ret = FALSE;
 
-    /* retrieve the D3D internal drawables from the DCs if they have any */
-    if (draw_hdc && !context->draw) context->draw = get_dc_opengl_drawable( draw_hdc );
-    if (read_hdc && !context->read) context->read = get_dc_opengl_drawable( read_hdc );
-
-    new_draw = get_updated_drawable( draw_hdc, context->format, context->draw );
+    if (!(new_draw = get_updated_drawable( draw_hdc, context->format, context->draw ))) return FALSE;
     if (!draw_hdc && context->draw == context->read) opengl_drawable_add_ref( (new_read = new_draw) );
     else if (draw_hdc && draw_hdc == read_hdc) opengl_drawable_add_ref( (new_read = new_draw) );
     else new_read = get_updated_drawable( read_hdc, context->format, context->read );
