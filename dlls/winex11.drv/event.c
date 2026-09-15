@@ -470,16 +470,20 @@ static inline BOOL call_event_handler( Display *display, XEvent *event )
     return ret;
 }
 
-
+static int check_fd_events( int fd, int events )
+{
+    struct pollfd pfd = {.fd = fd, .events = events};
+    if (poll( &pfd, 1, 0 ) <= 0) return 0;
+    return pfd.revents;
+}
 /***********************************************************************
  *           ProcessEvents   (X11DRV.@)
  */
 BOOL X11DRV_ProcessEvents( DWORD mask )
 {
-    struct x11drv_thread_data *data = x11drv_thread_data();
+     struct x11drv_thread_data *data = x11drv_thread_data();
     XEvent event, prev_event;
     int count = 0;
-    BOOL queued = FALSE;
     enum event_merge_action action = MERGE_DISCARD;
 
     if (!data) return FALSE;
@@ -527,27 +531,28 @@ BOOL X11DRV_ProcessEvents( DWORD mask )
         switch( action )
         {
         case MERGE_HANDLE:  /* handle prev, keep new */
-            queued |= call_event_handler( data->display, &prev_event );
+            call_event_handler( data->display, &prev_event );
             /* fall through */
         case MERGE_DISCARD:  /* discard prev, keep new */
             free_event_data( &prev_event );
             prev_event = event;
             break;
         case MERGE_KEEP:  /* handle new, keep prev for future merging */
-            queued |= call_event_handler( data->display, &event );
+            call_event_handler( data->display, &event );
             /* fall through */
         case MERGE_IGNORE: /* ignore new, keep prev for future merging */
             free_event_data( &event );
             break;
         }
     }
-    if (prev_event.type) queued |= call_event_handler( data->display, &prev_event );
+    if (prev_event.type) call_event_handler( data->display, &prev_event );
     free_event_data( &prev_event );
     XFlush( gdi_display );
-     if (count) TRACE( "processed %d events, returning %d\n", count, queued );
+    if (count) TRACE( "processed %d events\n", count );
 
-    XFlush( data->display );
-    return queued;
+    if (mask != QS_ALLINPUT || check_fd_events( ConnectionNumber( data->display ), POLLIN )) return FALSE;
+    XFlush( data->display ); /* all events have been processed, flush any pending request */
+    return TRUE;
 }
 
 /***********************************************************************
@@ -610,6 +615,7 @@ static inline BOOL can_activate_window( HWND hwnd )
     if (style & WS_MINIMIZE) return FALSE;
     if (NtUserGetWindowLongW( hwnd, GWL_EXSTYLE ) & WS_EX_NOACTIVATE) return FALSE;
     if (hwnd == NtUserGetDesktopWindow()) return FALSE;
+    if (NtUserGetPresentRect( hwnd, &rect, 0 )) return TRUE;
     if (NtUserGetWindowRect( hwnd, &rect, NtUserGetDpiForWindow( hwnd ) ) && IsRectEmpty( &rect )) return FALSE;
     return !(style & WS_DISABLED);
 }
