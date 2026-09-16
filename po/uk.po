@@ -270,7 +270,7 @@ msgstr ""
 msgid "Not specified"
 msgstr "Не зазначено"
 
-#: dlls/appwiz.cpl/appwiz.rc:38 dlls/oledb32/version.rc:35
+#: dlls/appwiz.cpl/appwiz.rc:38 dlls/oledb32/oledb32.rc:30
 #: dlls/shell32/shell32.rc:141 dlls/shell32/shell32.rc:243
 #: programs/regedit/regedit.rc:150 programs/winefile/winefile.rc:106
 msgid "Name"
@@ -444,7 +444,7 @@ msgstr "Майстер"
 msgid "< &Back"
 msgstr "< &Назад"
 
-#: dlls/comctl32/comctl32.rc:85 dlls/oledb32/version.rc:58
+#: dlls/comctl32/comctl32.rc:85 dlls/oledb32/oledb32.rc:53
 msgid "&Next >"
 msgstr "&Далі >"
 
@@ -1410,7 +1410,7 @@ msgid "&User name:"
 msgstr "&Користувач:"
 
 #: dlls/credui/credui.rc:48 dlls/cryptui/cryptui.rc:402
-#: dlls/oledb32/version.rc:78
+#: dlls/oledb32/oledb32.rc:73
 msgid "&Password:"
 msgstr "&Пароль:"
 
@@ -2748,7 +2748,7 @@ msgstr "Цей сертифікат дійсний."
 msgid "Field"
 msgstr "Поле"
 
-#: dlls/cryptui/cryptui.rc:48 dlls/oledb32/version.rc:36
+#: dlls/cryptui/cryptui.rc:48 dlls/oledb32/oledb32.rc:31
 msgid "Value"
 msgstr "Значення"
 
@@ -3358,7 +3358,7 @@ msgstr "Символ"
 msgid "OEM/DOS"
 msgstr ""
 
-#: dlls/gdi32/gdi32.rc:45 dlls/oledb32/version.rc:97
+#: dlls/gdi32/gdi32.rc:45 dlls/oledb32/oledb32.rc:92
 #: dlls/wldap32/wldap32.rc:112
 msgid "Other"
 msgstr "Інший"
@@ -3426,7 +3426,7 @@ msgid "&Stop"
 msgstr "&Зупинити"
 
 #: dlls/hhctrl.ocx/hhctrl.rc:66 dlls/hhctrl.ocx/hhctrl.rc:83
-#: dlls/oledb32/version.rc:70 dlls/shdoclc/shdoclc.rc:59
+#: dlls/oledb32/oledb32.rc:65 dlls/shdoclc/shdoclc.rc:59
 msgid "&Refresh"
 msgstr "О&новити"
 
@@ -4301,11 +4301,6 @@ msgstr "Властивість не може одночасно мати дос�
 #: include/wine/wine_common_ver.rc:123
 msgid "Wine kernel DLL"
 msgstr "Бібліотека ядра Wine"
-
-#: include/wine/wine_common_ver.rc:128 dlls/winemac.drv/winemac.rc:32
-#: programs/wineboot/wineboot.rc:42 programs/winecfg/winecfg.rc:143
-msgid "Wine"
-msgstr "Wine"
 
 #: dlls/kernelbase/kernelbase.rc:29
 msgid "Western Europe and United States"
@@ -9539,99 +9534,99 @@ msgstr "Ввімкнено"
 msgid "Off"
 msgstr "Вимкнено"
 
-#: dlls/oledb32/version.rc:53
+#: dlls/oledb32/oledb32.rc:48
 msgid "Provider"
 msgstr "Постачальник"
 
-#: dlls/oledb32/version.rc:56
+#: dlls/oledb32/oledb32.rc:51
 msgid "Select the data you want to connect to:"
 msgstr "Виберіть дані, до яких потрібно підключитися:"
 
-#: dlls/oledb32/version.rc:63
+#: dlls/oledb32/oledb32.rc:58
 msgid "Connection"
 msgstr "Підключення"
 
-#: dlls/oledb32/version.rc:66
+#: dlls/oledb32/oledb32.rc:61
 msgid "Specify the following to connect to ODBC data:"
 msgstr "Вкажіть наступне для підключення до даних ODBC:"
 
-#: dlls/oledb32/version.rc:67
+#: dlls/oledb32/oledb32.rc:62
 msgid "1. Specify the source of data:"
 msgstr "1. Вкажіть джерело даних:"
 
-#: dlls/oledb32/version.rc:68
+#: dlls/oledb32/oledb32.rc:63
 msgid "Use &data source name"
 msgstr "Використовувати &ім'я джерела даних"
 
-#: dlls/oledb32/version.rc:71
+#: dlls/oledb32/oledb32.rc:66
 msgid "Use c&onnection string"
 msgstr "Використовувати р&ядок підключення"
 
-#: dlls/oledb32/version.rc:72
+#: dlls/oledb32/oledb32.rc:67
 msgid "&Connection string:"
 msgstr "&Рядок з'єднання:"
 
-#: dlls/oledb32/version.rc:74
+#: dlls/oledb32/oledb32.rc:69
 msgid "B&uild..."
 msgstr "&Створити..."
 
-#: dlls/oledb32/version.rc:75
+#: dlls/oledb32/oledb32.rc:70
 msgid "2. Enter information to log on to the server"
 msgstr "2. Введіть інформацію для входу на сервер"
 
-#: dlls/oledb32/version.rc:76
+#: dlls/oledb32/oledb32.rc:71
 msgid "User &name:"
 msgstr "Ім'я &користувача:"
 
-#: dlls/oledb32/version.rc:80
+#: dlls/oledb32/oledb32.rc:75
 msgid "&Blank password"
 msgstr "&Пустий пароль"
 
-#: dlls/oledb32/version.rc:81
+#: dlls/oledb32/oledb32.rc:76
 msgid "Allow &saving password"
 msgstr "Дозволити &збереження пароля"
 
-#: dlls/oledb32/version.rc:82
+#: dlls/oledb32/oledb32.rc:77
 msgid "3. Enter the &initial catalog to use:"
 msgstr "3. Введіть &початковий каталог для використання:"
 
-#: dlls/oledb32/version.rc:84
+#: dlls/oledb32/oledb32.rc:79
 msgid "&Test Connection"
 msgstr "&Тест підключення"
 
-#: dlls/oledb32/version.rc:89
+#: dlls/oledb32/oledb32.rc:84
 msgid "Advanced"
 msgstr "Майстер"
 
-#: dlls/oledb32/version.rc:92
+#: dlls/oledb32/oledb32.rc:87
 msgid "Network settings"
 msgstr "Мережеві налаштування"
 
-#: dlls/oledb32/version.rc:93
+#: dlls/oledb32/oledb32.rc:88
 msgid "&Impersonation level:"
 msgstr ""
 
-#: dlls/oledb32/version.rc:95
+#: dlls/oledb32/oledb32.rc:90
 msgid "P&rotection level:"
 msgstr "Р&івень захисту:"
 
-#: dlls/oledb32/version.rc:98
+#: dlls/oledb32/oledb32.rc:93
 msgid "Connect:"
 msgstr "З'єднання:"
 
-#: dlls/oledb32/version.rc:100
+#: dlls/oledb32/oledb32.rc:95
 msgid "seconds."
 msgstr "секунд."
 
-#: dlls/oledb32/version.rc:101
+#: dlls/oledb32/oledb32.rc:96
 msgid "A&ccess:"
 msgstr "&Доступ:"
 
-#: dlls/oledb32/version.rc:107
+#: dlls/oledb32/oledb32.rc:102
 msgid "All"
 msgstr "Все"
 
-#: dlls/oledb32/version.rc:111
+#: dlls/oledb32/oledb32.rc:106
 msgid ""
 "These are the initialization properties for this type of data. To edit a "
 "value, select a property, then choose Edit Value below."
@@ -9639,19 +9634,19 @@ msgstr ""
 "Це властивості ініціалізації даних цього типу. Щоб відредагувати значення, "
 "виберіть властивість, а потім нижче виберіть Редагувати Значення."
 
-#: dlls/oledb32/version.rc:112
+#: dlls/oledb32/oledb32.rc:107
 msgid "&Edit Value..."
 msgstr "&Редагувати Значення..."
 
-#: dlls/oledb32/version.rc:46
+#: dlls/oledb32/oledb32.rc:41
 msgid "Data Link Error"
 msgstr "Помилка при передачі даних"
 
-#: dlls/oledb32/version.rc:47
+#: dlls/oledb32/oledb32.rc:42
 msgid "Please select a provider."
 msgstr "Виберіть постачальника послуг."
 
-#: dlls/oledb32/version.rc:48
+#: dlls/oledb32/oledb32.rc:43
 msgid ""
 "Provider is no longer available. Ensure that the provider is installed "
 "properly."
@@ -9659,39 +9654,39 @@ msgstr ""
 "Постачальник більше не доступний. Переконайтеся, що постачальник "
 "встановлений належним чином."
 
-#: dlls/oledb32/version.rc:33
+#: dlls/oledb32/oledb32.rc:28
 msgid "Data Link Properties"
 msgstr "Властивості каналу передачі даних"
 
-#: dlls/oledb32/version.rc:34
+#: dlls/oledb32/oledb32.rc:29
 msgid "OLE DB Provider(s)"
 msgstr "Постачальник(и) OLE DB"
 
-#: dlls/oledb32/version.rc:38
+#: dlls/oledb32/oledb32.rc:33
 msgid "Read"
 msgstr "Читання"
 
-#: dlls/oledb32/version.rc:39
+#: dlls/oledb32/oledb32.rc:34
 msgid "ReadWrite"
 msgstr "Читання/Запис"
 
-#: dlls/oledb32/version.rc:40
+#: dlls/oledb32/oledb32.rc:35
 msgid "Share Deny None"
 msgstr ""
 
-#: dlls/oledb32/version.rc:41
+#: dlls/oledb32/oledb32.rc:36
 msgid "Share Deny Read"
 msgstr ""
 
-#: dlls/oledb32/version.rc:42
+#: dlls/oledb32/oledb32.rc:37
 msgid "Share Deny Write"
 msgstr ""
 
-#: dlls/oledb32/version.rc:43
+#: dlls/oledb32/oledb32.rc:38
 msgid "Share Exclusive"
 msgstr ""
 
-#: dlls/oledb32/version.rc:44
+#: dlls/oledb32/oledb32.rc:39
 msgid "Write"
 msgstr "Запис"
 
@@ -13166,6 +13161,11 @@ msgstr "Помилка компіляції Microsoft VBScript"
 #: dlls/vbscript/vbscript.rc:63
 msgid "Microsoft VBScript runtime error"
 msgstr "Помилка виконання Microsoft VBScript"
+
+#: dlls/winemac.drv/winemac.rc:32 programs/wineboot/wineboot.rc:42
+#: programs/winecfg/winecfg.rc:143
+msgid "Wine"
+msgstr "Wine"
 
 #: dlls/winemac.drv/winemac.rc:33
 msgid "Hide %@"
@@ -17813,12 +17813,6 @@ msgstr "Процес з PID %1!u! був завершений примусово
 msgid ""
 "Sent termination signal to process with PID %1!u!, child of PID %2!u!.\n"
 msgstr ""
-
-#: include/wine/wine_common_ver.rc:123
-#, fuzzy
-#| msgid "page tab list"
-msgid "Wine tasklist"
-msgstr "список закладок сторінки"
 
 #: programs/tasklist/tasklist.rc:29
 msgid "Usage: tasklist [/?]\n"

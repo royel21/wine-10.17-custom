@@ -42,7 +42,6 @@ struct async_cancel
 };
 
 static void async_cancel_dump( struct object *obj, int verbose );
-static struct object *async_cancel_get_sync( struct object *obj );
 static void async_cancel_destroy( struct object *obj );
 
 static const struct object_ops async_cancel_ops =
@@ -53,10 +52,10 @@ static const struct object_ops async_cancel_ops =
     NULL,                        /* add_queue */
     NULL,                        /* remove_queue */
     NULL,                        /* signaled */
+    NULL,                        /* esync fd */
     NULL,                        /* satisfied */
     no_signal,                   /* signal */
     no_get_fd,                   /* get_fd */
-    async_cancel_get_sync,       /* get_sync */
     default_map_access,          /* map_access */
     default_get_sd,              /* get_sd */
     default_set_sd,              /* set_sd */
@@ -77,13 +76,6 @@ static void async_cancel_dump( struct object *obj, int verbose )
     fprintf( stderr, "async_cancel %p\n", cancel );
 }
 
-static struct object *async_cancel_get_sync( struct object *obj )
-{
-    struct async_cancel *cancel = (struct async_cancel *)obj;
-
-    assert( obj->ops == &async_cancel_ops );
-    return grab_object( cancel->sync );
-}
 
 static void async_cancel_destroy( struct object *obj )
 {
