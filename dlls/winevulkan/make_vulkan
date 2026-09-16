@@ -180,7 +180,6 @@ PERF_CRITICAL_FUNCTIONS = [
 # - dispatch (default: True):  set whether we need a function pointer in the device / instance dispatch table.
 FUNCTION_OVERRIDES = {
     # Device functions
-    "vkCreateCommandPool" : {"extra_param" : "client_ptr"},
     "vkGetDeviceProcAddr" : {"dispatch" : False},
 }
 
@@ -603,7 +602,6 @@ class Function(object):
         # For some functions we need some extra metadata from FUNCTION_OVERRIDES.
         func_info = FUNCTION_OVERRIDES.get(self.name, {})
         self.dispatch = func_info.get("dispatch", True)
-        self.extra_param = func_info.get("extra_param", None)
 
         # Required is set while parsing which APIs and types are required
         # and is used by the code generation.
@@ -626,24 +624,24 @@ class Function(object):
         func_type = proto.find("type").text
 
         params = filter(is_api_supported, command.findall("param"))
-        params = [VkParam.from_xml(param, types) for param in params]
+        params = [Parameter.from_xml(param, types) for param in params]
         return Function(func_type, func_name, params)
 
     def is_alias(self):
         return bool(self.alias)
 
-    def is_core_func(self):
+    def is_core(self):
         return not self.extensions or any(ext.is_core for ext in self.extensions)
 
-    def is_device_func(self):
+    def is_device(self):
         # If none of the other, it must be a device function
-        return not self.is_global_func() and not self.is_instance_func()
+        return not self.is_global() and not self.is_instance()
 
     def is_driver_func(self):
         """ Returns if function is part of Wine driver interface. """
         return self.name in USER_DRIVER_FUNCS
 
-    def is_global_func(self):
+    def is_global(self):
         # Treat vkGetInstanceProcAddr as a global function as it
         # can operate with NULL for vkInstance.
         if self.name == "vkGetInstanceProcAddr":
@@ -653,8 +651,8 @@ class Function(object):
             return False
         return True
 
-    def is_instance_func(self):
-        if self.is_global_func():
+    def is_instance(self):
+        if self.is_global():
             return False
         # Instance functions are passed VkInstance.
         if self.params[0].type == "VkInstance":
@@ -662,7 +660,7 @@ class Function(object):
         return self.is_physical_device()
 
     def is_physical_device(self):
-        if self.is_global_func():
+        if self.is_global():
             return False
         # Physical device functions are passed VkPhysicalDevice.
         if self.params[0].type == "VkPhysicalDevice":
@@ -675,16 +673,33 @@ class Function(object):
     def returns_longlong(self):
         return self.type in ["uint64_t", "VkDeviceAddress"]
 
-    def needs_dispatch(self):
-        return self.dispatch
+    def needs_thunk(self):
+        return self.needs_exposing() and self.name not in MANUAL_LOADER_FUNCTIONS
 
     def needs_private_thunk(self):
-        return self.needs_exposing() and self.name not in MANUAL_LOADER_FUNCTIONS and \
-            self.name in MANUAL_UNIX_THUNKS
+        return self.needs_thunk() and self.name in MANUAL_UNIX_THUNKS
+
+    def needs_loader_thunk(self):
+        return self.needs_thunk() and self.name not in MANUAL_LOADER_THUNKS
 
     def needs_exposing(self):
         # The function needs exposed if at-least one extension isn't both UNSUPPORTED and UNEXPOSED
         return self.is_required() and (not self.extensions or any(ext.is_exposed for ext in self.extensions))
+
+    def is_host_instance(self):
+        return self.is_required() and self.dispatch and self.is_instance()
+
+    def is_host_device(self):
+        return self.is_required() and self.dispatch and self.is_device()
+
+    def is_client_instance(self):
+        return self.needs_exposing() and self.is_instance()
+
+    def is_client_physical_device(self):
+        return self.needs_exposing() and self.is_physical_device()
+
+    def is_client_device(self):
+        return self.needs_exposing() and self.is_device()
 
     def is_perf_critical(self):
         # vkCmd* functions are frequently called, do not trace for performance
@@ -692,37 +707,17 @@ class Function(object):
             return True
         return self.name in PERF_CRITICAL_FUNCTIONS
 
-    def pfn(self, prefix="p", call_conv=None):
-        """ Create function pointer. """
+    def gen_params(self):
+        return ", ".join(p.as_param() for p in self.params)
 
-        if call_conv:
-            pfn = "{0} ({1} *{2}_{3})(".format(self.type, call_conv, prefix, self.name)
-        else:
-            pfn = "{0} (*{1}_{2})(".format(self.type, prefix, self.name)
+    def gen_pointer(self):
+        return f"typedef {self.type} (VKAPI_PTR *PFN_{self.name})({self.gen_params()});\n"
 
-        for i, param in enumerate(self.params):
-            if param.const:
-                pfn += param.const + " "
+    def gen_prototype(self):
+        return f"{self.type} VKAPI_CALL {self.name}({self.gen_params()});\n"
 
-            pfn += param.type
-
-            if param.is_pointer():
-                pfn += " " + param.pointer
-
-            for l in param.array_lens:
-                pfn += "[{0}]".format(l)
-
-            if i < len(self.params) - 1:
-                pfn += ", "
-        pfn += ")"
-        return pfn
-
-    def prototype(self, call_conv="", prefix="", is_thunk=False, suffix=""):
-        extra = [f"void *{self.extra_param}"] if is_thunk and self.extra_param else []
-        params = [p.definition() for p in self.params]
-        params = ", ".join(params + extra)
-
-        return f"{self.type} {call_conv}{prefix}{self.name}({params}){suffix}"
+    def gen_wrapper(self):
+        return f"{self.type} wine_{self.name}({self.gen_params()});\n"
 
     def loader_body(self):
         body = "    struct {0}_params params;\n".format(self.name)
@@ -802,11 +797,6 @@ class Function(object):
         # The param itself knows if conversion is needed and applies it when we set conv=True.
         unwrap = Unwrap.NONE if self.name in MANUAL_UNIX_THUNKS else self.unwrap
         params = ", ".join([p.variable(conv, unwrap, params_prefix) for p in self.params])
-        if self.extra_param:
-            if conv:
-                params += ", UlongToPtr({0}{1})".format(params_prefix, self.extra_param)
-            else:
-                params += ", {0}{1}".format(params_prefix, self.extra_param)
 
         if self.name in MANUAL_UNIX_THUNKS:
             func_prefix = "wine_"
@@ -839,12 +829,8 @@ class Function(object):
         return body
 
     def spec(self, prefix=None, symbol=None):
-        """ Generate spec file entry for this function.
-
-        Args
-            prefix (str, optional): prefix to prepend to entry point name.
-            symbol (str, optional): allows overriding the name of the function implementing the entry point.
-        """
+        if not self.is_required():
+            return f"@ stub {self.name}\n"
 
         spec = ""
         params = " ".join([p.spec() for p in self.params])
@@ -872,9 +858,7 @@ class Function(object):
             thunk += "    struct\n"
             thunk += "    {\n"
             for p in self.params:
-                thunk += "        {0};\n".format(p.definition(conv=True, is_member=True))
-            if self.extra_param:
-                thunk += "        PTR32 {0};\n".format(self.extra_param)
+                thunk += f"        {p.as_member(wow64=True)};\n"
             if self.type != "void":
                 thunk += "        {0} result;\n".format(self.type)
             thunk += "    } *params = args;\n"
@@ -888,8 +872,8 @@ class Function(object):
         return thunk
 
     def loader_thunk(self):
-        thunk = self.prototype(call_conv="WINAPI ")
-        thunk += "\n{\n"
+        thunk = f"{self.type} WINAPI {self.name}({self.gen_params()})\n"
+        thunk += "{\n"
         thunk += self.loader_body()
         thunk += "}\n\n"
         return thunk
@@ -922,6 +906,10 @@ class Function(object):
         trace += ");\n"
 
         return trace
+
+    def unixlib_entry(self, bitness):
+        cast = "(void *)" if self.is_perf_critical() else ""
+        return f"{cast}thunk{bitness}_{self.name}"
 
 
 class FunctionPointer(object):
@@ -1096,7 +1084,7 @@ class VkVariable(object):
         self.struct = type_info["data"] if type_info["category"] == "struct" or type_info["category"] == "union" else None
 
     def is_const(self):
-        return self.const
+        return "const" in self.const
 
     def is_pointer(self):
         return self.pointer is not None
@@ -1204,9 +1192,7 @@ class VkVariable(object):
         if not conv or not self.needs_ptr32_type() or (not self.is_pointer() and self.type == "size_t"):
             return prefix + self.name
 
-        cast_type = ""
-        if self.const:
-            cast_type += "const "
+        cast_type = self.const
 
         if self.pointer_array or ((self.is_pointer() or self.is_static_array()) and self.is_pointer_size()):
             cast_type += "PTR32 *"
@@ -1251,7 +1237,7 @@ class VkMember(VkVariable):
         name_elem = member.find("name")
         type_elem = member.find("type")
 
-        const = False
+        const = ""
         struct_fwd_decl = False
         member_type = None
         pointer = None
@@ -1261,7 +1247,7 @@ class VkMember(VkVariable):
 
         if member.text:
             if "const" in member.text:
-                const = True
+                const = "const "
 
             # Some members contain forward declarations:
             # - VkBaseInstructure has a member "const struct VkBaseInStructure *pNext"
@@ -1483,7 +1469,7 @@ class VkMember(VkVariable):
 
         return False
 
-class VkParam(VkVariable):
+class Parameter(VkVariable):
     """ Helper class which describes a parameter to a function call. """
 
     def __init__(self, type_info, const=None, pointer=None, name=None, array_lens=None,
@@ -1514,7 +1500,7 @@ class VkParam(VkVariable):
         # elements pointed to be by this parameter.
         dyn_array_len = param.get("len", None)
 
-        const = param.text.strip() if param.text else None
+        const = param.text.strip() + " " if param.text else ""
         type_elem = param.find("type")
         pointer = type_elem.tail.strip() if type_elem.tail.strip() != "" else None
         assert not pointer or pointer.count('*') <= 2 # only pointers and pointer of pointers are supported
@@ -1530,8 +1516,8 @@ class VkParam(VkVariable):
         if type_info is None:
             LOGGER.error("type info not found for: {0}".format(type_elem.text))
 
-        return VkParam(type_info, const=const, pointer=pointer, name=name, array_lens=array_lens,
-                       dyn_array_len=dyn_array_len, object_type=object_type, optional=optional)
+        return Parameter(type_info, const=const, pointer=pointer, name=name, array_lens=array_lens,
+                         dyn_array_len=dyn_array_len, object_type=object_type, optional=optional)
 
     def _set_format_string(self):
         """ Internal helper function to be used by constructor to set format string. """
@@ -1653,41 +1639,18 @@ class VkParam(VkVariable):
             else:
                 return "    *{0} = {1}_host;\n".format(self.value(prefix, conv), self.name)
 
-    def definition(self, postfix=None, is_member=False, conv=False):
-        """ Return prototype for the parameter. E.g. 'const char *foo' """
+    def as_param(self):
+        ptr = self.pointer if self.is_pointer() else ""
+        array = "".join(f"[{len}]" for len in self.array_lens)
+        return f"{self.const}{self.type} {ptr}{self.name}{array}"
 
-        if is_member and conv and self.needs_ptr32_type():
-            return "PTR32 {0}".format(self.name)
+    def as_member(self, wow64=False):
+        if wow64 and self.needs_ptr32_type():
+            return f"PTR32 {self.name}"
 
-        proto = ""
-        if self.const:
-            proto += self.const + " "
-
-        proto += self.type
-        name = self.name
-        if conv and self.needs_win32_type():
-            proto += "32"
-
-        if is_member and self.needs_alignment():
-            proto += " DECLSPEC_ALIGN(8)"
-
-        if self.is_pointer():
-            proto += " {0}{1}".format(self.pointer, name)
-        elif is_member and self.is_static_array():
-            proto += " *" + name
-        else:
-            proto += " " + name
-
-        # Allows appending something to the variable name useful for
-        # win32 to host conversion.
-        if postfix is not None:
-            proto += postfix
-
-        if not is_member:
-            for l in self.array_lens:
-                proto += "[{0}]".format(l)
-
-        return proto
+        ptr = self.pointer if self.is_pointer() else "*" if self.is_static_array() else ""
+        align = " DECLSPEC_ALIGN(8)" if self.needs_alignment() else ""
+        return f"{self.const}{self.type}{align} {ptr}{self.name}"
 
     def dispatch_table(self, params_prefix, conv):
         """ Return functions dispatch table pointer for dispatchable objects. """
@@ -2521,12 +2484,8 @@ class Generator(object):
         # Global functions don't go through the thunks.
         thunks = ""
         conversions = []
-        for vk_func in Context.funcs.values():
-            if not vk_func.needs_exposing():
-                continue
-            if vk_func.name in MANUAL_LOADER_FUNCTIONS:
-                continue
 
+        for vk_func in filter(Function.needs_thunk, Context.funcs.values()):
             thunks += vk_func.thunk(conversions, prefix="thunk64_")
             thunks += vk_func.thunk(conversions, prefix="thunk32_", conv=True)
 
@@ -2590,27 +2549,16 @@ class Generator(object):
         f.write(";\n")
         f.write("}\n\n")
 
-
         f.write("#ifdef _WIN64\n\n")
-
         f.write("const unixlib_entry_t __wine_unix_call_funcs[] =\n")
         f.write("{\n")
         f.write("    init_vulkan,\n")
         f.write("    vk_is_available_instance_function,\n")
         f.write("    vk_is_available_device_function,\n")
-        for vk_func in Context.funcs.values():
-            if not vk_func.needs_exposing():
-                continue
-            if vk_func.name in MANUAL_LOADER_FUNCTIONS:
-                continue
-
-            if vk_func.is_perf_critical():
-                f.write("    (void *){1}{0},\n".format(vk_func.name, "thunk64_"))
-            else:
-                f.write("    {1}{0},\n".format(vk_func.name, "thunk64_"))
+        for func in filter(Function.needs_thunk, Context.funcs.values()):
+            f.write(f"    {func.unixlib_entry(64)},\n")
         f.write("};\n")
         f.write("C_ASSERT(ARRAYSIZE(__wine_unix_call_funcs) == unix_count);\n\n")
-
         f.write("#endif /* _WIN64 */\n\n")
 
         f.write("#ifdef _WIN64\n")
@@ -2622,16 +2570,8 @@ class Generator(object):
         f.write("    wow64_init_vulkan,\n")
         f.write("    vk_is_available_instance_function32,\n")
         f.write("    vk_is_available_device_function32,\n")
-        for vk_func in Context.funcs.values():
-            if not vk_func.needs_exposing():
-                continue
-            if vk_func.name in MANUAL_LOADER_FUNCTIONS:
-                continue
-
-            if vk_func.is_perf_critical():
-                f.write("    (void *){1}{0},\n".format(vk_func.name, "thunk32_"))
-            else:
-                f.write("    {1}{0},\n".format(vk_func.name, "thunk32_"))
+        for func in filter(Function.needs_thunk, Context.funcs.values()):
+            f.write(f"    {func.unixlib_entry(32)},\n")
         f.write("};\n")
         f.write("C_ASSERT(ARRAYSIZE(__wine_unix_call_funcs) == unix_count);\n")
 
@@ -2646,11 +2586,8 @@ class Generator(object):
 
         # Generate prototypes for device and instance functions requiring a custom implementation.
         f.write("/* Functions for which we have custom implementations outside of the thunks. */\n")
-        for vk_func in Context.funcs.values():
-            if not vk_func.needs_private_thunk():
-                continue
-
-            f.write("{0};\n".format(vk_func.prototype(prefix="wine_", is_thunk=True)))
+        for func in filter(Function.needs_private_thunk, Context.funcs.values()):
+            f.write(func.gen_wrapper())
         f.write("\n")
 
         f.write("#endif /* __WINE_VULKAN_THUNKS_H */\n")
@@ -2662,36 +2599,22 @@ class Generator(object):
 
         f.write("WINE_DEFAULT_DEBUG_CHANNEL(vulkan);\n\n")
 
-        for vk_func in Context.funcs.values():
-            if not vk_func.needs_exposing():
-                continue
-            if vk_func.name in MANUAL_LOADER_THUNKS | MANUAL_LOADER_FUNCTIONS:
-                continue
-
-            f.write(vk_func.loader_thunk())
+        for func in filter(Function.needs_loader_thunk, Context.funcs.values()):
+            f.write(func.loader_thunk())
 
         f.write("static const struct vulkan_func vk_device_dispatch_table[] =\n{\n")
-        for vk_func in self.device_funcs:
-            if not vk_func.needs_exposing():
-                continue
-
-            f.write("    {{\"{0}\", {0}}},\n".format(vk_func.name))
+        for func in filter(Function.is_client_device, Context.funcs.values()):
+            f.write(f"    {{\"{func.name}\", {func.name}}},\n")
         f.write("};\n\n")
 
         f.write("static const struct vulkan_func vk_phys_dev_dispatch_table[] =\n{\n")
-        for vk_func in self.phys_dev_funcs:
-            if not vk_func.needs_exposing():
-                continue
-
-            f.write("    {{\"{0}\", {0}}},\n".format(vk_func.name))
+        for func in filter(Function.is_client_physical_device, Context.funcs.values()):
+            f.write(f"    {{\"{func.name}\", {func.name}}},\n")
         f.write("};\n\n")
 
         f.write("static const struct vulkan_func vk_instance_dispatch_table[] =\n{\n")
-        for vk_func in self.instance_funcs:
-            if not vk_func.needs_exposing():
-                continue
-
-            f.write("    {{\"{0}\", {0}}},\n".format(vk_func.name))
+        for func in filter(Function.is_client_instance, Context.funcs.values()):
+            f.write(f"    {{\"{func.name}\", {func.name}}},\n")
         f.write("};\n\n")
 
         f.write("void *wine_vk_get_device_proc_addr(const char *name)\n")
@@ -2747,32 +2670,23 @@ class Generator(object):
         f.write("    unix_init,\n")
         f.write("    unix_is_available_instance_function,\n")
         f.write("    unix_is_available_device_function,\n")
-        for vk_func in Context.funcs.values():
-            if not vk_func.needs_exposing():
-                continue
-            if vk_func.name in MANUAL_LOADER_FUNCTIONS:
-                continue
-
-            f.write("    unix_{0},\n".format(vk_func.name))
+        for func in filter(Function.needs_thunk, Context.funcs.values()):
+            f.write(f"    unix_{func.name},\n")
         f.write("    unix_count,\n")
         f.write("};\n\n")
 
-        for vk_func in Context.funcs.values():
-            if not vk_func.needs_exposing():
-                continue
-            if vk_func.name in MANUAL_LOADER_FUNCTIONS:
-                continue
+        def function_params(func):
+            ret = f"struct {func.name}_params\n"
+            ret += "{\n"
+            for param in func.params:
+                ret += f"    {param.as_member()};\n"
+            if func.type != "void":
+                ret += f"    {func.type} result;\n"
+            ret += "};\n\n"
+            return ret
 
-            f.write("struct {0}_params\n".format(vk_func.name))
-            f.write("{\n");
-            for p in vk_func.params:
-                f.write("    {0};\n".format(p.definition(is_member=True)))
-            if vk_func.extra_param:
-                f.write("    void *{0};\n".format(vk_func.extra_param))
-            if vk_func.type != "void":
-                f.write("    {0} result;\n".format(vk_func.type))
-            f.write("};\n\n");
-
+        for func in filter(Function.needs_thunk, Context.funcs.values()):
+            f.write(function_params(func))
         f.write("#endif /* __WINE_VULKAN_LOADER_THUNKS_H */\n")
 
     def generate_vulkan_h(self, f):
@@ -2865,31 +2779,18 @@ class Generator(object):
                 f.write(struct.definition(align=True))
                 f.write("\n")
 
-        for func in Context.funcs.values():
-            if not func.is_required():
-                LOGGER.debug("Skipping PFN definition for: {0}".format(func.name))
-                continue
-
-            f.write("typedef {0};\n".format(func.pfn(prefix="PFN", call_conv="VKAPI_PTR")))
+        for func in filter(Function.is_required, Context.funcs.values()):
+            f.write(func.gen_pointer())
         f.write("\n")
 
         f.write("#ifndef VK_NO_PROTOTYPES\n")
-        for func in Context.funcs.values():
-            if not func.is_required():
-                LOGGER.debug("Skipping API definition for: {0}".format(func.name))
-                continue
-
-            LOGGER.debug("Generating API definition for: {0}".format(func.name))
-            f.write("{0};\n".format(func.prototype(call_conv="VKAPI_CALL ")))
+        for func in filter(Function.is_required, Context.funcs.values()):
+            f.write(func.gen_prototype())
         f.write("#endif /* VK_NO_PROTOTYPES */\n\n")
 
         f.write("#define ALL_VK_DEVICE_FUNCS")
-        for vk_func in self.device_funcs:
-            if not vk_func.is_required():
-                continue
-            if not vk_func.needs_dispatch():
-                continue
-            f.write(" \\\n    USE_VK_FUNC({0})".format(vk_func.name))
+        for func in filter(Function.is_host_device, Context.funcs.values()):
+            f.write(f" \\\n    USE_VK_FUNC({func.name})")
         f.write("\n\n")
 
         f.write("#define ALL_VK_CLIENT_DEVICE_EXTS")
@@ -2905,12 +2806,8 @@ class Generator(object):
         f.write("\n\n")
 
         f.write("#define ALL_VK_INSTANCE_FUNCS")
-        for vk_func in self.instance_funcs:
-            if not vk_func.is_required():
-                continue
-            if not vk_func.needs_dispatch():
-                continue
-            f.write(" \\\n    USE_VK_FUNC({0})".format(vk_func.name))
+        for func in filter(Function.is_host_instance, Context.funcs.values()):
+            f.write(f" \\\n    USE_VK_FUNC({func.name})")
         f.write("\n\n")
 
         f.write("#define ALL_VK_CLIENT_INSTANCE_EXTS")
@@ -2929,39 +2826,20 @@ class Generator(object):
 
     def generate_vulkan_spec(self, f):
         self._generate_copyright(f, spec_file=True)
+
         f.write("@ stdcall -private vk_icdGetInstanceProcAddr(ptr str)\n")
         f.write("@ stdcall -private vk_icdGetPhysicalDeviceProcAddr(ptr str)\n")
         f.write("@ stdcall -private vk_icdNegotiateLoaderICDInterfaceVersion(ptr)\n")
-
-        # Export symbols for all Vulkan Core functions.
-        for func in Context.funcs.values():
-            if not func.is_core_func():
-                continue
-
-            # We support all Core functions except for VK_KHR_display* APIs.
-            # Create stubs for unsupported Core functions.
-            if func.is_required():
-                f.write(func.spec())
-            else:
-                f.write("@ stub {0}\n".format(func.name))
-
+        for func in filter(Function.is_core, Context.funcs.values()):
+            f.write(func.spec())
         f.write("@ stdcall -private DllRegisterServer()\n")
         f.write("@ stdcall -private DllUnregisterServer()\n")
 
     def generate_vulkan_loader_spec(self, f):
         self._generate_copyright(f, spec_file=True)
 
-        # Export symbols for all Vulkan Core functions.
-        for func in Context.funcs.values():
-            if not func.is_core_func():
-                continue
-
-            # We support all Core functions except for VK_KHR_display* APIs.
-            # Create stubs for unsupported Core functions.
-            if func.is_required():
-                f.write(func.spec(symbol="winevulkan." + func.name))
-            else:
-                f.write("@ stub {0}\n".format(func.name))
+        for func in filter(Function.is_core, Context.funcs.values()):
+            f.write(func.spec(symbol=f"winevulkan.{func.name}"))
 
     def _mark_command_required(self, command):
         """ Helper function to mark a certain command and the datatypes it needs as required."""
@@ -3048,30 +2926,6 @@ class Generator(object):
             alias = funcs[alias_name]
             func = Function.from_alias(command, alias)
             funcs[func.name] = func
-
-        # To make life easy for the code generation, separate all function
-        # calls out in the 4 types of Vulkan functions:
-        # device, global, physical device and instance.
-        device_funcs = []
-        global_funcs = []
-        phys_dev_funcs = []
-        instance_funcs = []
-        for func in funcs.values():
-            if func.is_device_func():
-                device_funcs.append(func)
-            elif func.is_global_func():
-                global_funcs.append(func)
-            elif func.is_physical_device():
-                phys_dev_funcs.append(func)
-                instance_funcs.append(func)
-            else:
-                instance_funcs.append(func)
-
-        # Sort function lists by name and store them.
-        self.device_funcs = sorted(device_funcs, key=lambda func: func.name)
-        self.global_funcs = sorted(global_funcs, key=lambda func: func.name)
-        self.phys_dev_funcs = sorted(phys_dev_funcs, key=lambda func: func.name)
-        self.instance_funcs = sorted(instance_funcs, key=lambda func: func.name)
 
         # The funcs dictionary is used as a convenient way to lookup function
         # calls when needed e.g. to adjust member variables.
