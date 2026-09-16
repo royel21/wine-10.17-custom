@@ -112,7 +112,7 @@ static void unregister_versioned_classes(void)
 #undef VERSION
 }
 
-BOOL WINAPI RegisterClassNameW(const WCHAR *class)
+BOOLEAN WINAPI RegisterClassNameW(const WCHAR *class)
 {
     static const struct
     {
@@ -186,7 +186,6 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
             ANIMATE_Register ();
             COMBOEX_Register ();
             DATETIME_Register ();
-            FLATSB_Register ();
             HEADER_Register ();
             HOTKEY_Register ();
             IPADDRESS_Register ();
@@ -213,7 +212,6 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
             ANIMATE_Unregister ();
             COMBOEX_Unregister ();
             DATETIME_Unregister ();
-            FLATSB_Unregister ();
             HEADER_Unregister ();
             HOTKEY_Unregister ();
             IPADDRESS_Unregister ();

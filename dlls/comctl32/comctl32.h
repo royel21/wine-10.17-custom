@@ -252,8 +252,6 @@ extern void COMBOLBOX_Register(void);
 extern void DATETIME_Register(void);
 extern void DATETIME_Unregister(void);
 extern void EDIT_Register(void);
-extern void FLATSB_Register(void);
-extern void FLATSB_Unregister(void);
 extern void HEADER_Register(void);
 extern void HEADER_Unregister(void);
 extern void HOTKEY_Register(void);
