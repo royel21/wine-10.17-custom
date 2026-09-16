@@ -126,12 +126,6 @@ my %arg_types =
      "FLOAT" =>                [ "float",  "%f" ],
     );
 
-my %remap_types =
-    (
-     "HGLRC" => "struct wgl_context *",
-     "HPBUFFERARB" => "struct wgl_pbuffer *",
-    );
-
 my %khronos_types =
     (
      "double" => "double DECLSPEC_ALIGN(8)",
@@ -171,15 +165,26 @@ my %manual_win_functions =
     );
 my %manual_win_thunks =
     (
+     "glCreateSyncFromCLeventARB" => 1,
+     "glDeleteSync" => 1,
+     "glFenceSync" => 1,
      "glGetString" => 1,
      "glGetStringi" => 1,
+     "glImportSyncEXT" => 1,
      "wglChoosePixelFormatARB" => 1,
+     "wglCreateContext" => 1,
+     "wglCreateContextAttribsARB" => 1,
+     "wglCreatePbufferARB" => 1,
+     "wglDeleteContext" => 1,
+     "wglDestroyPbufferARB" => 1,
      "wglGetExtensionsStringARB" => 1,
      "wglGetExtensionsStringEXT" => 1,
      "wglGetPixelFormat" => 1,
      "wglGetPixelFormatAttribfvARB" => 1,
      "wglGetPixelFormatAttribivARB" => 1,
      "wglGetProcAddress" => 1,
+     "wglMakeContextCurrentARB" => 1,
+     "wglMakeCurrent" => 1,
      "wglQueryCurrentRendererStringWINE" => 1,
      "wglQueryRendererStringWINE" => 1,
      "wglSwapBuffers" => 1,
@@ -187,12 +192,14 @@ my %manual_win_thunks =
 my %manual_unix_thunks =
     (
      "glClear" => 1,
+     "glCreateSyncFromCLeventARB" => 1,
      "glDebugMessageCallback" => 1,
      "glDebugMessageCallbackAMD" => 1,
      "glDebugMessageCallbackARB" => 1,
      "glDrawBuffer" => 1,
      "glDrawBuffers" => 1,
      "glDrawPixels" => 1,
+     "glFenceSync" => 1,
      "glFinish" => 1,
      "glFlush" => 1,
      "glFramebufferDrawBufferEXT" => 1,
@@ -205,16 +212,24 @@ my %manual_unix_thunks =
      "glGetFramebufferParameterivEXT" => 1,
      "glGetInteger64v" => 1,
      "glGetIntegerv" => 1,
-     "glGetUnsignedBytevEXT" => 1,
      "glGetString" => 1,
      "glGetStringi" => 1,
+     "glGetUnsignedBytevEXT" => 1,
+     "glImportSyncEXT" => 1,
      "glNamedFramebufferDrawBuffer" => 1,
      "glNamedFramebufferDrawBuffers" => 1,
      "glNamedFramebufferReadBuffer" => 1,
      "glReadBuffer" => 1,
      "glReadPixels" => 1,
      "glViewport" => 1,
+     "wglCopyContext" => 1,
+     "wglCreateContext" => 1,
+     "wglCreateContextAttribsARB" => 1,
+     "wglDeleteContext" => 1,
      "wglGetProcAddress" => 1,
+     "wglMakeContextCurrentARB" => 1,
+     "wglMakeCurrent" => 1,
+     "wglShareLists" => 1,
      "wglSwapBuffers" => 1,
     );
 my %hide_default_fbo_thunks =
@@ -281,10 +296,7 @@ my %map_default_fbo_thunks =
 my %manual_wow64_wrappers =
     (
      "glBufferStorage" => 0,
-     "glClientWaitSync" => 0,
      "glDeleteBuffers" => 0,
-     "glDeleteSync" => 0,
-     "glFenceSync" => 0,
      "glFlushMappedBufferRange" => 0,
      "glFlushMappedNamedBufferRange" => 0,
      "glFlushMappedNamedBufferRangeEXT" => 0,
@@ -292,8 +304,6 @@ my %manual_wow64_wrappers =
      "glGetBufferPointervARB" => 0,
      "glGetNamedBufferPointerv" => 0,
      "glGetNamedBufferPointervEXT" => 0,
-     "glGetSynciv" => 0,
-     "glIsSync" => 0,
      "glMapBuffer" => 0,
      "glMapBufferARB" => 0,
      "glMapBufferRange" => 0,
@@ -307,7 +317,6 @@ my %manual_wow64_wrappers =
      "glUnmapBufferARB" => 0,
      "glUnmapNamedBuffer" => 0,
      "glUnmapNamedBufferEXT" => 0,
-     "glWaitSync" => 0,
     );
 my %wow64_invalidate_buffer =
     (
@@ -373,12 +382,6 @@ sub ConvertType($)
     my $arg = shift;
     my $ret = $arg->textContent();
     my @type = $arg->findnodes("./ptype");
-
-    if (@type)
-    {
-        my $type = $type[0]->textContent();
-        $ret =~ s/$type/$remap_types{$type}/ if defined $remap_types{$type};
-    }
     return $ret;
 }
 
@@ -416,14 +419,16 @@ sub get_func_trace($$$)
 
 sub get_func_args($$)
 {
-    my ($func, $convert_args) = @_;
+    my ($func, $unix) = @_;
     my $ret = "";
     foreach my $arg (@{$func->[1]})
     {
         my $ptype = get_arg_type( $arg );
         my $pname = get_arg_name( $arg );
-        $ret .= " " . ($convert_args ? ConvertType( $arg ) : $arg->textContent()) . ",";
+        $ret .= " " . ($unix ? ConvertType( $arg ) : $arg->textContent()) . ",";
     }
+    $ret .= " HPBUFFERARB client_pbuffer," if $unix && $func->[0] =~ /HPBUFFERARB/;
+    $ret .= " HGLRC client_context," if $unix && $func->[0] =~ /HGLRC/ && @{$func->[1]};
     $ret =~ s/,$/ /;
     $ret ||= "void";
     return $ret;
@@ -431,8 +436,8 @@ sub get_func_args($$)
 
 sub get_func_ret($$)
 {
-    my ($func, $convert_args) = @_;
-    my $ret = $convert_args ? ConvertType( $func->[0] ) : $func->[0]->textContent();
+    my ($func, $unix) = @_;
+    my $ret = $unix ? ConvertType( $func->[0] ) : $func->[0]->textContent();
     $ret =~ s/ $//;
     return $ret;
 }
@@ -443,23 +448,20 @@ sub generate_unix_thunk($$$$)
     my $func_ret = get_func_ret( $func, 0 );
     my $manual_wow64_wrapper = $is_wow64 && defined $manual_wow64_wrappers{$name};
     my $need_wrap = $manual_wow64_wrapper || needs_wrapper( $name, $func );
-    my $need_lock = $func_ret =~ /HGLRC|HPBUFFERARB/;
+    my $need_lock = 0;
     my $need_funcs = !$need_wrap || ($prefix eq "ext" && $name !~ /^wgl/);
     my $teb = $is_wow64 ? "teb" : "params->teb";
     my $ret_stat = "return STATUS_SUCCESS;";
     my $invalidation = "";
     my $input_conv = "";
     my $output_conv = "";
+    my $use_pbuffer = 0;
+    my $use_context = 0;
     my $call_args = "";
     my $ret_expr = "";
     my $use_dc = 0;
     my $vars = "";
     my $ret = "";
-
-    foreach my $arg (@{$func->[1]})
-    {
-        $need_lock = 1 if $arg->textContent() =~ /HGLRC|HPBUFFERARB/;
-    }
 
     $ret .= "static NTSTATUS ";
     $ret .= "wow64_" if $is_wow64;
@@ -468,6 +470,8 @@ sub generate_unix_thunk($$$$)
 
     # special case for functions that take an HDC as first parameter
     $use_dc = @{$func->[1]} && get_arg_type( ${$func->[1]}[0] ) eq "HDC" && $name !~ /wglMake(Context)?Current/;
+    $use_pbuffer = @{$func->[1]} && get_arg_type( ${$func->[1]}[0] ) eq "HPBUFFERARB";
+    $use_context = @{$func->[1]} && get_arg_type( ${$func->[1]}[0] ) eq "HGLRC";
 
     $ret_expr = "params->ret = " if !is_void_func( $func );
     $call_args .= " $teb," if $need_wrap;
@@ -513,6 +517,10 @@ sub generate_unix_thunk($$$$)
             {
                 $call_args .= " (" . $arg_type . ")ULongToPtr(params->$pname),";
             }
+            elsif ($arg_type =~ /GLsync/)
+            {
+                $call_args .= " get_unix_sync( ULongToPtr(params->$pname) ),";
+            }
             else
             {
                 $call_args .= " ULongToPtr(params->$pname),";
@@ -520,6 +528,7 @@ sub generate_unix_thunk($$$$)
                 $need_lock = 1 if $arg_type =~ /GLsync/;
             }
         }
+        $call_args .= " UlongToHandle( params->ret )," if $func_ret =~ /HPBUFFERARB|HGLRC|GLsync/;
         if (!is_void_func($func))
         {
             my $ret_type = get_arg_type( $func->[0] );
@@ -534,7 +543,7 @@ sub generate_unix_thunk($$$$)
             elsif ($ptype eq "PTR32")
             {
                 $ret_expr .= "(UINT_PTR)";
-                $need_manual_thunk = 1;
+                $need_manual_thunk = 1 if $func_ret !~ /HDC|HPBUFFERARB|HGLRC|GLsync/;
             }
         }
         $ret .= "    } *params = args;\n";
@@ -555,7 +564,7 @@ sub generate_unix_thunk($$$$)
                 : "    buffer = invalidate_buffer_target( $teb, params->target );\n";
             $output_conv .= "    if (buffer) free_buffer( funcs, buffer );\n";
         }
-        $ret .= "    TEB *teb = get_teb64( params->teb );\n" if $need_wrap || !$use_dc;
+        $ret .= "    TEB *teb = get_teb64( params->teb );\n" if $need_wrap || (!$use_dc && !$use_pbuffer && !$use_context);
     }
     else
     {
@@ -563,23 +572,27 @@ sub generate_unix_thunk($$$$)
         {
             my $ptype = get_arg_type( $arg );
             my $pname = get_arg_name( $arg );
-            if (!$need_wrap && defined $remap_types{$ptype})
+            if ($ptype =~ /GLsync/)
             {
-                $call_args .= " ($remap_types{$ptype})params->$pname,";
+                $call_args .= " get_unix_sync( params->$pname ),";
             }
             else
             {
                 $call_args .= " params->$pname,";
             }
         }
+        $call_args .= " params->ret," if $func_ret =~ /HPBUFFERARB|HGLRC|GLsync/;
         $ret .= "    struct $name\_params *params = args;\n";
     }
     $ret .= $vars;
-    if ($use_dc)
+    if ($use_dc || $use_pbuffer || $use_context)
     {
         my $param = "params->" . get_arg_name( ${$func->[1]}[0] );
         $param = "ULongToPtr($param)" if $is_wow64;
-        $ret .= "    const struct opengl_funcs *funcs = get_dc_funcs( $param );\n";
+        $ret .= "    const struct opengl_funcs *funcs = ";
+        $ret .= "get_dc_funcs( $param );\n" if $use_dc;
+        $ret .= "get_pbuffer_funcs( $param );\n" if $use_pbuffer;
+        $ret .= "get_context_funcs( $param );\n" if $use_context;
         $ret .= "    if (!funcs || !funcs->p_$name) return STATUS_NOT_IMPLEMENTED;\n";
     }
     elsif ($need_funcs)
@@ -610,7 +623,6 @@ sub generate_unix_thunk($$$$)
     }
     else
     {
-        $ret .= "($func_ret)" if defined $remap_types{$func_ret};
         $ret .= "funcs->p_$name($call_args);\n";
     }
     $ret .= "    pthread_mutex_unlock( &wgl_lock );\n" if $need_lock;
@@ -661,9 +673,21 @@ sub generate_wrapper_declaration($$$)
         }
         $ret .= " " . $arg->textContent() . ",";
     }
+    $ret .= " HPBUFFERARB handle," if $ret_type =~ /HPBUFFERARB/;
+    $ret .= " HGLRC handle," if $ret_type =~ /HGLRC/;
+    $ret .= " GLsync handle," if $ret_type =~ /GLsync/;
     $ret =~ s/,$/ /;
     $ret .= ");\n";
     return $ret;
+}
+
+sub get_handle_function($)
+{
+    my $ptype = shift;
+    return "get_pbuffer_from_handle" if $ptype =~ /HPBUFFERARB/;
+    return "get_context_from_handle" if $ptype =~ /HGLRC/;
+    return "get_sync_from_handle" if $ptype =~ /GLsync/;
+    return 0;
 }
 
 sub generate_win_thunk($$)
@@ -672,6 +696,7 @@ sub generate_win_thunk($$)
     my $decl_args = get_func_args( $func, 0 );
     my $func_ret = get_func_ret( $func, 0 );
     my $params = "";
+    my $checks = "";
     my $ret = "";
 
     $ret .= "$func_ret WINAPI $name($decl_args)\n";
@@ -681,12 +706,23 @@ sub generate_win_thunk($$)
     foreach my $arg (@{$func->[1]})
     {
         my $pname = get_arg_name( $arg );
-        $params .= ", .$pname = $pname";
+        my $ptype = get_arg_type( $arg );
+        if (my $get_handle = get_handle_function( $ptype ))
+        {
+            my $retval = is_void_func($func) ? "return;" : "return 0;";
+            $retval = "{ set_gl_error( GL_INVALID_VALUE ); $retval }" if $ptype =~ /GLsync/ && $name !~ /glIsSync/;
+            $checks .= "    if (!$get_handle( $pname, &args.$pname )) $retval\n";
+        }
+        else
+        {
+            $params .= ", .$pname = $pname";
+        }
     }
     $ret .= " = {$params }";
     $ret .= ";\n";
     $ret .= "    NTSTATUS status;\n";
     $ret .= "    " . get_func_trace( $name, $func, 1 ) if $gen_traces;
+    $ret .= $checks;
     $ret .= "    if ((status = UNIX_CALL( $name, &args ))) WARN( \"$name returned %#lx\\n\", status );\n";
     $ret .= "    return args.ret;\n" unless is_void_func($func);
     $ret .= "}\n";
@@ -952,19 +988,8 @@ sub is_supported_extension($)
 sub needs_wrapper($$)
 {
     my ($name, $func) = @_;
-
     return 0 if defined $manual_win_functions{$name};
     return 1 if defined $manual_unix_thunks{$name};
-
-    # check if return value needs special handling
-    (my $type = $func->[0]->textContent()) =~ s/ $//;
-    return 1 if defined $remap_types{$type};
-    # check if one of the arguments needs special handling
-    foreach (@{$func->[1]})
-    {
-        $type = get_arg_type( $_ );
-        return 1 if defined $remap_types{$type};
-    }
     return 0;
 }
 
@@ -1180,37 +1205,37 @@ print HEADER "\n";
 print HEADER "#ifndef GL_NO_PROTOTYPES\n";
 foreach (sort keys %norm_functions)
 {
-    my $decl_args = get_func_args( $norm_functions{$_}, 0 );
-    my $func_ret = get_func_ret( $norm_functions{$_}, 0 );
+    my $decl_args = get_func_args( $norm_functions{$_}, 1 );
+    my $func_ret = get_func_ret( $norm_functions{$_}, 1 );
     printf HEADER "%-10s GLAPIENTRY $_($decl_args);\n", $func_ret;
 }
 print HEADER "#endif\n\n";
 
 foreach (sort keys %wgl_functions)
 {
-    my $decl_args = get_func_args( $wgl_functions{$_}, 0 );
-    my $func_ret = get_func_ret( $wgl_functions{$_}, 0 );
+    my $decl_args = get_func_args( $wgl_functions{$_}, 1 );
+    my $func_ret = get_func_ret( $wgl_functions{$_}, 1 );
     printf HEADER "typedef %-10s (GLAPIENTRY *PFN_$_)($decl_args);\n", $func_ret;
 }
 
 foreach (sort keys %egl_functions)
 {
-    my $decl_args = get_func_args( $egl_functions{$_}, 0 );
-    my $func_ret = get_func_ret( $egl_functions{$_}, 0 );
+    my $decl_args = get_func_args( $egl_functions{$_}, 1 );
+    my $func_ret = get_func_ret( $egl_functions{$_}, 1 );
     printf HEADER "typedef %-10s (GLAPIENTRY *PFN_$_)($decl_args);\n", $func_ret;
 }
 
 foreach (sort keys %norm_functions)
 {
-    my $decl_args = get_func_args( $norm_functions{$_}, 0 );
-    my $func_ret = get_func_ret( $norm_functions{$_}, 0 );
+    my $decl_args = get_func_args( $norm_functions{$_}, 1 );
+    my $func_ret = get_func_ret( $norm_functions{$_}, 1 );
     printf HEADER "typedef %-10s (GLAPIENTRY *PFN_$_)($decl_args);\n", $func_ret;
 }
 
 foreach (sort keys %ext_functions)
 {
-    my $decl_args = get_func_args( $ext_functions{$_}, 0 );
-    my $func_ret = get_func_ret( $ext_functions{$_}, 0 );
+    my $decl_args = get_func_args( $ext_functions{$_}, 1 );
+    my $func_ret = get_func_ret( $ext_functions{$_}, 1 );
     printf HEADER "typedef %-10s (GLAPIENTRY *PFN_$_)($decl_args);\n", $func_ret;
 }
 print HEADER "\n";
