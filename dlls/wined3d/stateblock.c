@@ -1724,6 +1724,8 @@ void CDECL wined3d_stateblock_set_render_state(struct wined3d_stateblock *stateb
 
         case WINED3D_RS_FOGVERTEXMODE:
             stateblock->changed.ffp_vs_settings = 1;
+            /* FIXME: Should only be VS. */
+            stateblock->changed.ffp_ps_settings = 1;
             stateblock->changed.fog_constants = 1;
             break;
 
@@ -3719,6 +3721,7 @@ void CDECL wined3d_device_apply_stateblock(struct wined3d_device *device,
     {
         if (wined3d_bitmap_is_set(changed->transform, WINED3D_TS_VIEW))
         {
+            changed->lights = 1;
             if (state->rs[WINED3D_RS_CLIPPING])
                 changed->clipplane |= state->rs[WINED3D_RS_CLIPPLANEENABLE];
         }

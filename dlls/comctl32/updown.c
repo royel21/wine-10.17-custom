@@ -1001,15 +1001,23 @@ static LRESULT WINAPI UpDownWindowProc(HWND hwnd, UINT message, WPARAM wParam, L
 	    infoPtr->Self = hwnd;
 	    infoPtr->Notify  = pcs->hwndParent;
 	    infoPtr->dwStyle = pcs->style;
-	    infoPtr->AccelCount = 0;
-	    infoPtr->AccelVect = 0;
-	    infoPtr->AccelIndex = -1;
 	    infoPtr->CurVal = 0;
 	    infoPtr->MinVal = 100;
 	    infoPtr->MaxVal = 0;
 	    infoPtr->Base  = 10; /* Default to base 10  */
 	    infoPtr->Buddy = 0;  /* No buddy window yet */
 	    infoPtr->Flags = (infoPtr->dwStyle & UDS_SETBUDDYINT) ? FLAG_BUDDYINT : 0;
+
+            infoPtr->AccelCount = 3;
+            infoPtr->AccelIndex = -1;
+            infoPtr->AccelVect = Alloc(infoPtr->AccelCount * sizeof(UDACCEL));
+
+            infoPtr->AccelVect[0].nSec = 0;
+            infoPtr->AccelVect[0].nInc = 1;
+            infoPtr->AccelVect[1].nSec = 2;
+            infoPtr->AccelVect[1].nInc = 5;
+            infoPtr->AccelVect[2].nSec = 5;
+            infoPtr->AccelVect[2].nInc = 20;
 
             SetWindowLongW (hwnd, GWL_STYLE, infoPtr->dwStyle & ~WS_BORDER);
 	    if (!(infoPtr->dwStyle & UDS_HORZ))
@@ -1139,14 +1147,12 @@ static LRESULT WINAPI UpDownWindowProc(HWND hwnd, UINT message, WPARAM wParam, L
 	case WM_PAINT:
 	    return UPDOWN_Paint (infoPtr, (HDC)wParam);
 
-	case UDM_GETACCEL:
-	    if (wParam==0 && lParam==0) return infoPtr->AccelCount;
-	    if (wParam && lParam) {
-		int temp = min(infoPtr->AccelCount, wParam);
-	        memcpy((void *)lParam, infoPtr->AccelVect, temp*sizeof(UDACCEL));
-	        return temp;
-      	    }
-	    return 0;
+        case UDM_GETACCEL:
+            if (wParam && lParam) {
+                int temp = min(infoPtr->AccelCount, wParam);
+                memcpy((void *)lParam, infoPtr->AccelVect, temp * sizeof(UDACCEL));
+            }
+            return infoPtr->AccelCount;
 
 	case UDM_SETACCEL:
 	{
