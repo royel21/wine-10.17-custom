@@ -24,6 +24,7 @@
 #include "initguid.h"
 #include "ocidl.h"
 #include "objbase.h"
+#include "oledberr.h"
 #include "msdasc.h"
 #include "olectl.h"
 #include "msado15_backcompat.h"
@@ -964,39 +965,73 @@ static HRESULT WINAPI adoconstruct_WrapDSOandSession(ADOConnectionConstruction15
     IDBInitialize *dbinit;
     IDBProperties *props;
     DBPROPSET propset;
+    BOOL err = FALSE;
     DBPROP prop[2];
     HRESULT hr;
 
     TRACE("%p, %p, %p\n", connection, dso, session);
 
-    hr = IUnknown_QueryInterface( dso, &IID_IDBProperties, (void **)&props );
-    if (FAILED(hr)) return hr;
-    propset.guidPropertySet = DBPROPSET_DBINIT;
-    propset.cProperties = ARRAY_SIZE(prop);
-    propset.rgProperties = prop;
-    memset(prop, 0, sizeof(prop));
-    prop[0].dwPropertyID = DBPROP_INIT_TIMEOUT;
-    prop[0].dwOptions = DBPROPOPTIONS_OPTIONAL;
-    V_VT(&prop[0].vValue) = VT_I4;
-    V_I4(&prop[0].vValue) = connection->conn_timeout;
-    prop[1].dwPropertyID = DBPROP_INIT_OLEDBSERVICES;
-    prop[1].dwOptions = DBPROPOPTIONS_REQUIRED;
-    V_VT(&prop[1].vValue) = VT_I4;
-    V_I4(&prop[1].vValue) = DBPROPVAL_OS_ENABLEALL;
-    if (connection->location != adUseClient)
-        V_I4(&prop[1].vValue) &= ~DBPROPVAL_OS_CLIENTCURSOR;
-    hr = IDBProperties_SetProperties( props, 1, &propset );
-    IDBProperties_Release( props );
-    if (FAILED(hr)) FIXME("SetProperties failed: %lx\n", hr);
+    if (dso)
+    {
+        if (connection->dso) return E_ACCESSDENIED;
 
-    hr = IUnknown_QueryInterface( dso, &IID_IDBInitialize, (void **)&dbinit );
-    if (FAILED(hr)) return hr;
+        hr = IUnknown_QueryInterface( dso, &IID_IDBProperties, (void **)&props );
+        if (FAILED(hr)) return hr;
+        propset.guidPropertySet = DBPROPSET_DBINIT;
+        propset.cProperties = ARRAY_SIZE(prop);
+        propset.rgProperties = prop;
+        memset(prop, 0, sizeof(prop));
+        prop[0].dwPropertyID = DBPROP_INIT_TIMEOUT;
+        prop[0].dwOptions = DBPROPOPTIONS_OPTIONAL;
+        V_VT(&prop[0].vValue) = VT_I4;
+        V_I4(&prop[0].vValue) = connection->conn_timeout;
+        prop[1].dwPropertyID = DBPROP_INIT_OLEDBSERVICES;
+        prop[1].dwOptions = DBPROPOPTIONS_REQUIRED;
+        V_VT(&prop[1].vValue) = VT_I4;
+        V_I4(&prop[1].vValue) = DBPROPVAL_OS_ENABLEALL;
+        if (connection->location != adUseClient)
+            V_I4(&prop[1].vValue) &= ~DBPROPVAL_OS_CLIENTCURSOR;
+        hr = IDBProperties_SetProperties( props, 1, &propset );
+        IDBProperties_Release( props );
+        if (hr == DB_E_ERRORSOCCURRED || hr == DB_S_ERRORSOCCURRED)
+        {
+            DBPROPIDSET propidset;
+            DBPROPSET *propset;
+            DBPROPID id[1];
+            ULONG count;
 
-    connection->dso = dbinit;
-    connection->session = session;
-    IUnknown_AddRef( session );
+            err = TRUE;
+
+            propidset.rgPropertyIDs = id;
+            propidset.cPropertyIDs = ARRAY_SIZE(id);
+            propidset.guidPropertySet = DBPROPSET_DBINIT;
+            id[0] = DBPROP_INIT_TIMEOUT;
+            hr = IDBProperties_GetProperties( props, 1, &propidset, &count, &propset );
+            if (SUCCEEDED(hr))
+            {
+                connection->conn_timeout = V_I4( &propset[0].rgProperties[0].vValue );
+                CoTaskMemFree( propset[0].rgProperties );
+                CoTaskMemFree( propset );
+            }
+        }
+        else if (FAILED(hr)) return hr;
+
+        hr = IUnknown_QueryInterface( dso, &IID_IDBInitialize, (void **)&dbinit );
+        if (FAILED(hr)) return hr;
+
+        connection->dso = dbinit;
+    }
+
+    if (session)
+    {
+        if (connection->session)
+            IUnknown_Release(connection->session);
+        connection->session = session;
+        IUnknown_AddRef( session );
+    }
+
     connection->state = adStateOpen;
-    return S_OK;
+    return err ? DB_S_ERRORSOCCURRED : S_OK;
 }
 
 struct ADOConnectionConstruction15Vtbl ado_construct_vtbl =
