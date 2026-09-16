@@ -28,6 +28,9 @@
 #include "oledberr.h"
 #include "sqlucode.h"
 
+#include "initguid.h"
+#include "msdasql.h"
+
 #include "wine/rbtree.h"
 #include "wine/debug.h"
 
@@ -46,6 +49,7 @@ struct field
     Properties          Properties_iface;
     LONG                refs;
     DBORDINAL           ordinal;
+    int                 name_hash;
     WCHAR              *name;
     DataTypeEnum        type;
     LONG                defined_size;
@@ -1186,6 +1190,13 @@ static struct PropertiesVtbl field_properties_vtbl =
     field_props_get_Item
 };
 
+static int get_hash( const WCHAR *str )
+{
+    int hash = 5381;
+    for (; *str; str++) hash += (hash << 5) + towlower( *str );
+    return hash;
+}
+
 static HRESULT Field_create( const WCHAR *name, LONG index, struct recordset *recordset, struct field **field )
 {
     if (!(*field = calloc( 1, sizeof(**field) ))) return E_OUTOFMEMORY;
@@ -1198,6 +1209,7 @@ static HRESULT Field_create( const WCHAR *name, LONG index, struct recordset *re
         free( *field );
         return E_OUTOFMEMORY;
     }
+    (*field)->name_hash = get_hash( name );
     (*field)->index = index;
     (*field)->recordset = recordset;
 
@@ -1454,6 +1466,7 @@ static HRESULT WINAPI fields_Refresh( Fields *iface )
 
 static HRESULT map_index( struct fields *fields, VARIANT *index, ULONG *ret )
 {
+    int hash;
     ULONG i;
 
     if (V_VT( index ) != VT_BSTR)
@@ -1474,9 +1487,10 @@ static HRESULT map_index( struct fields *fields, VARIANT *index, ULONG *ret )
         return MAKE_ADO_HRESULT(adErrItemNotFound);
     }
 
+    hash = get_hash( V_BSTR(index) );
     for (i = 0; i < fields->count; i++)
     {
-        if (!wcsicmp( V_BSTR(index), fields->field[i]->name ))
+        if (hash == fields->field[i]->name_hash && !wcsicmp( V_BSTR(index), fields->field[i]->name ))
         {
             *ret = i;
             return S_OK;
@@ -1723,6 +1737,7 @@ static ULONG WINAPI recordset_Release( _Recordset *iface )
     {
         TRACE( "destroying %p\n", recordset );
         close_recordset( recordset );
+        if (recordset->active_connection) _Connection_Release( recordset->active_connection );
         free( recordset->fields.field );
         free( recordset->cache.rows );
         free( recordset );
@@ -2510,24 +2525,40 @@ static HRESULT WINAPI recordset_MoveLast( _Recordset *iface )
     return cache_get( recordset, FALSE );
 }
 
-static inline void set_bool_prop(DBPROP *prop, DBPROPID id, BOOL b)
+static inline void add_bool_prop(DBPROPSET *propset, DWORD options, DBPROPID id, BOOL b)
 {
+    DBPROP *prop = propset->rgProperties + propset->cProperties;
+
     prop->dwPropertyID = id;
+    prop->dwOptions = options;
     V_VT(&prop->vValue) = VT_BOOL;
     V_BOOL(&prop->vValue) = b ? VARIANT_TRUE : VARIANT_FALSE;
+    propset->cProperties++;
+}
+
+static inline void add_int_prop(DBPROPSET *propset, DWORD options, DBPROPID id, int v)
+{
+    DBPROP *prop = propset->rgProperties + propset->cProperties;
+
+    prop->dwPropertyID = id;
+    prop->dwOptions = options;
+    V_VT(&prop->vValue) = VT_I4;
+    V_I4(&prop->vValue) = v;
+    propset->cProperties++;
 }
 
 static HRESULT get_rowset(struct recordset *recordset, IUnknown *session, BSTR source, IUnknown **rowset)
 {
+    DBPROP props[17], provider_props[3];
     IDBCreateCommand *create_command;
     ICommandText *command_text;
     IOpenRowset *openrowset;
+    DBPROPSET propsets[2];
     DBROWCOUNT affected;
-    DBPROPSET propset;
-    DBPROP props[10];
     ICommand *cmd;
     DBID table;
     HRESULT hr;
+    int i;
 
     hr = IUnknown_QueryInterface(session, &IID_IOpenRowset, (void**)&openrowset);
     if (FAILED(hr))
@@ -2536,26 +2567,82 @@ static HRESULT get_rowset(struct recordset *recordset, IUnknown *session, BSTR s
     table.eKind = DBKIND_NAME;
     table.uName.pwszName = source;
 
-    propset.guidPropertySet = DBPROPSET_ROWSET;
-    propset.cProperties = ARRAY_SIZE(props);
-    propset.rgProperties = props;
+    propsets[0].guidPropertySet = DBPROPSET_ROWSET;
+    propsets[0].cProperties = 0;
+    propsets[0].rgProperties = props;
     memset(props, 0, sizeof(props));
-    set_bool_prop(props, DBPROP_CANSCROLLBACKWARDS, recordset->cursor_type != adOpenForwardOnly);
-    set_bool_prop(props + 1, DBPROP_OTHERINSERT,
-            recordset->cursor_type != adOpenStatic && recordset->cursor_type != adOpenKeyset);
-    set_bool_prop(props + 2, DBPROP_OTHERUPDATEDELETE, recordset->cursor_type != adOpenStatic);
-    props[3].dwPropertyID = DBPROP_UPDATABILITY;
-    V_VT(&props[3].vValue) = VT_I4;
-    V_I4(&props[3].vValue) = (recordset->lock_type == adLockReadOnly ? 0 :
-            DBPROPVAL_UP_CHANGE | DBPROPVAL_UP_DELETE | DBPROPVAL_UP_INSERT);
-    set_bool_prop(props + 4, DBPROP_IColumnsRowset, TRUE);
-    set_bool_prop(props + 5, DBPROP_IRowsetChange, recordset->lock_type != adLockReadOnly);
-    set_bool_prop(props + 6, DBPROP_IRowsetLocate, TRUE);
-    set_bool_prop(props + 7, DBPROP_IRowsetUpdate, recordset->lock_type != adLockReadOnly);
-    set_bool_prop(props + 8, DBPROP_IRowsetIndex, TRUE);
-    set_bool_prop(props + 9, DBPROP_IRowsetCurrentIndex, TRUE);
+    add_bool_prop(propsets, DBPROPOPTIONS_REQUIRED, DBPROP_IRowset, TRUE);
+    add_bool_prop(propsets, DBPROPOPTIONS_OPTIONAL, DBPROP_IColumnsRowset, TRUE);
+    if (recordset->cursor_type == adOpenForwardOnly)
+        add_bool_prop(propsets, DBPROPOPTIONS_REQUIRED, DBPROP_OWNUPDATEDELETE, 0);
+    add_bool_prop(propsets, DBPROPOPTIONS_OPTIONAL, DBPROP_IRowsetIndex, TRUE);
+    add_bool_prop(propsets, DBPROPOPTIONS_OPTIONAL, DBPROP_IRowsetCurrentIndex, TRUE);
+    if (recordset->cursor_type == adOpenDynamic)
+        add_bool_prop(propsets, DBPROPOPTIONS_REQUIRED, DBPROP_OTHERINSERT, TRUE);
+    if (recordset->cursor_type == adOpenKeyset)
+        add_bool_prop(propsets, DBPROPOPTIONS_REQUIRED, DBPROP_OTHERUPDATEDELETE, TRUE);
+    if (recordset->cursor_type == adOpenKeyset || recordset->cursor_type == adOpenStatic)
+    {
+        add_bool_prop(propsets, DBPROPOPTIONS_REQUIRED, DBPROP_OWNINSERT, TRUE);
+        add_bool_prop(propsets, DBPROPOPTIONS_REQUIRED, DBPROP_OWNUPDATEDELETE, TRUE);
+        add_bool_prop(propsets, DBPROPOPTIONS_REQUIRED, DBPROP_CANHOLDROWS, TRUE);
+    }
+    if (recordset->cursor_type != adOpenForwardOnly)
+        add_bool_prop(propsets, DBPROPOPTIONS_REQUIRED, DBPROP_CANSCROLLBACKWARDS, TRUE);
+    if (recordset->cursor_type == adOpenKeyset || recordset->cursor_type == adOpenStatic)
+        add_bool_prop(propsets, DBPROPOPTIONS_REQUIRED, DBPROP_IRowsetLocate, TRUE);
+    if (recordset->lock_type != adLockUnspecified)
+    {
+        add_bool_prop(propsets, DBPROPOPTIONS_REQUIRED, DBPROP_IRowsetChange,
+                recordset->lock_type != adLockReadOnly);
+        add_bool_prop(propsets, DBPROPOPTIONS_REQUIRED, DBPROP_IRowsetUpdate,
+                recordset->lock_type != adLockReadOnly);
+        add_int_prop(propsets, DBPROPOPTIONS_REQUIRED, DBPROP_UPDATABILITY,
+                recordset->lock_type == adLockReadOnly ?
+                0 : DBPROPVAL_UP_CHANGE | DBPROPVAL_UP_DELETE | DBPROPVAL_UP_INSERT);
+    }
+    if (recordset->cursor_type == adOpenKeyset)
+        add_bool_prop(propsets, DBPROPOPTIONS_REQUIRED, DBPROP_IRowsetResynch, TRUE);
+    if (recordset->cursor_type == adOpenKeyset || recordset->cursor_type == adOpenDynamic)
+        add_bool_prop(propsets, DBPROPOPTIONS_REQUIRED, DBPROP_REMOVEDELETED, TRUE);
+    if (recordset->cursor_type != adOpenForwardOnly)
+        add_bool_prop(propsets, DBPROPOPTIONS_REQUIRED, DBPROP_CANFETCHBACKWARDS, TRUE);
+    add_bool_prop(propsets, DBPROPOPTIONS_REQUIRED, DBPROP_ISequentialStream, TRUE);
 
-    hr = IOpenRowset_OpenRowset(openrowset, NULL, &table, NULL, &IID_IUnknown, 1, &propset, rowset);
+    propsets[1].guidPropertySet = DBPROPSET_PROVIDERROWSET;
+    propsets[1].cProperties = 0;
+    propsets[1].rgProperties = provider_props;
+    if (recordset->cursor_type == adOpenKeyset)
+        add_bool_prop(propsets + 1, DBPROPOPTIONS_REQUIRED, KAGPROP_POSITIONONNEWROW, TRUE);
+    if (recordset->lock_type != adLockReadOnly)
+        add_int_prop(propsets + 1, DBPROPOPTIONS_REQUIRED, KAGPROP_CONCURRENCY,
+                KAGPROPVAL_CONCUR_ROWVER | KAGPROPVAL_CONCUR_VALUES | KAGPROPVAL_CONCUR_READ_ONLY);
+    if (recordset->cursor_type == adOpenForwardOnly)
+        add_bool_prop(propsets + 1, DBPROPOPTIONS_REQUIRED, KAGPROP_BLOBSONFOCURSOR, TRUE);
+    add_bool_prop(propsets + 1, DBPROPOPTIONS_REQUIRED, KAGPROP_FORCENOREEXECUTE, TRUE);
+
+    hr = IOpenRowset_OpenRowset(openrowset, NULL, &table, NULL, &IID_IUnknown, 2, propsets, rowset);
+    if (hr == DB_E_ERRORSOCCURRED)
+    {
+        for (i = 0; i < propsets[1].cProperties; i++)
+        {
+            if (propsets[1].rgProperties[i].dwPropertyID == KAGPROP_FORCENOREEXECUTE)
+            {
+                propsets[1].rgProperties[i].dwOptions = DBPROPOPTIONS_OPTIONAL;
+                break;
+            }
+        }
+        hr = IOpenRowset_OpenRowset(openrowset, NULL, &table, NULL, &IID_IUnknown, 2, propsets, rowset);
+    }
+    if (hr == DB_E_ERRORSOCCURRED)
+    {
+        for (i = 0; i < propsets[0].cProperties; i++)
+            propsets[0].rgProperties[i].dwOptions = DBPROPOPTIONS_OPTIONAL;
+        for (i = 0; i < propsets[1].cProperties; i++)
+            propsets[1].rgProperties[i].dwOptions = DBPROPOPTIONS_OPTIONAL;
+
+        hr = IOpenRowset_OpenRowset(openrowset, NULL, &table, NULL, &IID_IUnknown, 2, propsets, rowset);
+    }
     if (SUCCEEDED(hr))
     {
         IOpenRowset_Release(openrowset);
@@ -2613,9 +2700,10 @@ static HRESULT WINAPI recordset_Open( _Recordset *iface, VARIANT source, VARIANT
             return hr;
     }
 
+    if (cursor_type == adOpenUnspecified) cursor_type = adOpenForwardOnly;
     _Recordset_put_CursorType( iface, cursor_type );
-    if (lock_type < adLockReadOnly) lock_type = adLockReadOnly;
-    _Recordset_put_LockType( iface, lock_type );
+    if (lock_type != adLockUnspecified)
+        _Recordset_put_LockType( iface, lock_type );
 
     if (recordset->fields.count != -1)
     {
