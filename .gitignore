@@ -6,4 +6,3 @@ autom4te.cache/*
 /temp/
 /patches/
 ./profile.json
-profile.json
