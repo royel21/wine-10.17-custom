@@ -77,6 +77,7 @@ WINE_DEFAULT_DEBUG_CHANNEL(process);
 static ULONG execute_flags = MEM_EXECUTE_OPTION_DISABLE;
 
 static UINT process_error_mode;
+ULONG process_cookie = 0xdeadbeef;
 
 static short override_affinity_mask = -1;
 
@@ -1522,11 +1523,10 @@ NTSTATUS WINAPI NtQueryInformationProcess( HANDLE handle, PROCESSINFOCLASS class
         break;
 
     case ProcessCookie:
-        FIXME( "ProcessCookie (%p,%p,0x%08x,%p) stub\n", handle, info, size, ret_len );
         if (handle == NtCurrentProcess())
         {
             len = sizeof(ULONG);
-            if (size == len) *(ULONG *)info = 0;
+            if (size == len) *(ULONG *)info = process_cookie;
             else ret = STATUS_INFO_LENGTH_MISMATCH;
         }
         else ret = STATUS_INVALID_PARAMETER;
