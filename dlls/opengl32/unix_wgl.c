@@ -120,9 +120,8 @@ struct buffers
 
 struct context
 {
-    struct wgl_context base;
+    struct opengl_context base;
 
-    HDC hdc;                       /* context creation DC */
     HGLRC client;                  /* client-side context handle */
     HGLRC share;                   /* context to be shared with */
     int *attribs;                  /* creation attributes */
@@ -211,7 +210,7 @@ static void opengl_client_context_init( HGLRC client_context, struct context *co
 /* the current context is assumed valid and doesn't need locking */
 static struct context *get_current_context( TEB *teb, struct opengl_drawable **draw, struct opengl_drawable **read )
 {
-    struct wgl_context *base;
+    struct opengl_context *base;
     struct context *context;
 
     if (!(base = teb->glContext)) return NULL;
@@ -271,6 +270,10 @@ static BOOL copy_context_attributes( TEB *teb, HGLRC client_dst, struct context 
     struct context *old_ctx = CONTAINING_RECORD( teb->glContext, struct context, base );
     HDC draw_hdc = teb->glReserved1[0], read_hdc = teb->glReserved1[1];
     const struct opengl_funcs *old_funcs = teb->glTable, *funcs;
+    static const WCHAR staticW[] = {'s','t','a','t','i','c',0};
+    UNICODE_STRING static_us = RTL_CONSTANT_STRING( staticW );
+    HDC hdc = NULL;
+    HWND hwnd;
 
     if (dst == old_ctx || !(funcs = get_context_funcs( client_dst )))
     {
@@ -282,7 +285,17 @@ static BOOL copy_context_attributes( TEB *teb, HGLRC client_dst, struct context 
     if (src->used == -1) FIXME( "Unsupported attributes on context %p/%p\n", client_src, src );
     if (src != dst && dst->used == -1) FIXME( "Unsupported attributes on context %p/%p\n", client_dst, dst );
 
-    funcs->p_wglMakeCurrent( dst->hdc, client_dst );
+    if (!(hwnd = NtUserCreateWindowEx( 0, &static_us, NULL, &static_us, WS_POPUP, 0, 0, 0, 0,
+                                       NULL, NULL, NULL, NULL, 0, NULL, NULL, FALSE )) ||
+        !(hdc = NtUserGetWindowDC( hwnd )) || !funcs->p_wglSetPixelFormat( hdc, dst->base.format, NULL ))
+    {
+        WARN( "Failed to create dummy window to update context attributes\n" );
+        if (hdc) NtUserReleaseDC( hwnd, hdc );
+        if (hwnd) NtUserDestroyWindow( hwnd );
+        return FALSE;
+    }
+
+    funcs->p_wglMakeCurrent( hdc, client_dst );
 
     if (mask & GL_COLOR_BUFFER_BIT)
     {
@@ -334,6 +347,9 @@ static BOOL copy_context_attributes( TEB *teb, HGLRC client_dst, struct context 
     else if (!old_funcs->p_wglMakeContextCurrentARB) old_funcs->p_wglMakeCurrent( draw_hdc, old_ctx->client );
     else old_funcs->p_wglMakeContextCurrentARB( draw_hdc, read_hdc, old_ctx->client );
 
+    NtUserReleaseDC( hwnd, hdc );
+    NtUserDestroyWindow( hwnd );
+
     return dst->used != -1 && src->used != -1;
 }
 
@@ -382,7 +398,7 @@ static void release_buffers( const struct opengl_funcs *funcs, struct buffers *b
 
 static struct context *context_from_client_context( HGLRC client_context )
 {
-    struct wgl_context *base = opengl_context_from_handle( client_context );
+    struct opengl_context *base = opengl_context_from_handle( client_context );
     return base ? CONTAINING_RECORD( base, struct context, base ) : NULL;
 }
 
@@ -398,7 +414,7 @@ static struct context *update_context( TEB *teb, HGLRC client_context, struct co
     if (ctx->share == (HGLRC)-1) return ctx; /* not re-shared */
 
     share = ctx->share ? get_updated_context( teb, ctx->share ) : NULL;
-    if (!funcs->p_wgl_context_reset( &ctx->base, ctx->hdc, share ? &share->base : NULL, ctx->attribs ))
+    if (!funcs->p_context_reset( &ctx->base, share ? &share->base : NULL, ctx->attribs ))
     {
         WARN( "Failed to re-create context for wglShareLists\n" );
         return ctx;
@@ -902,22 +918,6 @@ PROC wrap_wglGetProcAddress( TEB *teb, LPCSTR name )
 
         if (!is_any_extension_supported( ctx, found->extension ))
         {
-            unsigned int i;
-            static const struct { const char *name, *alt; } alternatives[] =
-            {
-                { "glCopyTexSubImage3DEXT", "glCopyTexSubImage3D" },     /* needed by RuneScape */
-                { "glVertexAttribDivisor", "glVertexAttribDivisorARB"},  /* needed by Caffeine */
-                { "glCompressedTexImage2DARB", "glCompressedTexImage2D" }, /* needed by Grim Fandango Remastered */
-            };
-
-            for (i = 0; i < ARRAY_SIZE(alternatives); i++)
-            {
-                if (strcmp( name, alternatives[i].name )) continue;
-                WARN( "Extension %s required for %s not supported, trying %s\n", found->extension,
-                      name, alternatives[i].alt );
-                return wrap_wglGetProcAddress( teb, alternatives[i].alt );
-            }
-
             WARN( "Extension %s required for %s not supported\n", found->extension, name );
             return (void *)-1;
         }
@@ -940,13 +940,9 @@ PROC wrap_wglGetProcAddress( TEB *teb, LPCSTR name )
 BOOL wrap_wglCopyContext( TEB *teb, HGLRC client_src, HGLRC client_dst, UINT mask )
 {
     struct context *src, *dst;
-    BOOL ret = FALSE;
-
     if (!(src = get_updated_context( teb, client_src ))) return FALSE;
     if (!(dst = get_updated_context( teb, client_dst ))) return FALSE;
-    else ret = copy_context_attributes( teb, client_dst, dst, client_src, src, mask );
-
-    return ret;
+    return copy_context_attributes( teb, client_dst, dst, client_src, src, mask );
 }
 
 static BOOL initialize_vk_device( TEB *teb, struct context *ctx )
@@ -1307,7 +1303,7 @@ BOOL wrap_wglDeleteContext( TEB *teb, HGLRC client_context )
         return FALSE;
     }
 
-    funcs->p_wgl_context_reset( &ctx->base, NULL, NULL, NULL );
+    funcs->p_context_destroy( &ctx->base );
     free_context( ctx );
     return TRUE;
 }
@@ -1367,7 +1363,7 @@ static void flush_context( TEB *teb, void (*flush)(void) )
     if (flush && ctx && !ctx->draw_fbo && context_draws_front( ctx ) && draw->client) flags |= GL_FLUSH_PRESENT;
     if ((flags & GL_FLUSH_PRESENT) && draw->buffer_map[0] == GL_BACK_LEFT) flags |= GL_FLUSH_FORCE_SWAP;
 
-    if (!ctx || !funcs->p_wgl_context_flush( &ctx->base, flush, flags ))
+    if (!ctx || !funcs->p_context_flush( &ctx->base, flush, flags ))
     {
         /* default implementation: call the functions directly */
         if (flush) flush();
@@ -1470,13 +1466,13 @@ HGLRC wrap_wglCreateContextAttribsARB( TEB *teb, HDC hdc, HGLRC client_shared, c
     const struct opengl_funcs *funcs = get_dc_funcs( hdc );
     struct context *context, *shared = get_updated_context( teb, client_shared );
 
+    if (!funcs->p_context_create) return 0;
     if (!(context = calloc( 1, sizeof(*context) )))
     {
         RtlSetLastWin32Error( ERROR_OUTOFMEMORY );
         return 0;
     }
     context->base.client_context = client_context;
-    context->hdc = hdc;
     context->share = (HGLRC)-1; /* initial shared context */
     context->attribs = memdup_attribs( attribs );
 
@@ -1500,7 +1496,7 @@ HGLRC wrap_wglCreateContextAttribsARB( TEB *teb, HDC hdc, HGLRC client_shared, c
         }
     }
 
-    if (!(funcs->p_wgl_context_reset( &context->base, hdc, shared ? &shared->base : NULL, attribs )))
+    if (!(funcs->p_context_create( &context->base, hdc, shared ? &shared->base : NULL, attribs )))
     {
         free_context( context );
         return 0;

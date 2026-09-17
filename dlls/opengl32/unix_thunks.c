@@ -4417,6 +4417,16 @@ static NTSTATUS ext_glBitmapxOES( void *args )
     return STATUS_SUCCESS;
 }
 
+static NTSTATUS ext_glBlendBarrier( void *args )
+{
+    struct glBlendBarrier_params *params = args;
+    const struct opengl_funcs *funcs = params->teb->glTable;
+    if (!funcs->p_glBlendBarrier) return STATUS_NOT_IMPLEMENTED;
+    funcs->p_glBlendBarrier();
+    set_context_attribute( params->teb, -1 /* unsupported */, NULL, 0 );
+    return STATUS_SUCCESS;
+}
+
 static NTSTATUS ext_glBlendBarrierKHR( void *args )
 {
     struct glBlendBarrierKHR_params *params = args;
@@ -9114,6 +9124,16 @@ static NTSTATUS ext_glFramebufferSamplePositionsfvAMD( void *args )
     return STATUS_SUCCESS;
 }
 
+static NTSTATUS ext_glFramebufferShadingRateEXT( void *args )
+{
+    struct glFramebufferShadingRateEXT_params *params = args;
+    const struct opengl_funcs *funcs = params->teb->glTable;
+    if (!funcs->p_glFramebufferShadingRateEXT) return STATUS_NOT_IMPLEMENTED;
+    funcs->p_glFramebufferShadingRateEXT( params->target, params->attachment, params->texture, params->baseLayer, params->numLayers, params->texelWidth, params->texelHeight );
+    set_context_attribute( params->teb, -1 /* unsupported */, NULL, 0 );
+    return STATUS_SUCCESS;
+}
+
 static NTSTATUS ext_glFramebufferTexture( void *args )
 {
     struct glFramebufferTexture_params *params = args;
@@ -10455,6 +10475,15 @@ static NTSTATUS ext_glGetFragmentMaterialivSGIX( void *args )
     const struct opengl_funcs *funcs = params->teb->glTable;
     if (!funcs->p_glGetFragmentMaterialivSGIX) return STATUS_NOT_IMPLEMENTED;
     funcs->p_glGetFragmentMaterialivSGIX( params->face, params->pname, params->params );
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS ext_glGetFragmentShadingRatesEXT( void *args )
+{
+    struct glGetFragmentShadingRatesEXT_params *params = args;
+    const struct opengl_funcs *funcs = params->teb->glTable;
+    if (!funcs->p_glGetFragmentShadingRatesEXT) return STATUS_NOT_IMPLEMENTED;
+    funcs->p_glGetFragmentShadingRatesEXT( params->samples, params->maxCount, params->count, params->shadingRates );
     return STATUS_SUCCESS;
 }
 
@@ -13759,16 +13788,6 @@ static NTSTATUS ext_glImageTransformParameterivHP( void *args )
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS ext_glImportMemoryFdEXT( void *args )
-{
-    struct glImportMemoryFdEXT_params *params = args;
-    const struct opengl_funcs *funcs = params->teb->glTable;
-    if (!funcs->p_glImportMemoryFdEXT) return STATUS_NOT_IMPLEMENTED;
-    funcs->p_glImportMemoryFdEXT( params->memory, params->size, params->handleType, params->fd );
-    set_context_attribute( params->teb, -1 /* unsupported */, NULL, 0 );
-    return STATUS_SUCCESS;
-}
-
 static NTSTATUS ext_glImportMemoryWin32HandleEXT( void *args )
 {
     struct glImportMemoryWin32HandleEXT_params *params = args;
@@ -13785,16 +13804,6 @@ static NTSTATUS ext_glImportMemoryWin32NameEXT( void *args )
     const struct opengl_funcs *funcs = params->teb->glTable;
     if (!funcs->p_glImportMemoryWin32NameEXT) return STATUS_NOT_IMPLEMENTED;
     funcs->p_glImportMemoryWin32NameEXT( params->memory, params->size, params->handleType, params->name );
-    set_context_attribute( params->teb, -1 /* unsupported */, NULL, 0 );
-    return STATUS_SUCCESS;
-}
-
-static NTSTATUS ext_glImportSemaphoreFdEXT( void *args )
-{
-    struct glImportSemaphoreFdEXT_params *params = args;
-    const struct opengl_funcs *funcs = params->teb->glTable;
-    if (!funcs->p_glImportSemaphoreFdEXT) return STATUS_NOT_IMPLEMENTED;
-    funcs->p_glImportSemaphoreFdEXT( params->semaphore, params->handleType, params->fd );
     set_context_attribute( params->teb, -1 /* unsupported */, NULL, 0 );
     return STATUS_SUCCESS;
 }
@@ -19083,6 +19092,16 @@ static NTSTATUS ext_glPresentFrameKeyedNV( void *args )
     return STATUS_SUCCESS;
 }
 
+static NTSTATUS ext_glPrimitiveBoundingBox( void *args )
+{
+    struct glPrimitiveBoundingBox_params *params = args;
+    const struct opengl_funcs *funcs = params->teb->glTable;
+    if (!funcs->p_glPrimitiveBoundingBox) return STATUS_NOT_IMPLEMENTED;
+    funcs->p_glPrimitiveBoundingBox( params->minX, params->minY, params->minZ, params->minW, params->maxX, params->maxY, params->maxZ, params->maxW );
+    set_context_attribute( params->teb, -1 /* unsupported */, NULL, 0 );
+    return STATUS_SUCCESS;
+}
+
 static NTSTATUS ext_glPrimitiveBoundingBoxARB( void *args )
 {
     struct glPrimitiveBoundingBoxARB_params *params = args;
@@ -22459,6 +22478,26 @@ static NTSTATUS ext_glShaderStorageBlockBinding( void *args )
     const struct opengl_funcs *funcs = params->teb->glTable;
     if (!funcs->p_glShaderStorageBlockBinding) return STATUS_NOT_IMPLEMENTED;
     funcs->p_glShaderStorageBlockBinding( params->program, params->storageBlockIndex, params->storageBlockBinding );
+    set_context_attribute( params->teb, -1 /* unsupported */, NULL, 0 );
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS ext_glShadingRateCombinerOpsEXT( void *args )
+{
+    struct glShadingRateCombinerOpsEXT_params *params = args;
+    const struct opengl_funcs *funcs = params->teb->glTable;
+    if (!funcs->p_glShadingRateCombinerOpsEXT) return STATUS_NOT_IMPLEMENTED;
+    funcs->p_glShadingRateCombinerOpsEXT( params->combinerOp0, params->combinerOp1 );
+    set_context_attribute( params->teb, -1 /* unsupported */, NULL, 0 );
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS ext_glShadingRateEXT( void *args )
+{
+    struct glShadingRateEXT_params *params = args;
+    const struct opengl_funcs *funcs = params->teb->glTable;
+    if (!funcs->p_glShadingRateEXT) return STATUS_NOT_IMPLEMENTED;
+    funcs->p_glShadingRateEXT( params->rate );
     set_context_attribute( params->teb, -1 /* unsupported */, NULL, 0 );
     return STATUS_SUCCESS;
 }
@@ -30949,6 +30988,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     ext_glBinormal3svEXT,
     ext_glBinormalPointerEXT,
     ext_glBitmapxOES,
+    ext_glBlendBarrier,
     ext_glBlendBarrierKHR,
     ext_glBlendBarrierNV,
     ext_glBlendColor,
@@ -31417,6 +31457,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     ext_glFramebufferSampleLocationsfvARB,
     ext_glFramebufferSampleLocationsfvNV,
     ext_glFramebufferSamplePositionsfvAMD,
+    ext_glFramebufferShadingRateEXT,
     ext_glFramebufferTexture,
     ext_glFramebufferTexture1D,
     ext_glFramebufferTexture1DEXT,
@@ -31557,6 +31598,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     ext_glGetFragmentLightivSGIX,
     ext_glGetFragmentMaterialfvSGIX,
     ext_glGetFragmentMaterialivSGIX,
+    ext_glGetFragmentShadingRatesEXT,
     ext_glGetFramebufferAttachmentParameteriv,
     ext_glGetFramebufferAttachmentParameterivEXT,
     ext_glGetFramebufferParameterfvAMD,
@@ -31921,10 +31963,8 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     ext_glImageTransformParameterfvHP,
     ext_glImageTransformParameteriHP,
     ext_glImageTransformParameterivHP,
-    ext_glImportMemoryFdEXT,
     ext_glImportMemoryWin32HandleEXT,
     ext_glImportMemoryWin32NameEXT,
-    ext_glImportSemaphoreFdEXT,
     ext_glImportSemaphoreWin32HandleEXT,
     ext_glImportSemaphoreWin32NameEXT,
     ext_glImportSyncEXT,
@@ -32457,6 +32497,7 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     ext_glPopGroupMarkerEXT,
     ext_glPresentFrameDualFillNV,
     ext_glPresentFrameKeyedNV,
+    ext_glPrimitiveBoundingBox,
     ext_glPrimitiveBoundingBoxARB,
     ext_glPrimitiveRestartIndex,
     ext_glPrimitiveRestartIndexNV,
@@ -32795,6 +32836,8 @@ const unixlib_entry_t __wine_unix_call_funcs[] =
     ext_glShaderSource,
     ext_glShaderSourceARB,
     ext_glShaderStorageBlockBinding,
+    ext_glShadingRateCombinerOpsEXT,
+    ext_glShadingRateEXT,
     ext_glShadingRateImageBarrierNV,
     ext_glShadingRateImagePaletteNV,
     ext_glShadingRateSampleOrderCustomNV,
@@ -40915,6 +40958,20 @@ static NTSTATUS wow64_ext_glBitmapxOES( void *args )
     const struct opengl_funcs *funcs = teb->glTable;
     if (!funcs->p_glBitmapxOES) return STATUS_NOT_IMPLEMENTED;
     funcs->p_glBitmapxOES( params->width, params->height, params->xorig, params->yorig, params->xmove, params->ymove, ULongToPtr(params->bitmap) );
+    set_context_attribute( teb, -1 /* unsupported */, NULL, 0 );
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS wow64_ext_glBlendBarrier( void *args )
+{
+    struct
+    {
+        PTR32 teb;
+    } *params = args;
+    TEB *teb = get_teb64( params->teb );
+    const struct opengl_funcs *funcs = teb->glTable;
+    if (!funcs->p_glBlendBarrier) return STATUS_NOT_IMPLEMENTED;
+    funcs->p_glBlendBarrier();
     set_context_attribute( teb, -1 /* unsupported */, NULL, 0 );
     return STATUS_SUCCESS;
 }
@@ -49218,6 +49275,27 @@ static NTSTATUS wow64_ext_glFramebufferSamplePositionsfvAMD( void *args )
     return STATUS_SUCCESS;
 }
 
+static NTSTATUS wow64_ext_glFramebufferShadingRateEXT( void *args )
+{
+    struct
+    {
+        PTR32 teb;
+        GLenum target;
+        GLenum attachment;
+        GLuint texture;
+        GLint baseLayer;
+        GLsizei numLayers;
+        GLsizei texelWidth;
+        GLsizei texelHeight;
+    } *params = args;
+    TEB *teb = get_teb64( params->teb );
+    const struct opengl_funcs *funcs = teb->glTable;
+    if (!funcs->p_glFramebufferShadingRateEXT) return STATUS_NOT_IMPLEMENTED;
+    funcs->p_glFramebufferShadingRateEXT( params->target, params->attachment, params->texture, params->baseLayer, params->numLayers, params->texelWidth, params->texelHeight );
+    set_context_attribute( teb, -1 /* unsupported */, NULL, 0 );
+    return STATUS_SUCCESS;
+}
+
 static NTSTATUS wow64_ext_glFramebufferTexture( void *args )
 {
     struct
@@ -51612,6 +51690,23 @@ static NTSTATUS wow64_ext_glGetFragmentMaterialivSGIX( void *args )
     const struct opengl_funcs *funcs = teb->glTable;
     if (!funcs->p_glGetFragmentMaterialivSGIX) return STATUS_NOT_IMPLEMENTED;
     funcs->p_glGetFragmentMaterialivSGIX( params->face, params->pname, ULongToPtr(params->params) );
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS wow64_ext_glGetFragmentShadingRatesEXT( void *args )
+{
+    struct
+    {
+        PTR32 teb;
+        GLsizei samples;
+        GLsizei maxCount;
+        PTR32 count;
+        PTR32 shadingRates;
+    } *params = args;
+    TEB *teb = get_teb64( params->teb );
+    const struct opengl_funcs *funcs = teb->glTable;
+    if (!funcs->p_glGetFragmentShadingRatesEXT) return STATUS_NOT_IMPLEMENTED;
+    funcs->p_glGetFragmentShadingRatesEXT( params->samples, params->maxCount, ULongToPtr(params->count), ULongToPtr(params->shadingRates) );
     return STATUS_SUCCESS;
 }
 
@@ -57657,24 +57752,6 @@ static NTSTATUS wow64_ext_glImageTransformParameterivHP( void *args )
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS wow64_ext_glImportMemoryFdEXT( void *args )
-{
-    struct
-    {
-        PTR32 teb;
-        GLuint memory;
-        GLuint64 size;
-        GLenum handleType;
-        GLint fd;
-    } *params = args;
-    TEB *teb = get_teb64( params->teb );
-    const struct opengl_funcs *funcs = teb->glTable;
-    if (!funcs->p_glImportMemoryFdEXT) return STATUS_NOT_IMPLEMENTED;
-    funcs->p_glImportMemoryFdEXT( params->memory, params->size, params->handleType, params->fd );
-    set_context_attribute( teb, -1 /* unsupported */, NULL, 0 );
-    return STATUS_SUCCESS;
-}
-
 static NTSTATUS wow64_ext_glImportMemoryWin32HandleEXT( void *args )
 {
     struct
@@ -57707,23 +57784,6 @@ static NTSTATUS wow64_ext_glImportMemoryWin32NameEXT( void *args )
     const struct opengl_funcs *funcs = teb->glTable;
     if (!funcs->p_glImportMemoryWin32NameEXT) return STATUS_NOT_IMPLEMENTED;
     funcs->p_glImportMemoryWin32NameEXT( params->memory, params->size, params->handleType, ULongToPtr(params->name) );
-    set_context_attribute( teb, -1 /* unsupported */, NULL, 0 );
-    return STATUS_SUCCESS;
-}
-
-static NTSTATUS wow64_ext_glImportSemaphoreFdEXT( void *args )
-{
-    struct
-    {
-        PTR32 teb;
-        GLuint semaphore;
-        GLenum handleType;
-        GLint fd;
-    } *params = args;
-    TEB *teb = get_teb64( params->teb );
-    const struct opengl_funcs *funcs = teb->glTable;
-    if (!funcs->p_glImportSemaphoreFdEXT) return STATUS_NOT_IMPLEMENTED;
-    funcs->p_glImportSemaphoreFdEXT( params->semaphore, params->handleType, params->fd );
     set_context_attribute( teb, -1 /* unsupported */, NULL, 0 );
     return STATUS_SUCCESS;
 }
@@ -66941,6 +67001,28 @@ static NTSTATUS wow64_ext_glPresentFrameKeyedNV( void *args )
     return STATUS_SUCCESS;
 }
 
+static NTSTATUS wow64_ext_glPrimitiveBoundingBox( void *args )
+{
+    struct
+    {
+        PTR32 teb;
+        GLfloat minX;
+        GLfloat minY;
+        GLfloat minZ;
+        GLfloat minW;
+        GLfloat maxX;
+        GLfloat maxY;
+        GLfloat maxZ;
+        GLfloat maxW;
+    } *params = args;
+    TEB *teb = get_teb64( params->teb );
+    const struct opengl_funcs *funcs = teb->glTable;
+    if (!funcs->p_glPrimitiveBoundingBox) return STATUS_NOT_IMPLEMENTED;
+    funcs->p_glPrimitiveBoundingBox( params->minX, params->minY, params->minZ, params->minW, params->maxX, params->maxY, params->maxZ, params->maxW );
+    set_context_attribute( teb, -1 /* unsupported */, NULL, 0 );
+    return STATUS_SUCCESS;
+}
+
 static NTSTATUS wow64_ext_glPrimitiveBoundingBoxARB( void *args )
 {
     struct
@@ -72916,6 +72998,37 @@ static NTSTATUS wow64_ext_glShaderStorageBlockBinding( void *args )
     const struct opengl_funcs *funcs = teb->glTable;
     if (!funcs->p_glShaderStorageBlockBinding) return STATUS_NOT_IMPLEMENTED;
     funcs->p_glShaderStorageBlockBinding( params->program, params->storageBlockIndex, params->storageBlockBinding );
+    set_context_attribute( teb, -1 /* unsupported */, NULL, 0 );
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS wow64_ext_glShadingRateCombinerOpsEXT( void *args )
+{
+    struct
+    {
+        PTR32 teb;
+        GLenum combinerOp0;
+        GLenum combinerOp1;
+    } *params = args;
+    TEB *teb = get_teb64( params->teb );
+    const struct opengl_funcs *funcs = teb->glTable;
+    if (!funcs->p_glShadingRateCombinerOpsEXT) return STATUS_NOT_IMPLEMENTED;
+    funcs->p_glShadingRateCombinerOpsEXT( params->combinerOp0, params->combinerOp1 );
+    set_context_attribute( teb, -1 /* unsupported */, NULL, 0 );
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS wow64_ext_glShadingRateEXT( void *args )
+{
+    struct
+    {
+        PTR32 teb;
+        GLenum rate;
+    } *params = args;
+    TEB *teb = get_teb64( params->teb );
+    const struct opengl_funcs *funcs = teb->glTable;
+    if (!funcs->p_glShadingRateEXT) return STATUS_NOT_IMPLEMENTED;
+    funcs->p_glShadingRateEXT( params->rate );
     set_context_attribute( teb, -1 /* unsupported */, NULL, 0 );
     return STATUS_SUCCESS;
 }
@@ -87284,6 +87397,7 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
     wow64_ext_glBinormal3svEXT,
     wow64_ext_glBinormalPointerEXT,
     wow64_ext_glBitmapxOES,
+    wow64_ext_glBlendBarrier,
     wow64_ext_glBlendBarrierKHR,
     wow64_ext_glBlendBarrierNV,
     wow64_ext_glBlendColor,
@@ -87752,6 +87866,7 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
     wow64_ext_glFramebufferSampleLocationsfvARB,
     wow64_ext_glFramebufferSampleLocationsfvNV,
     wow64_ext_glFramebufferSamplePositionsfvAMD,
+    wow64_ext_glFramebufferShadingRateEXT,
     wow64_ext_glFramebufferTexture,
     wow64_ext_glFramebufferTexture1D,
     wow64_ext_glFramebufferTexture1DEXT,
@@ -87892,6 +88007,7 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
     wow64_ext_glGetFragmentLightivSGIX,
     wow64_ext_glGetFragmentMaterialfvSGIX,
     wow64_ext_glGetFragmentMaterialivSGIX,
+    wow64_ext_glGetFragmentShadingRatesEXT,
     wow64_ext_glGetFramebufferAttachmentParameteriv,
     wow64_ext_glGetFramebufferAttachmentParameterivEXT,
     wow64_ext_glGetFramebufferParameterfvAMD,
@@ -88256,10 +88372,8 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
     wow64_ext_glImageTransformParameterfvHP,
     wow64_ext_glImageTransformParameteriHP,
     wow64_ext_glImageTransformParameterivHP,
-    wow64_ext_glImportMemoryFdEXT,
     wow64_ext_glImportMemoryWin32HandleEXT,
     wow64_ext_glImportMemoryWin32NameEXT,
-    wow64_ext_glImportSemaphoreFdEXT,
     wow64_ext_glImportSemaphoreWin32HandleEXT,
     wow64_ext_glImportSemaphoreWin32NameEXT,
     wow64_ext_glImportSyncEXT,
@@ -88792,6 +88906,7 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
     wow64_ext_glPopGroupMarkerEXT,
     wow64_ext_glPresentFrameDualFillNV,
     wow64_ext_glPresentFrameKeyedNV,
+    wow64_ext_glPrimitiveBoundingBox,
     wow64_ext_glPrimitiveBoundingBoxARB,
     wow64_ext_glPrimitiveRestartIndex,
     wow64_ext_glPrimitiveRestartIndexNV,
@@ -89130,6 +89245,8 @@ const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
     wow64_ext_glShaderSource,
     wow64_ext_glShaderSourceARB,
     wow64_ext_glShaderStorageBlockBinding,
+    wow64_ext_glShadingRateCombinerOpsEXT,
+    wow64_ext_glShadingRateEXT,
     wow64_ext_glShadingRateImageBarrierNV,
     wow64_ext_glShadingRateImagePaletteNV,
     wow64_ext_glShadingRateSampleOrderCustomNV,
@@ -89987,22 +90104,6 @@ static BOOL null_wglSwapBuffers( HDC hdc )
 {
     WARN( "unsupported\n" );
     return 0;
-}
-static BOOL null_wgl_context_reset( struct wgl_context *context, HDC hdc, struct wgl_context *share, const int *attribs )
-{
-    WARN( "unsupported\n" );
-    return FALSE;
-}
-static BOOL null_wgl_context_flush( struct wgl_context *context, void (*flush)(void), UINT flags )
-{
-    WARN( "unsupported\n" );
-    return FALSE;
-}
-static void null_get_pixel_formats( struct wgl_pixel_format *formats, UINT max_formats,
-                                    UINT *num_formats, UINT *num_onscreen_formats )
-{
-    WARN( "unsupported\n" );
-    *num_formats = *num_onscreen_formats = 0;
 }
 static void null_glAccum( GLenum op, GLfloat value )
 {
@@ -91359,9 +91460,6 @@ static void null_glViewport( GLint x, GLint y, GLsizei width, GLsizei height )
 
 struct opengl_funcs null_opengl_funcs =
 {
-    .p_wgl_context_reset = null_wgl_context_reset,
-    .p_wgl_context_flush = null_wgl_context_flush,
-    .p_get_pixel_formats = null_get_pixel_formats,
     .p_wglCopyContext = null_wglCopyContext,
     .p_wglCreateContext = null_wglCreateContext,
     .p_wglDeleteContext = null_wglDeleteContext,
@@ -91709,8 +91807,8 @@ struct opengl_funcs null_opengl_funcs =
     .p_glViewport = null_glViewport,
 };
 
-const int extension_registry_size = 2754;
-const struct registry_entry extension_registry[2754] =
+const int extension_registry_size = 2758;
+const struct registry_entry extension_registry[2758] =
 {
     { "glAccumxOES", "GL_OES_fixed_point\0", offsetof(struct opengl_funcs, p_glAccumxOES) },
     { "glAcquireKeyedMutexWin32EXT", "GL_EXT_win32_keyed_mutex\0", offsetof(struct opengl_funcs, p_glAcquireKeyedMutexWin32EXT) },
@@ -91813,6 +91911,7 @@ const struct registry_entry extension_registry[2754] =
     { "glBinormal3svEXT", "GL_EXT_coordinate_frame\0", offsetof(struct opengl_funcs, p_glBinormal3svEXT) },
     { "glBinormalPointerEXT", "GL_EXT_coordinate_frame\0", offsetof(struct opengl_funcs, p_glBinormalPointerEXT) },
     { "glBitmapxOES", "GL_OES_fixed_point\0", offsetof(struct opengl_funcs, p_glBitmapxOES) },
+    { "glBlendBarrier", "GL_ARB_ES3_2_compatibility\0", offsetof(struct opengl_funcs, p_glBlendBarrier) },
     { "glBlendBarrierKHR", "GL_KHR_blend_equation_advanced\0", offsetof(struct opengl_funcs, p_glBlendBarrierKHR) },
     { "glBlendBarrierNV", "GL_NV_blend_equation_advanced\0", offsetof(struct opengl_funcs, p_glBlendBarrierNV) },
     { "glBlendColor", "GL_ARB_imaging\0GL_VERSION_1_4\0", offsetof(struct opengl_funcs, p_glBlendColor) },
@@ -91958,17 +92057,17 @@ const struct registry_entry extension_registry[2754] =
     { "glCompressedMultiTexSubImage2DEXT", "GL_EXT_direct_state_access\0", offsetof(struct opengl_funcs, p_glCompressedMultiTexSubImage2DEXT) },
     { "glCompressedMultiTexSubImage3DEXT", "GL_EXT_direct_state_access\0", offsetof(struct opengl_funcs, p_glCompressedMultiTexSubImage3DEXT) },
     { "glCompressedTexImage1D", "GL_VERSION_1_3\0", offsetof(struct opengl_funcs, p_glCompressedTexImage1D) },
-    { "glCompressedTexImage1DARB", "GL_ARB_texture_compression\0", offsetof(struct opengl_funcs, p_glCompressedTexImage1DARB) },
+    { "glCompressedTexImage1DARB", "GL_ARB_texture_compression\0GL_VERSION_1_3\0", offsetof(struct opengl_funcs, p_glCompressedTexImage1DARB) },
     { "glCompressedTexImage2D", "GL_VERSION_1_3\0", offsetof(struct opengl_funcs, p_glCompressedTexImage2D) },
-    { "glCompressedTexImage2DARB", "GL_ARB_texture_compression\0", offsetof(struct opengl_funcs, p_glCompressedTexImage2DARB) },
+    { "glCompressedTexImage2DARB", "GL_ARB_texture_compression\0GL_VERSION_1_3\0", offsetof(struct opengl_funcs, p_glCompressedTexImage2DARB) },
     { "glCompressedTexImage3D", "GL_VERSION_1_3\0", offsetof(struct opengl_funcs, p_glCompressedTexImage3D) },
-    { "glCompressedTexImage3DARB", "GL_ARB_texture_compression\0", offsetof(struct opengl_funcs, p_glCompressedTexImage3DARB) },
+    { "glCompressedTexImage3DARB", "GL_ARB_texture_compression\0GL_VERSION_1_3\0", offsetof(struct opengl_funcs, p_glCompressedTexImage3DARB) },
     { "glCompressedTexSubImage1D", "GL_VERSION_1_3\0", offsetof(struct opengl_funcs, p_glCompressedTexSubImage1D) },
-    { "glCompressedTexSubImage1DARB", "GL_ARB_texture_compression\0", offsetof(struct opengl_funcs, p_glCompressedTexSubImage1DARB) },
+    { "glCompressedTexSubImage1DARB", "GL_ARB_texture_compression\0GL_VERSION_1_3\0", offsetof(struct opengl_funcs, p_glCompressedTexSubImage1DARB) },
     { "glCompressedTexSubImage2D", "GL_VERSION_1_3\0", offsetof(struct opengl_funcs, p_glCompressedTexSubImage2D) },
-    { "glCompressedTexSubImage2DARB", "GL_ARB_texture_compression\0", offsetof(struct opengl_funcs, p_glCompressedTexSubImage2DARB) },
+    { "glCompressedTexSubImage2DARB", "GL_ARB_texture_compression\0GL_VERSION_1_3\0", offsetof(struct opengl_funcs, p_glCompressedTexSubImage2DARB) },
     { "glCompressedTexSubImage3D", "GL_VERSION_1_3\0", offsetof(struct opengl_funcs, p_glCompressedTexSubImage3D) },
-    { "glCompressedTexSubImage3DARB", "GL_ARB_texture_compression\0", offsetof(struct opengl_funcs, p_glCompressedTexSubImage3DARB) },
+    { "glCompressedTexSubImage3DARB", "GL_ARB_texture_compression\0GL_VERSION_1_3\0", offsetof(struct opengl_funcs, p_glCompressedTexSubImage3DARB) },
     { "glCompressedTextureImage1DEXT", "GL_EXT_direct_state_access\0", offsetof(struct opengl_funcs, p_glCompressedTextureImage1DEXT) },
     { "glCompressedTextureImage2DEXT", "GL_EXT_direct_state_access\0", offsetof(struct opengl_funcs, p_glCompressedTextureImage2DEXT) },
     { "glCompressedTextureImage3DEXT", "GL_EXT_direct_state_access\0", offsetof(struct opengl_funcs, p_glCompressedTextureImage3DEXT) },
@@ -91994,7 +92093,7 @@ const struct registry_entry extension_registry[2754] =
     { "glConvolutionParameterivEXT", "GL_EXT_convolution\0", offsetof(struct opengl_funcs, p_glConvolutionParameterivEXT) },
     { "glConvolutionParameterxOES", "GL_OES_fixed_point\0", offsetof(struct opengl_funcs, p_glConvolutionParameterxOES) },
     { "glConvolutionParameterxvOES", "GL_OES_fixed_point\0", offsetof(struct opengl_funcs, p_glConvolutionParameterxvOES) },
-    { "glCopyBufferSubData", "GL_ARB_copy_buffer\0GL_VERSION_3_1\0", offsetof(struct opengl_funcs, p_glCopyBufferSubData) },
+    { "glCopyBufferSubData", "GL_ARB_copy_buffer\0GL_EXT_copy_buffer\0GL_VERSION_3_1\0", offsetof(struct opengl_funcs, p_glCopyBufferSubData) },
     { "glCopyColorSubTable", "GL_ARB_imaging\0", offsetof(struct opengl_funcs, p_glCopyColorSubTable) },
     { "glCopyColorSubTableEXT", "GL_EXT_color_subtable\0", offsetof(struct opengl_funcs, p_glCopyColorSubTableEXT) },
     { "glCopyColorTable", "GL_ARB_imaging\0", offsetof(struct opengl_funcs, p_glCopyColorTable) },
@@ -92012,12 +92111,12 @@ const struct registry_entry extension_registry[2754] =
     { "glCopyMultiTexSubImage3DEXT", "GL_EXT_direct_state_access\0", offsetof(struct opengl_funcs, p_glCopyMultiTexSubImage3DEXT) },
     { "glCopyNamedBufferSubData", "GL_ARB_direct_state_access\0GL_VERSION_4_5\0", offsetof(struct opengl_funcs, p_glCopyNamedBufferSubData) },
     { "glCopyPathNV", "GL_NV_path_rendering\0", offsetof(struct opengl_funcs, p_glCopyPathNV) },
-    { "glCopyTexImage1DEXT", "GL_EXT_copy_texture\0", offsetof(struct opengl_funcs, p_glCopyTexImage1DEXT) },
-    { "glCopyTexImage2DEXT", "GL_EXT_copy_texture\0", offsetof(struct opengl_funcs, p_glCopyTexImage2DEXT) },
-    { "glCopyTexSubImage1DEXT", "GL_EXT_copy_texture\0", offsetof(struct opengl_funcs, p_glCopyTexSubImage1DEXT) },
-    { "glCopyTexSubImage2DEXT", "GL_EXT_copy_texture\0", offsetof(struct opengl_funcs, p_glCopyTexSubImage2DEXT) },
+    { "glCopyTexImage1DEXT", "GL_EXT_copy_texture\0GL_VERSION_1_2\0", offsetof(struct opengl_funcs, p_glCopyTexImage1DEXT) },
+    { "glCopyTexImage2DEXT", "GL_EXT_copy_texture\0GL_VERSION_1_2\0", offsetof(struct opengl_funcs, p_glCopyTexImage2DEXT) },
+    { "glCopyTexSubImage1DEXT", "GL_EXT_copy_texture\0GL_VERSION_1_2\0", offsetof(struct opengl_funcs, p_glCopyTexSubImage1DEXT) },
+    { "glCopyTexSubImage2DEXT", "GL_EXT_copy_texture\0GL_VERSION_1_2\0", offsetof(struct opengl_funcs, p_glCopyTexSubImage2DEXT) },
     { "glCopyTexSubImage3D", "GL_VERSION_1_2\0", offsetof(struct opengl_funcs, p_glCopyTexSubImage3D) },
-    { "glCopyTexSubImage3DEXT", "GL_EXT_copy_texture\0", offsetof(struct opengl_funcs, p_glCopyTexSubImage3DEXT) },
+    { "glCopyTexSubImage3DEXT", "GL_EXT_copy_texture\0GL_VERSION_1_2\0", offsetof(struct opengl_funcs, p_glCopyTexSubImage3DEXT) },
     { "glCopyTextureImage1DEXT", "GL_EXT_direct_state_access\0", offsetof(struct opengl_funcs, p_glCopyTextureImage1DEXT) },
     { "glCopyTextureImage2DEXT", "GL_EXT_direct_state_access\0", offsetof(struct opengl_funcs, p_glCopyTextureImage2DEXT) },
     { "glCopyTextureSubImage1D", "GL_ARB_direct_state_access\0GL_VERSION_4_5\0", offsetof(struct opengl_funcs, p_glCopyTextureSubImage1D) },
@@ -92058,13 +92157,13 @@ const struct registry_entry extension_registry[2754] =
     { "glCullParameterfvEXT", "GL_EXT_cull_vertex\0", offsetof(struct opengl_funcs, p_glCullParameterfvEXT) },
     { "glCurrentPaletteMatrixARB", "GL_ARB_matrix_palette\0", offsetof(struct opengl_funcs, p_glCurrentPaletteMatrixARB) },
     { "glDebugMessageCallback", "GL_KHR_debug\0GL_VERSION_4_3\0", offsetof(struct opengl_funcs, p_glDebugMessageCallback) },
-    { "glDebugMessageCallbackAMD", "GL_AMD_debug_output\0", offsetof(struct opengl_funcs, p_glDebugMessageCallbackAMD) },
+    { "glDebugMessageCallbackAMD", "GL_AMDX_debug_output\0GL_AMD_debug_output\0", offsetof(struct opengl_funcs, p_glDebugMessageCallbackAMD) },
     { "glDebugMessageCallbackARB", "GL_ARB_debug_output\0", offsetof(struct opengl_funcs, p_glDebugMessageCallbackARB) },
     { "glDebugMessageControl", "GL_KHR_debug\0GL_VERSION_4_3\0", offsetof(struct opengl_funcs, p_glDebugMessageControl) },
     { "glDebugMessageControlARB", "GL_ARB_debug_output\0", offsetof(struct opengl_funcs, p_glDebugMessageControlARB) },
-    { "glDebugMessageEnableAMD", "GL_AMD_debug_output\0", offsetof(struct opengl_funcs, p_glDebugMessageEnableAMD) },
+    { "glDebugMessageEnableAMD", "GL_AMDX_debug_output\0GL_AMD_debug_output\0", offsetof(struct opengl_funcs, p_glDebugMessageEnableAMD) },
     { "glDebugMessageInsert", "GL_KHR_debug\0GL_VERSION_4_3\0", offsetof(struct opengl_funcs, p_glDebugMessageInsert) },
-    { "glDebugMessageInsertAMD", "GL_AMD_debug_output\0", offsetof(struct opengl_funcs, p_glDebugMessageInsertAMD) },
+    { "glDebugMessageInsertAMD", "GL_AMDX_debug_output\0GL_AMD_debug_output\0", offsetof(struct opengl_funcs, p_glDebugMessageInsertAMD) },
     { "glDebugMessageInsertARB", "GL_ARB_debug_output\0", offsetof(struct opengl_funcs, p_glDebugMessageInsertARB) },
     { "glDeformSGIX", "GL_SGIX_polynomial_ffd\0", offsetof(struct opengl_funcs, p_glDeformSGIX) },
     { "glDeformationMap3dSGIX", "GL_SGIX_polynomial_ffd\0", offsetof(struct opengl_funcs, p_glDeformationMap3dSGIX) },
@@ -92281,6 +92380,7 @@ const struct registry_entry extension_registry[2754] =
     { "glFramebufferSampleLocationsfvARB", "GL_ARB_sample_locations\0", offsetof(struct opengl_funcs, p_glFramebufferSampleLocationsfvARB) },
     { "glFramebufferSampleLocationsfvNV", "GL_NV_sample_locations\0", offsetof(struct opengl_funcs, p_glFramebufferSampleLocationsfvNV) },
     { "glFramebufferSamplePositionsfvAMD", "GL_AMD_framebuffer_sample_positions\0", offsetof(struct opengl_funcs, p_glFramebufferSamplePositionsfvAMD) },
+    { "glFramebufferShadingRateEXT", "GL_EXT_fragment_shading_rate\0GL_EXT_fragment_shading_rate_attachment\0GL_EXT_fragment_shading_rate_primitive\0", offsetof(struct opengl_funcs, p_glFramebufferShadingRateEXT) },
     { "glFramebufferTexture", "GL_VERSION_3_2\0", offsetof(struct opengl_funcs, p_glFramebufferTexture) },
     { "glFramebufferTexture1D", "GL_ARB_framebuffer_object\0GL_VERSION_3_0\0", offsetof(struct opengl_funcs, p_glFramebufferTexture1D) },
     { "glFramebufferTexture1DEXT", "GL_EXT_framebuffer_object\0", offsetof(struct opengl_funcs, p_glFramebufferTexture1DEXT) },
@@ -92385,7 +92485,7 @@ const struct registry_entry extension_registry[2754] =
     { "glGetCommandHeaderNV", "GL_NV_command_list\0", offsetof(struct opengl_funcs, p_glGetCommandHeaderNV) },
     { "glGetCompressedMultiTexImageEXT", "GL_EXT_direct_state_access\0", offsetof(struct opengl_funcs, p_glGetCompressedMultiTexImageEXT) },
     { "glGetCompressedTexImage", "GL_VERSION_1_3\0", offsetof(struct opengl_funcs, p_glGetCompressedTexImage) },
-    { "glGetCompressedTexImageARB", "GL_ARB_texture_compression\0", offsetof(struct opengl_funcs, p_glGetCompressedTexImageARB) },
+    { "glGetCompressedTexImageARB", "GL_ARB_texture_compression\0GL_VERSION_1_3\0", offsetof(struct opengl_funcs, p_glGetCompressedTexImageARB) },
     { "glGetCompressedTextureImage", "GL_ARB_direct_state_access\0GL_VERSION_4_5\0", offsetof(struct opengl_funcs, p_glGetCompressedTextureImage) },
     { "glGetCompressedTextureImageEXT", "GL_EXT_direct_state_access\0", offsetof(struct opengl_funcs, p_glGetCompressedTextureImageEXT) },
     { "glGetCompressedTextureSubImage", "GL_ARB_get_texture_sub_image\0GL_VERSION_4_5\0", offsetof(struct opengl_funcs, p_glGetCompressedTextureSubImage) },
@@ -92398,7 +92498,7 @@ const struct registry_entry extension_registry[2754] =
     { "glGetConvolutionParameterxvOES", "GL_OES_fixed_point\0", offsetof(struct opengl_funcs, p_glGetConvolutionParameterxvOES) },
     { "glGetCoverageModulationTableNV", "GL_NV_framebuffer_mixed_samples\0", offsetof(struct opengl_funcs, p_glGetCoverageModulationTableNV) },
     { "glGetDebugMessageLog", "GL_KHR_debug\0GL_VERSION_4_3\0", offsetof(struct opengl_funcs, p_glGetDebugMessageLog) },
-    { "glGetDebugMessageLogAMD", "GL_AMD_debug_output\0", offsetof(struct opengl_funcs, p_glGetDebugMessageLogAMD) },
+    { "glGetDebugMessageLogAMD", "GL_AMDX_debug_output\0GL_AMD_debug_output\0", offsetof(struct opengl_funcs, p_glGetDebugMessageLogAMD) },
     { "glGetDebugMessageLogARB", "GL_ARB_debug_output\0", offsetof(struct opengl_funcs, p_glGetDebugMessageLogARB) },
     { "glGetDetailTexFuncSGIS", "GL_SGIS_detail_texture\0", offsetof(struct opengl_funcs, p_glGetDetailTexFuncSGIS) },
     { "glGetDoubleIndexedvEXT", "GL_EXT_direct_state_access\0", offsetof(struct opengl_funcs, p_glGetDoubleIndexedvEXT) },
@@ -92421,6 +92521,7 @@ const struct registry_entry extension_registry[2754] =
     { "glGetFragmentLightivSGIX", "GL_SGIX_fragment_lighting\0", offsetof(struct opengl_funcs, p_glGetFragmentLightivSGIX) },
     { "glGetFragmentMaterialfvSGIX", "GL_SGIX_fragment_lighting\0", offsetof(struct opengl_funcs, p_glGetFragmentMaterialfvSGIX) },
     { "glGetFragmentMaterialivSGIX", "GL_SGIX_fragment_lighting\0", offsetof(struct opengl_funcs, p_glGetFragmentMaterialivSGIX) },
+    { "glGetFragmentShadingRatesEXT", "GL_EXT_fragment_shading_rate\0GL_EXT_fragment_shading_rate_attachment\0GL_EXT_fragment_shading_rate_primitive\0", offsetof(struct opengl_funcs, p_glGetFragmentShadingRatesEXT) },
     { "glGetFramebufferAttachmentParameteriv", "GL_ARB_framebuffer_object\0GL_VERSION_3_0\0", offsetof(struct opengl_funcs, p_glGetFramebufferAttachmentParameteriv) },
     { "glGetFramebufferAttachmentParameterivEXT", "GL_EXT_framebuffer_object\0", offsetof(struct opengl_funcs, p_glGetFramebufferAttachmentParameterivEXT) },
     { "glGetFramebufferParameterfvAMD", "GL_AMD_framebuffer_sample_positions\0", offsetof(struct opengl_funcs, p_glGetFramebufferParameterfvAMD) },
@@ -92583,7 +92684,7 @@ const struct registry_entry extension_registry[2754] =
     { "glGetProgramStageiv", "GL_ARB_shader_subroutine\0GL_VERSION_4_0\0", offsetof(struct opengl_funcs, p_glGetProgramStageiv) },
     { "glGetProgramStringARB", "GL_ARB_fragment_program\0GL_ARB_vertex_program\0", offsetof(struct opengl_funcs, p_glGetProgramStringARB) },
     { "glGetProgramStringNV", "GL_NV_vertex_program\0", offsetof(struct opengl_funcs, p_glGetProgramStringNV) },
-    { "glGetProgramSubroutineParameteruivNV", "GL_NV_gpu_program5\0", offsetof(struct opengl_funcs, p_glGetProgramSubroutineParameteruivNV) },
+    { "glGetProgramSubroutineParameteruivNV", "GL_NV_gpu_program5\0GL_NV_gpu_program_fp64\0", offsetof(struct opengl_funcs, p_glGetProgramSubroutineParameteruivNV) },
     { "glGetProgramiv", "GL_VERSION_2_0\0", offsetof(struct opengl_funcs, p_glGetProgramiv) },
     { "glGetProgramivARB", "GL_ARB_fragment_program\0GL_ARB_vertex_program\0", offsetof(struct opengl_funcs, p_glGetProgramivARB) },
     { "glGetProgramivNV", "GL_NV_vertex_program\0", offsetof(struct opengl_funcs, p_glGetProgramivNV) },
@@ -92785,10 +92886,8 @@ const struct registry_entry extension_registry[2754] =
     { "glImageTransformParameterfvHP", "GL_HP_image_transform\0", offsetof(struct opengl_funcs, p_glImageTransformParameterfvHP) },
     { "glImageTransformParameteriHP", "GL_HP_image_transform\0", offsetof(struct opengl_funcs, p_glImageTransformParameteriHP) },
     { "glImageTransformParameterivHP", "GL_HP_image_transform\0", offsetof(struct opengl_funcs, p_glImageTransformParameterivHP) },
-    { "glImportMemoryFdEXT", "GL_EXT_memory_object_fd\0", offsetof(struct opengl_funcs, p_glImportMemoryFdEXT) },
     { "glImportMemoryWin32HandleEXT", "GL_EXT_memory_object_win32\0", offsetof(struct opengl_funcs, p_glImportMemoryWin32HandleEXT) },
     { "glImportMemoryWin32NameEXT", "GL_EXT_memory_object_win32\0", offsetof(struct opengl_funcs, p_glImportMemoryWin32NameEXT) },
-    { "glImportSemaphoreFdEXT", "GL_EXT_semaphore_fd\0", offsetof(struct opengl_funcs, p_glImportSemaphoreFdEXT) },
     { "glImportSemaphoreWin32HandleEXT", "GL_EXT_semaphore_win32\0", offsetof(struct opengl_funcs, p_glImportSemaphoreWin32HandleEXT) },
     { "glImportSemaphoreWin32NameEXT", "GL_EXT_semaphore_win32\0", offsetof(struct opengl_funcs, p_glImportSemaphoreWin32NameEXT) },
     { "glImportSyncEXT", "GL_EXT_x11_sync_object\0", offsetof(struct opengl_funcs, p_glImportSyncEXT) },
@@ -92957,7 +93056,7 @@ const struct registry_entry extension_registry[2754] =
     { "glMaxShaderCompilerThreadsARB", "GL_ARB_parallel_shader_compile\0", offsetof(struct opengl_funcs, p_glMaxShaderCompilerThreadsARB) },
     { "glMaxShaderCompilerThreadsKHR", "GL_KHR_parallel_shader_compile\0", offsetof(struct opengl_funcs, p_glMaxShaderCompilerThreadsKHR) },
     { "glMemoryBarrier", "GL_ARB_shader_image_load_store\0GL_VERSION_4_2\0", offsetof(struct opengl_funcs, p_glMemoryBarrier) },
-    { "glMemoryBarrierByRegion", "GL_ARB_ES3_1_compatibility\0GL_VERSION_4_5\0", offsetof(struct opengl_funcs, p_glMemoryBarrierByRegion) },
+    { "glMemoryBarrierByRegion", "GL_ARB_ES3_1_compatibility\0GL_NV_ES3_1_compatibility\0GL_VERSION_4_5\0", offsetof(struct opengl_funcs, p_glMemoryBarrierByRegion) },
     { "glMemoryBarrierEXT", "GL_EXT_shader_image_load_store\0", offsetof(struct opengl_funcs, p_glMemoryBarrierEXT) },
     { "glMemoryObjectParameterivEXT", "GL_EXT_memory_object\0", offsetof(struct opengl_funcs, p_glMemoryObjectParameterivEXT) },
     { "glMinSampleShading", "GL_VERSION_4_0\0", offsetof(struct opengl_funcs, p_glMinSampleShading) },
@@ -93321,6 +93420,7 @@ const struct registry_entry extension_registry[2754] =
     { "glPopGroupMarkerEXT", "GL_EXT_debug_marker\0", offsetof(struct opengl_funcs, p_glPopGroupMarkerEXT) },
     { "glPresentFrameDualFillNV", "GL_NV_present_video\0", offsetof(struct opengl_funcs, p_glPresentFrameDualFillNV) },
     { "glPresentFrameKeyedNV", "GL_NV_present_video\0", offsetof(struct opengl_funcs, p_glPresentFrameKeyedNV) },
+    { "glPrimitiveBoundingBox", "GL_ARB_ES3_2_compatibility\0", offsetof(struct opengl_funcs, p_glPrimitiveBoundingBox) },
     { "glPrimitiveBoundingBoxARB", "GL_ARB_ES3_2_compatibility\0", offsetof(struct opengl_funcs, p_glPrimitiveBoundingBoxARB) },
     { "glPrimitiveRestartIndex", "GL_VERSION_3_1\0", offsetof(struct opengl_funcs, p_glPrimitiveRestartIndex) },
     { "glPrimitiveRestartIndexNV", "GL_NV_primitive_restart\0", offsetof(struct opengl_funcs, p_glPrimitiveRestartIndexNV) },
@@ -93368,7 +93468,7 @@ const struct registry_entry extension_registry[2754] =
     { "glProgramParameters4fvNV", "GL_NV_vertex_program\0", offsetof(struct opengl_funcs, p_glProgramParameters4fvNV) },
     { "glProgramPathFragmentInputGenNV", "GL_NV_path_rendering\0", offsetof(struct opengl_funcs, p_glProgramPathFragmentInputGenNV) },
     { "glProgramStringARB", "GL_ARB_fragment_program\0GL_ARB_vertex_program\0", offsetof(struct opengl_funcs, p_glProgramStringARB) },
-    { "glProgramSubroutineParametersuivNV", "GL_NV_gpu_program5\0", offsetof(struct opengl_funcs, p_glProgramSubroutineParametersuivNV) },
+    { "glProgramSubroutineParametersuivNV", "GL_NV_gpu_program5\0GL_NV_gpu_program_fp64\0", offsetof(struct opengl_funcs, p_glProgramSubroutineParametersuivNV) },
     { "glProgramUniform1d", "GL_ARB_separate_shader_objects\0GL_VERSION_4_1\0", offsetof(struct opengl_funcs, p_glProgramUniform1d) },
     { "glProgramUniform1dEXT", "GL_EXT_direct_state_access\0", offsetof(struct opengl_funcs, p_glProgramUniform1dEXT) },
     { "glProgramUniform1dv", "GL_ARB_separate_shader_objects\0GL_VERSION_4_1\0", offsetof(struct opengl_funcs, p_glProgramUniform1dv) },
@@ -93659,6 +93759,8 @@ const struct registry_entry extension_registry[2754] =
     { "glShaderSource", "GL_VERSION_2_0\0", offsetof(struct opengl_funcs, p_glShaderSource) },
     { "glShaderSourceARB", "GL_ARB_shader_objects\0", offsetof(struct opengl_funcs, p_glShaderSourceARB) },
     { "glShaderStorageBlockBinding", "GL_ARB_shader_storage_buffer_object\0GL_VERSION_4_3\0", offsetof(struct opengl_funcs, p_glShaderStorageBlockBinding) },
+    { "glShadingRateCombinerOpsEXT", "GL_EXT_fragment_shading_rate\0GL_EXT_fragment_shading_rate_attachment\0GL_EXT_fragment_shading_rate_primitive\0", offsetof(struct opengl_funcs, p_glShadingRateCombinerOpsEXT) },
+    { "glShadingRateEXT", "GL_EXT_fragment_shading_rate\0GL_EXT_fragment_shading_rate_attachment\0GL_EXT_fragment_shading_rate_primitive\0", offsetof(struct opengl_funcs, p_glShadingRateEXT) },
     { "glShadingRateImageBarrierNV", "GL_NV_shading_rate_image\0", offsetof(struct opengl_funcs, p_glShadingRateImageBarrierNV) },
     { "glShadingRateImagePaletteNV", "GL_NV_shading_rate_image\0", offsetof(struct opengl_funcs, p_glShadingRateImagePaletteNV) },
     { "glShadingRateSampleOrderCustomNV", "GL_NV_shading_rate_image\0", offsetof(struct opengl_funcs, p_glShadingRateSampleOrderCustomNV) },

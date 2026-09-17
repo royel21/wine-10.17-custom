@@ -152,7 +152,7 @@ void opengl_drawable_release( struct opengl_drawable *drawable )
     }
 }
 
-static void opengl_drawable_set_context( struct opengl_drawable *drawable, struct wgl_context *context )
+static void opengl_drawable_set_context( struct opengl_drawable *drawable, struct opengl_context *context )
 {
     if (!drawable->funcs->set_context) return;
     drawable->funcs->set_context( drawable, context ? context->driver_private : NULL );
@@ -1603,7 +1603,7 @@ static BOOL create_memory_pbuffer( HDC hdc )
     return ret;
 }
 
-static BOOL flush_memory_dc( struct wgl_context *context, HDC hdc, BOOL write, void (*flush)(void) )
+static BOOL flush_memory_dc( struct opengl_context *context, HDC hdc, BOOL write, void (*flush)(void) )
 {
     const struct opengl_funcs *funcs = &display_funcs;
     BOOL ret = TRUE;
@@ -1749,7 +1749,7 @@ static void win32u_get_pixel_formats( struct wgl_pixel_format *formats, UINT max
     *num_onscreen_formats = onscreen_count;
 }
 
-static void context_exchange_drawables( struct wgl_context *context, struct opengl_drawable **draw, struct opengl_drawable **read )
+static void context_exchange_drawables( struct opengl_context *context, struct opengl_drawable **draw, struct opengl_drawable **read )
 {
     struct opengl_drawable *old_draw = context->draw, *old_read = context->read;
     context->draw = *draw;
@@ -1758,7 +1758,7 @@ static void context_exchange_drawables( struct wgl_context *context, struct open
     *read = old_read;
 }
 
-static BOOL context_unset_current( struct wgl_context *context )
+static BOOL context_unset_current( struct opengl_context *context )
 {
     struct opengl_drawable *old_draw = context->draw, *old_read = context->read;
 
@@ -1797,10 +1797,10 @@ static struct opengl_drawable *get_updated_drawable( HDC hdc, int format, struct
     return get_window_unused_drawable( hwnd, format );
 }
 
-static BOOL context_sync_drawables( struct wgl_context *context, HDC draw_hdc, HDC read_hdc )
+static BOOL context_sync_drawables( struct opengl_context *context, HDC draw_hdc, HDC read_hdc )
 {
     struct opengl_drawable *new_draw, *new_read, *old_draw = NULL, *old_read = NULL;
-    struct wgl_context *previous = NtCurrentTeb()->glContext;
+    struct opengl_context *previous = NtCurrentTeb()->glContext;
     BOOL ret = FALSE;
 
     if (!(new_draw = get_updated_drawable( draw_hdc, context->format, context->draw ))) return FALSE;
@@ -1863,7 +1863,7 @@ static BOOL context_sync_drawables( struct wgl_context *context, HDC draw_hdc, H
     return ret;
 }
 
-static void push_internal_context( struct wgl_context *context, HDC hdc, int format )
+static void push_internal_context( struct opengl_context *context, HDC hdc, int format )
 {
     TRACE( "context %p, hdc %p\n", context, hdc );
 
@@ -1876,7 +1876,7 @@ static void push_internal_context( struct wgl_context *context, HDC hdc, int for
     driver_funcs->p_make_current( context->draw, context->read, context->internal_context );
 }
 
-static void pop_internal_context( struct wgl_context *context )
+static void pop_internal_context( struct opengl_context *context )
 {
     TRACE( "context %p\n", context );
     driver_funcs->p_make_current( context->draw, context->read, context->driver_private );
@@ -1884,8 +1884,8 @@ static void pop_internal_context( struct wgl_context *context )
 
 static BOOL win32u_wglMakeContextCurrentARB( HDC draw_hdc, HDC read_hdc, HGLRC client_context )
 {
-    struct wgl_context *context = opengl_context_from_handle( client_context );
-    struct wgl_context *prev_context = NtCurrentTeb()->glContext;
+    struct opengl_context *context = opengl_context_from_handle( client_context );
+    struct opengl_context *prev_context = NtCurrentTeb()->glContext;
     BOOL created;
     int format;
 
@@ -2259,25 +2259,12 @@ static int get_window_swap_interval( HWND hwnd )
     return interval;
 }
 
-static BOOL win32u_wgl_context_reset( struct wgl_context *context, HDC hdc, struct wgl_context *share, const int *attribs )
+static BOOL win32u_context_create( struct opengl_context *context, HDC hdc, struct opengl_context *share, const int *attribs )
 {
     void *share_private = share ? share->driver_private : NULL;
     int format;
 
     TRACE( "context %p, hdc %p, share %p, attribs %p\n", context, hdc, share, attribs );
-
-    if (context->internal_context)
-    {
-        driver_funcs->p_context_destroy( context->internal_context );
-        context->internal_context = NULL;
-    }
-    if (context->driver_private && !driver_funcs->p_context_destroy( context->driver_private ))
-    {
-        WARN( "Failed to destroy driver context %p\n", context->driver_private );
-        return FALSE;
-    }
-    context->driver_private = NULL;
-    if (!hdc) return TRUE;
 
     if ((format = get_dc_pixel_format( hdc )) <= 0 &&
         (format = get_window_pixel_format( NtUserWindowFromDC( hdc ) )) <= 0)
@@ -2293,14 +2280,43 @@ static BOOL win32u_wgl_context_reset( struct wgl_context *context, HDC hdc, stru
     }
     context->format = format;
 
-    TRACE( "reset context %p, format %u for driver context %p\n", context, format, context->driver_private );
+    TRACE( "created context %p, format %u for driver context %p\n", context, format, context->driver_private );
     return TRUE;
+}
+
+static BOOL win32u_context_destroy( struct opengl_context *context )
+{
+    TRACE( "context %p\n", context );
+
+    if (context->internal_context)
+    {
+        driver_funcs->p_context_destroy( context->internal_context );
+        context->internal_context = NULL;
+    }
+    if (context->driver_private && !driver_funcs->p_context_destroy( context->driver_private ))
+    {
+        WARN( "Failed to destroy driver context %p\n", context->driver_private );
+        return FALSE;
+    }
+    context->driver_private = NULL;
+
+    return TRUE;
+}
+
+static BOOL win32u_context_reset( struct opengl_context *context, struct opengl_context *share, const int *attribs )
+{
+    void *share_private = share ? share->driver_private : NULL;
+
+    TRACE( "context %p, share %p, attribs %p\n", context, share, attribs );
+
+    if (!win32u_context_destroy( context )) return FALSE;
+    return driver_funcs->p_context_create( context->format, share_private, attribs, &context->driver_private );
 }
 
 static BOOL flush_memory_pbuffer( void (*flush)(void) )
 {
     HDC draw_hdc = NtCurrentTeb()->glReserved1[0], read_hdc = NtCurrentTeb()->glReserved1[1];
-    struct wgl_context *context = NtCurrentTeb()->glContext;
+    struct opengl_context *context = NtCurrentTeb()->glContext;
     BOOL created;
 
     TRACE( "context %p, draw_hdc %p, read_hdc %p, flush %p\n", context, draw_hdc, read_hdc, flush );
@@ -2311,7 +2327,7 @@ static BOOL flush_memory_pbuffer( void (*flush)(void) )
     return flush_memory_dc( context, draw_hdc, FALSE, flush );
 }
 
-static BOOL win32u_wgl_context_flush( struct wgl_context *context, void (*flush)(void), UINT flags )
+static BOOL win32u_context_flush( struct opengl_context *context, void (*flush)(void), UINT flags )
 {
     const struct opengl_funcs *funcs = &display_funcs;
     struct opengl_drawable *draw = context->draw;
@@ -2336,7 +2352,7 @@ static BOOL win32u_wgl_context_flush( struct wgl_context *context, void (*flush)
 
 static BOOL win32u_wglSwapBuffers( HDC hdc )
 {
-    struct wgl_context *context = NtCurrentTeb()->glContext;
+    struct opengl_context *context = NtCurrentTeb()->glContext;
     const struct opengl_funcs *funcs = &display_funcs;
     struct opengl_drawable *draw;
     int interval;
@@ -2411,7 +2427,7 @@ static void set_gl_error( GLenum error )
 {
     const struct opengl_funcs *funcs = &display_funcs;
     struct opengl_client_context *client;
-    struct wgl_context *ctx;
+    struct opengl_context *ctx;
 
     if (!(ctx = NtCurrentTeb()->glContext)) return;
     if (!(client = opengl_client_context_from_client( ctx->client_context ))) return;
@@ -2704,8 +2720,10 @@ static void display_funcs_init(void)
     display_funcs.p_wglMakeCurrent = win32u_wglMakeCurrent;
 
     display_funcs.p_wglSwapBuffers = win32u_wglSwapBuffers;
-    display_funcs.p_wgl_context_reset = win32u_wgl_context_reset;
-    display_funcs.p_wgl_context_flush = win32u_wgl_context_flush;
+    display_funcs.p_context_flush = win32u_context_flush;
+    display_funcs.p_context_create = win32u_context_create;
+    display_funcs.p_context_destroy = win32u_context_destroy;
+    display_funcs.p_context_reset = win32u_context_reset;
 
     register_extension( wgl_extensions, ARRAY_SIZE(wgl_extensions), "WGL_ARB_pixel_format" );
     display_funcs.p_wglChoosePixelFormatARB      = (void *)1; /* never called */
