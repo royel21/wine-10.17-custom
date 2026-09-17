@@ -124,6 +124,7 @@ enum layout_run_kind {
 struct inline_object_run {
     IDWriteInlineObject *object;
     UINT16 length;
+    UINT8 bidi_level;
 };
 
 struct regular_layout_run {
@@ -689,22 +690,11 @@ static void layout_itemize_next_range(struct itemization_context *context)
 
 static void layout_itemize_set_run_end(struct itemization_context *context)
 {
-    /* Inline objects take precedence, skip level and script ranges accordingly. */
+    /* Inline objects take precedence. */
 
     if (context->range.value->object)
     {
-        UINT8 level = context->level.value;
-        UINT16 script = context->script.script;
-
         context->run_end = context->range.end;
-
-        while (context->level.end < context->run_end)
-            layout_itemize_next_level(context);
-        while (context->script.end < context->run_end)
-            layout_itemize_next_script(context);
-
-        context->level.value = level;
-        context->script.script = script;
     }
     else
     {
@@ -733,10 +723,10 @@ static bool layout_itemize_get_next(struct itemization_context *context)
 
     context->run_start = context->run_end;
 
-    if (context->run_end == context->level.end)
+    while (context->level.end <= context->run_end)
         layout_itemize_next_level(context);
 
-    if (context->run_end == context->script.end)
+    while (context->script.end <= context->run_end)
         layout_itemize_next_script(context);
 
     if (context->run_end == context->range.end)
@@ -767,6 +757,7 @@ static HRESULT layout_itemize_add_run(struct itemization_context *context)
 
         run->u.object.object = context->range.value->object;
         run->u.object.length = length;
+        run->u.object.bidi_level = context->level.value;
     }
     else
     {
@@ -1360,7 +1351,7 @@ static HRESULT layout_compute_runs(struct dwrite_textlayout *layout)
             metrics->isWhitespace = 0;
             metrics->isNewline = 0;
             metrics->isSoftHyphen = 0;
-            metrics->isRightToLeft = 0;
+            metrics->isRightToLeft = r->u.object.bidi_level & 1;
             metrics->padding = 0;
             c->run = r;
             c->position = 0; /* there's always one cluster per inline object, so 0 is valid value */

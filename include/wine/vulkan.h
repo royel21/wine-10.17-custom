@@ -1100,7 +1100,6 @@ VK_DEFINE_NON_DISPATCHABLE_HANDLE(VkValidationCacheEXT)
 VK_DEFINE_NON_DISPATCHABLE_HANDLE(VkVideoSessionKHR)
 VK_DEFINE_NON_DISPATCHABLE_HANDLE(VkVideoSessionParametersKHR)
 
-
 typedef VkFlags VkAccelerationStructureCreateFlagsKHR;
 typedef VkFlags VkAccelerationStructureMotionInfoFlagsNV;
 typedef VkFlags VkAccelerationStructureMotionInstanceFlagsNV;
@@ -4081,9 +4080,7 @@ typedef enum VkLineRasterizationMode
     VK_LINE_RASTERIZATION_MODE_BRESENHAM_KHR = VK_LINE_RASTERIZATION_MODE_BRESENHAM,
     VK_LINE_RASTERIZATION_MODE_RECTANGULAR_SMOOTH_KHR = VK_LINE_RASTERIZATION_MODE_RECTANGULAR_SMOOTH,
 } VkLineRasterizationMode;
-typedef VkLineRasterizationMode VkLineRasterizationModeKHR;
-typedef VkLineRasterizationMode VkLineRasterizationModeEXT;
-
+typedef VkLineRasterizationMode VkLineRasterizationModeKHR, VkLineRasterizationModeEXT;
 typedef enum VkLogicOp
 {
     VK_LOGIC_OP_CLEAR = 0,
@@ -4988,8 +4985,7 @@ typedef enum VkQueueGlobalPriority
     VK_QUEUE_GLOBAL_PRIORITY_HIGH_KHR = VK_QUEUE_GLOBAL_PRIORITY_HIGH,
     VK_QUEUE_GLOBAL_PRIORITY_REALTIME_KHR = VK_QUEUE_GLOBAL_PRIORITY_REALTIME,
 } VkQueueGlobalPriority;
-typedef VkQueueGlobalPriority VkQueueGlobalPriorityKHR;
-typedef VkQueueGlobalPriority VkQueueGlobalPriorityEXT;
+typedef VkQueueGlobalPriority VkQueueGlobalPriorityKHR, VkQueueGlobalPriorityEXT;
 
 typedef enum VkRasterizationOrderAMD
 {
@@ -7108,6 +7104,14 @@ typedef enum VkVideoEncodeH264StdFlagBitsKHR
     VK_VIDEO_ENCODE_H2_64_STD_FLAG_BITS_KHR_MAX_ENUM = 0x7fffffff,
 } VkVideoEncodeH264StdFlagBitsKHR;
 
+typedef enum VkVideoEncodeH265CtbSizeFlagBitsKHR
+{
+    VK_VIDEO_ENCODE_H265_CTB_SIZE_16_BIT_KHR = 0x00000001,
+    VK_VIDEO_ENCODE_H265_CTB_SIZE_32_BIT_KHR = 0x00000002,
+    VK_VIDEO_ENCODE_H265_CTB_SIZE_64_BIT_KHR = 0x00000004,
+    VK_VIDEO_ENCODE_H2_65_CTB_SIZE_FLAG_BITS_KHR_MAX_ENUM = 0x7fffffff,
+} VkVideoEncodeH265CtbSizeFlagBitsKHR;
+
 typedef enum VkVideoEncodeIntraRefreshModeFlagBitsKHR
 {
     VK_VIDEO_ENCODE_INTRA_REFRESH_MODE_NONE_KHR = 0,
@@ -7126,6 +7130,7 @@ typedef enum VkVideoEncodeRateControlModeFlagBitsKHR
     VK_VIDEO_ENCODE_RATE_CONTROL_MODE_VBR_BIT_KHR = 0x00000004,
     VK_VIDEO_ENCODE_RATE_CONTROL_MODE_FLAG_BITS_KHR_MAX_ENUM = 0x7fffffff,
 } VkVideoEncodeRateControlModeFlagBitsKHR;
+
 
 typedef enum VkVideoEncodeRgbChromaOffsetFlagBitsVALVE
 {
@@ -11622,7 +11627,7 @@ typedef struct VkDataGraphPipelineCreateInfoARM
 {
     VkStructureType sType;
     const void *pNext;
-    VkPipelineCreateFlags2KHR flags;
+    VkPipelineCreateFlags2KHR WINE_VK_ALIGN(8) flags;
     VkPipelineLayout WINE_VK_ALIGN(8) layout;
     uint32_t resourceInfoCount;
     const VkDataGraphPipelineResourceInfoARM *pResourceInfos;
@@ -11802,7 +11807,7 @@ typedef struct VkDecompressMemoryRegionNV
     VkDeviceAddress WINE_VK_ALIGN(8) dstAddress;
     VkDeviceSize WINE_VK_ALIGN(8) compressedSize;
     VkDeviceSize WINE_VK_ALIGN(8) decompressedSize;
-    VkMemoryDecompressionMethodFlagsNV decompressionMethod;
+    VkMemoryDecompressionMethodFlagsNV WINE_VK_ALIGN(8) decompressionMethod;
 } VkDecompressMemoryRegionNV;
 
 typedef struct VkDedicatedAllocationBufferCreateInfoNV
