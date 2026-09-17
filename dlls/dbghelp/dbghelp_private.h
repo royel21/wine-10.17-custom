@@ -919,7 +919,7 @@ extern struct symt_ht*
 extern struct symt_module*
                     symt_new_module(struct module* module);
 extern struct symt_compiland*
-                    symt_new_compiland(struct module* module, const char *filename);
+                    symt_new_compiland(struct module* module, symref_t parent, const char *filename);
 extern struct symt_public*
                     symt_new_public(struct module* module,
                                     struct symt_compiland* parent,

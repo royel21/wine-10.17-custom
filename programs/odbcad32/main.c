@@ -1,7 +1,5 @@
 /*
- * winex11.drv entry points
- *
- * Copyright 2022 Jacek Caban for CodeWeavers
+ * Copyright 2026 Hans Leidekker for CodeWeavers
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -21,12 +19,12 @@
 #include <stdarg.h>
 #include "windef.h"
 #include "winbase.h"
-#include "wine/unixlib.h"
+#include "wine/debug.h"
 
-BOOL WINAPI DllMain( HINSTANCE instance, DWORD reason, void *reserved )
+WINE_DEFAULT_DEBUG_CHANNEL(odbc);
+
+int WINAPI wWinMain(HINSTANCE hinst, HINSTANCE hprevinst, LPWSTR cmdline, int cmdshow)
 {
-    if (reason != DLL_PROCESS_ATTACH) return TRUE;
-
-    DisableThreadLibraryCalls( instance );
-    return !__wine_init_unix_call();
+    WINE_FIXME("stub\n");
+    return 0;
 }

@@ -798,25 +798,33 @@ static void add_builtin_module( void *module, void *handle )
 
 
 /***********************************************************************
- *           release_builtin_module
+ *           get_builtin_module
  */
-static void release_builtin_module( void *module )
+static struct builtin_module *get_builtin_module( void *module )
 {
     struct builtin_module *builtin;
 
     LIST_FOR_EACH_ENTRY( builtin, &builtin_modules, struct builtin_module, entry )
-    {
-        if (builtin->module != module) continue;
-        if (!--builtin->refcount)
-        {
-            list_remove( &builtin->entry );
-            if (builtin->handle) dlclose( builtin->handle );
-            if (builtin->unix_handle) dlclose( builtin->unix_handle );
-            free( builtin->unix_path );
-            free( builtin );
-        }
-        break;
-    }
+        if (builtin->module == module) return builtin;
+
+    return NULL;
+}
+
+
+/***********************************************************************
+ *           release_builtin_module
+ */
+static void release_builtin_module( void *module )
+{
+    struct builtin_module *builtin = get_builtin_module( module );
+
+    if (!builtin) return;
+    if (--builtin->refcount) return;
+    list_remove( &builtin->entry );
+    if (builtin->handle) dlclose( builtin->handle );
+    if (builtin->unix_handle) dlclose( builtin->unix_handle );
+    free( builtin->unix_path );
+    free( builtin );
 }
 
 
@@ -830,12 +838,10 @@ void *get_builtin_so_handle( void *module )
     struct builtin_module *builtin;
 
     server_enter_uninterrupted_section( &virtual_mutex, &sigset );
-    LIST_FOR_EACH_ENTRY( builtin, &builtin_modules, struct builtin_module, entry )
+    if ((builtin = get_builtin_module( module )))
     {
-        if (builtin->module != module) continue;
         ret = builtin->handle;
         if (ret) builtin->refcount++;
-        break;
     }
     server_leave_uninterrupted_section( &virtual_mutex, &sigset );
     return ret;
@@ -843,53 +849,57 @@ void *get_builtin_so_handle( void *module )
 
 
 /***********************************************************************
- *           get_builtin_unix_funcs
+ *           get_unixlib_funcs
  */
-static NTSTATUS get_builtin_unix_funcs( void *module, BOOL wow, const void **funcs )
+static NTSTATUS get_unixlib_funcs( void *so_handle, BOOL wow, const void **funcs, NTSTATUS (**entry)(void) )
 {
-    const char *ptr_name = wow ? "__wine_unix_call_wow64_funcs" : "__wine_unix_call_funcs";
-    sigset_t sigset;
-    NTSTATUS status = STATUS_DLL_NOT_FOUND;
-    struct builtin_module *builtin;
-
-    server_enter_uninterrupted_section( &virtual_mutex, &sigset );
-    LIST_FOR_EACH_ENTRY( builtin, &builtin_modules, struct builtin_module, entry )
-    {
-        if (builtin->module != module) continue;
-        if (builtin->unix_path && !builtin->unix_handle)
-        {
-            builtin->unix_handle = dlopen( builtin->unix_path, RTLD_NOW );
-            if (!builtin->unix_handle)
-                WARN_(module)( "failed to load %s: %s\n", debugstr_a(builtin->unix_path), dlerror() );
-        }
-        if (builtin->unix_handle)
-        {
-            *funcs = dlsym( builtin->unix_handle, ptr_name );
-            status = *funcs ? STATUS_SUCCESS : STATUS_ENTRYPOINT_NOT_FOUND;
-        }
-        break;
-    }
-    server_leave_uninterrupted_section( &virtual_mutex, &sigset );
-    return status;
+    *funcs = dlsym( so_handle, wow ? "__wine_unix_call_wow64_funcs" : "__wine_unix_call_funcs" );
+    *entry = dlsym( so_handle, "__wine_unix_lib_init" );
+    return *funcs || *entry ? STATUS_SUCCESS : STATUS_ENTRYPOINT_NOT_FOUND;
 }
 
 
 /***********************************************************************
  *           load_builtin_unixlib
  */
-NTSTATUS load_builtin_unixlib( void *module, const char *name )
+static NTSTATUS load_builtin_unixlib( void *module, BOOL wow, const void **funcs )
+{
+    NTSTATUS (*entry)(void) = NULL;
+    sigset_t sigset;
+    NTSTATUS status = STATUS_DLL_NOT_FOUND;
+    struct builtin_module *builtin;
+
+    server_enter_uninterrupted_section( &virtual_mutex, &sigset );
+    if ((builtin = get_builtin_module( module )))
+    {
+        if (builtin->unix_path && !builtin->unix_handle)
+        {
+            builtin->unix_handle = dlopen( builtin->unix_path, RTLD_NOW );
+            if (!builtin->unix_handle)
+                WARN_(module)( "failed to load %s: %s\n", debugstr_a(builtin->unix_path), dlerror() );
+        }
+        if (builtin->unix_handle) status = get_unixlib_funcs( builtin->unix_handle, wow, funcs, &entry );
+    }
+    server_leave_uninterrupted_section( &virtual_mutex, &sigset );
+    if (!status && entry) status = entry();
+    return status;
+}
+
+
+/***********************************************************************
+ *           set_builtin_unixlib_name
+ */
+NTSTATUS set_builtin_unixlib_name( void *module, const char *name )
 {
     sigset_t sigset;
     NTSTATUS status = STATUS_SUCCESS;
     struct builtin_module *builtin;
 
     server_enter_uninterrupted_section( &virtual_mutex, &sigset );
-    LIST_FOR_EACH_ENTRY( builtin, &builtin_modules, struct builtin_module, entry )
+    if ((builtin = get_builtin_module( module )))
     {
-        if (builtin->module != module) continue;
         if (!builtin->unix_path) builtin->unix_path = strdup( name );
         else status = STATUS_IMAGE_ALREADY_LOADED;
-        break;
     }
     server_leave_uninterrupted_section( &virtual_mutex, &sigset );
     return status;
@@ -6239,17 +6249,50 @@ NTSTATUS WINAPI NtQueryVirtualMemory( HANDLE process, LPCVOID addr,
         case MemoryImageInformation:
             return get_memory_image_info( process, addr, buffer, len, res_len );
 
-        case MemoryWineUnixFuncs:
-        case MemoryWineUnixWow64Funcs:
+        case MemoryWineLoadUnixLib:
+        case MemoryWineLoadUnixLibWow64:
             if (len != sizeof(unixlib_handle_t)) return STATUS_INFO_LENGTH_MISMATCH;
             if (process == GetCurrentProcess())
             {
                 void *module = (void *)addr;
                 const void *funcs = NULL;
 
-                status = get_builtin_unix_funcs( module, info_class == MemoryWineUnixWow64Funcs, &funcs );
+                status = load_builtin_unixlib( module, info_class == MemoryWineLoadUnixLibWow64, &funcs );
                 if (!status) *(unixlib_handle_t *)buffer = (UINT_PTR)funcs;
                 return status;
+            }
+            return STATUS_INVALID_HANDLE;
+
+        case MemoryWineLoadUnixLibByName:
+        case MemoryWineLoadUnixLibByNameWow64:
+            if (process == GetCurrentProcess())
+            {
+                UINT64 res[2];
+                const UNICODE_STRING *name = addr;
+                NTSTATUS (*entry)(void);
+                const void *funcs;
+                void *handle;
+
+                if ((status = load_unixlib_by_name( name, &handle ))) return status;
+                res[0] = (UINT_PTR)handle;
+                if (!(status = get_unixlib_funcs( handle, info_class == MemoryWineLoadUnixLibByNameWow64,
+                                                  &funcs, &entry )))
+                {
+                    res[1] = (UINT_PTR)funcs;
+                    if (entry) status = entry();
+                }
+                if (status) dlclose( handle );
+                else memcpy( buffer, res, min( len, sizeof(res) ));
+                return status;
+            }
+            return STATUS_INVALID_HANDLE;
+
+        case MemoryWineUnloadUnixLib:
+            if (process == GetCurrentProcess())
+            {
+                const unixlib_module_t *handle = addr;
+
+                if (!dlclose( (void *)(UINT_PTR)*handle )) return STATUS_SUCCESS;
             }
             return STATUS_INVALID_HANDLE;
 
@@ -6527,18 +6570,14 @@ static NTSTATUS unmap_view_of_section( HANDLE process, PVOID addr, ULONG flags )
     }
     if (view->protect & VPROT_SYSTEM)
     {
-        struct builtin_module *builtin;
+        struct builtin_module *builtin = get_builtin_module( view->base );
 
-        LIST_FOR_EACH_ENTRY( builtin, &builtin_modules, struct builtin_module, entry )
+        if (builtin && builtin->refcount > 1)
         {
-            if (builtin->module != view->base) continue;
-            if (builtin->refcount > 1)
-            {
-                TRACE( "not freeing in-use builtin %p\n", view->base );
-                builtin->refcount--;
-                server_leave_uninterrupted_section( &virtual_mutex, &sigset );
-                return STATUS_SUCCESS;
-            }
+            TRACE( "not freeing in-use builtin %p\n", view->base );
+            builtin->refcount--;
+            server_leave_uninterrupted_section( &virtual_mutex, &sigset );
+            return STATUS_SUCCESS;
         }
     }
 

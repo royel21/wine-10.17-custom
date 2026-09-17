@@ -231,7 +231,7 @@ struct symt_module* symt_new_module(struct module* module)
     return sym;
 }
 
-struct symt_compiland* symt_new_compiland(struct module* module, const char *filename)
+struct symt_compiland* symt_new_compiland(struct module* module, symref_t parent, const char *filename)
 {
     struct symt_compiland*    sym;
     symref_t*                 p;
@@ -241,13 +241,17 @@ struct symt_compiland* symt_new_compiland(struct module* module, const char *fil
     if ((sym = pool_alloc(&module->pool, sizeof(*sym))))
     {
         sym->symt.tag  = SymTagCompiland;
-        sym->container = symt_ptr_to_symref(&module->top->symt);
+        sym->container = parent;
         sym->address   = 0;
         sym->filename  = pool_strdup(&module->pool, filename);
         vector_init(&sym->vchildren, sizeof(symref_t), 0);
         sym->user      = NULL;
-        p = vector_add(&module->top->vchildren, &module->pool);
-        if (p) *p = symt_ptr_to_symref(&sym->symt);
+        if (symt_is_symref_ptr(parent))
+        {
+            if (parent != symt_ptr_to_symref(&module->top->symt)) FIXME("Unexpected parent\n");
+            p = vector_add(&module->top->vchildren, &module->pool);
+            if (p) *p = symt_ptr_to_symref(&sym->symt);
+        }
     }
     return sym;
 }
@@ -876,6 +880,7 @@ static BOOL symt_fill_sym_info_from_symref(struct module_pair* pair, const struc
     DWORD tag;
     DWORD64 size;
     WCHAR *name;
+    DWORD data_kind, offset;
 
     if (!symt_get_info_from_symref(pair->effective, symref, TI_GET_SYMTAG, &tag))
         return FALSE;
@@ -911,7 +916,7 @@ static BOOL symt_fill_sym_info_from_symref(struct module_pair* pair, const struc
         char *buffer;
         char *tmp;
 
-        if (sym_info->MaxNameLen && (buffer = malloc(len)))
+        if (len && (buffer = malloc(len)))
         {
             WideCharToMultiByte(CP_ACP, 0, name, -1, buffer, len, NULL, NULL);
             if (sym_info->Tag == SymTagPublicSymbol && (dbghelp_options & SYMOPT_UNDNAME) &&
@@ -928,6 +933,41 @@ static BOOL symt_fill_sym_info_from_symref(struct module_pair* pair, const struc
         LocalFree(name);
     }
     else symbol_setname(sym_info, "");
+
+    switch (sym_info->Tag)
+    {
+    case SymTagData:
+        if (symt_get_info_from_symref(pair->effective, symref, TI_GET_DATAKIND, &data_kind))
+            switch (data_kind)
+            {
+            case DataIsGlobal:
+            case DataIsFileStatic:
+            case DataIsStaticLocal:
+                if (symt_get_info_from_symref(pair->effective, symref, TI_GET_ADDRESSOFFSET, &offset))
+                    sym_info->Flags |= SYMFLAG_TLSREL;
+                break;
+            case DataIsConstant:
+                if (symt_get_info_from_symref(pair->effective, symref, TI_GET_VALUE, &sym_info->Value))
+                    sym_info->Flags |= SYMFLAG_VALUEPRESENT;
+                break;
+            default:
+                FIXME("Unhandled kind (%lu) in sym data\n", data_kind);
+                break;
+            }
+        else WARN("Couldn't get data kind\n");
+        break;
+    case SymTagUDT:
+    case SymTagEnum:
+    case SymTagFunctionType:
+    case SymTagPointerType:
+    case SymTagArrayType:
+    case SymTagBaseType:
+    case SymTagTypedef:
+        break;
+    default:
+        FIXME("%Ix => %lu %s %lu %I64x\n",
+              symref, sym_info->Tag, debugstr_a(sym_info->Name), sym_info->Size, sym_info->Address);
+    }
 
     TRACE_(dbghelp_symt)("%Ix => %s %lu %I64x\n",
                          symref, debugstr_a(sym_info->Name), sym_info->Size, sym_info->Address);
@@ -1188,7 +1228,6 @@ symref_t symt_find_nearest(struct module *module, DWORD_PTR addr)
             if (result == MR_SUCCESS)
             {
                 recursive--;
-                if (!symt_is_symref_ptr(symref)) FIXME("No support for this case yet\n");
                 return symref;
             }
             /* fall back in all the other cases */
@@ -1221,10 +1260,13 @@ static symref_t symt_find_symref_at(struct module* module, DWORD_PTR addr)
     return nearest;
 }
 
+/* callers really expect a symt ptr from here, so fail when found
+ * symbol is a symref
+ */
 struct symt_ht* symt_find_symbol_at(struct module* module, DWORD_PTR addr)
 {
     symref_t nearest = symt_find_symref_at(module, addr);
-    return (struct symt_ht*)SYMT_SYMREF_TO_PTR(nearest);
+    return (symt_is_symref_ptr(nearest)) ? (struct symt_ht*)SYMT_SYMREF_TO_PTR(nearest) : NULL;
 }
 
 static BOOL symt_enum_locals_helper(struct module_pair* pair,
