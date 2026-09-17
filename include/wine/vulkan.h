@@ -9646,8 +9646,7 @@ typedef struct VkImageSubresource2
     void *pNext;
     VkImageSubresource imageSubresource;
 } VkImageSubresource2;
-typedef VkImageSubresource2 VkImageSubresource2KHR;
-typedef VkImageSubresource2 VkImageSubresource2EXT;
+typedef VkImageSubresource2 VkImageSubresource2KHR, VkImageSubresource2EXT;
 
 typedef struct VkImageToMemoryCopy
 {
@@ -10330,8 +10329,7 @@ typedef struct VkVertexInputBindingDivisorDescription
     uint32_t binding;
     uint32_t divisor;
 } VkVertexInputBindingDivisorDescription;
-typedef VkVertexInputBindingDivisorDescription VkVertexInputBindingDivisorDescriptionKHR;
-typedef VkVertexInputBindingDivisorDescription VkVertexInputBindingDivisorDescriptionEXT;
+typedef VkVertexInputBindingDivisorDescription VkVertexInputBindingDivisorDescriptionKHR, VkVertexInputBindingDivisorDescriptionEXT;
 
 typedef struct VkVideoDecodeH264SessionParametersAddInfoKHR
 {
@@ -10932,8 +10930,7 @@ typedef struct VkBufferDeviceAddressInfo
     const void *pNext;
     VkBuffer WINE_VK_ALIGN(8) buffer;
 } VkBufferDeviceAddressInfo;
-typedef VkBufferDeviceAddressInfo VkBufferDeviceAddressInfoKHR;
-typedef VkBufferDeviceAddressInfo VkBufferDeviceAddressInfoEXT;
+typedef VkBufferDeviceAddressInfo VkBufferDeviceAddressInfoKHR, VkBufferDeviceAddressInfoEXT;
 
 typedef struct VkBufferImageCopy
 {
@@ -12194,8 +12191,7 @@ typedef struct VkDeviceQueueGlobalPriorityCreateInfo
     const void *pNext;
     VkQueueGlobalPriority globalPriority;
 } VkDeviceQueueGlobalPriorityCreateInfo;
-typedef VkDeviceQueueGlobalPriorityCreateInfo VkDeviceQueueGlobalPriorityCreateInfoKHR;
-typedef VkDeviceQueueGlobalPriorityCreateInfo VkDeviceQueueGlobalPriorityCreateInfoEXT;
+typedef VkDeviceQueueGlobalPriorityCreateInfo VkDeviceQueueGlobalPriorityCreateInfoKHR, VkDeviceQueueGlobalPriorityCreateInfoEXT;
 
 typedef struct VkDeviceQueueInfo2
 {
@@ -14633,8 +14629,7 @@ typedef struct VkPhysicalDeviceGlobalPriorityQueryFeatures
     void *pNext;
     VkBool32 globalPriorityQuery;
 } VkPhysicalDeviceGlobalPriorityQueryFeatures;
-typedef VkPhysicalDeviceGlobalPriorityQueryFeatures VkPhysicalDeviceGlobalPriorityQueryFeaturesKHR;
-typedef VkPhysicalDeviceGlobalPriorityQueryFeatures VkPhysicalDeviceGlobalPriorityQueryFeaturesEXT;
+typedef VkPhysicalDeviceGlobalPriorityQueryFeatures VkPhysicalDeviceGlobalPriorityQueryFeaturesKHR, VkPhysicalDeviceGlobalPriorityQueryFeaturesEXT;
 
 typedef struct VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT
 {
@@ -14843,8 +14838,7 @@ typedef struct VkPhysicalDeviceIndexTypeUint8Features
     void *pNext;
     VkBool32 indexTypeUint8;
 } VkPhysicalDeviceIndexTypeUint8Features;
-typedef VkPhysicalDeviceIndexTypeUint8Features VkPhysicalDeviceIndexTypeUint8FeaturesKHR;
-typedef VkPhysicalDeviceIndexTypeUint8Features VkPhysicalDeviceIndexTypeUint8FeaturesEXT;
+typedef VkPhysicalDeviceIndexTypeUint8Features VkPhysicalDeviceIndexTypeUint8FeaturesKHR, VkPhysicalDeviceIndexTypeUint8FeaturesEXT;
 
 typedef struct VkPhysicalDeviceInheritedViewportScissorFeaturesNV
 {
@@ -14935,8 +14929,7 @@ typedef struct VkPhysicalDeviceLineRasterizationFeatures
     VkBool32 stippledBresenhamLines;
     VkBool32 stippledSmoothLines;
 } VkPhysicalDeviceLineRasterizationFeatures;
-typedef VkPhysicalDeviceLineRasterizationFeatures VkPhysicalDeviceLineRasterizationFeaturesKHR;
-typedef VkPhysicalDeviceLineRasterizationFeatures VkPhysicalDeviceLineRasterizationFeaturesEXT;
+typedef VkPhysicalDeviceLineRasterizationFeatures VkPhysicalDeviceLineRasterizationFeaturesKHR, VkPhysicalDeviceLineRasterizationFeaturesEXT;
 
 typedef struct VkPhysicalDeviceLineRasterizationProperties
 {
@@ -14944,8 +14937,7 @@ typedef struct VkPhysicalDeviceLineRasterizationProperties
     void *pNext;
     uint32_t lineSubPixelPrecisionBits;
 } VkPhysicalDeviceLineRasterizationProperties;
-typedef VkPhysicalDeviceLineRasterizationProperties VkPhysicalDeviceLineRasterizationPropertiesKHR;
-typedef VkPhysicalDeviceLineRasterizationProperties VkPhysicalDeviceLineRasterizationPropertiesEXT;
+typedef VkPhysicalDeviceLineRasterizationProperties VkPhysicalDeviceLineRasterizationPropertiesKHR, VkPhysicalDeviceLineRasterizationPropertiesEXT;
 
 typedef struct VkPhysicalDeviceLinearColorAttachmentFeaturesNV
 {
@@ -16024,8 +16016,7 @@ typedef struct VkPhysicalDeviceShaderFloat16Int8Features
     VkBool32 shaderFloat16;
     VkBool32 shaderInt8;
 } VkPhysicalDeviceShaderFloat16Int8Features;
-typedef VkPhysicalDeviceShaderFloat16Int8Features VkPhysicalDeviceShaderFloat16Int8FeaturesKHR;
-typedef VkPhysicalDeviceShaderFloat16Int8Features VkPhysicalDeviceFloat16Int8FeaturesKHR;
+typedef VkPhysicalDeviceShaderFloat16Int8Features VkPhysicalDeviceShaderFloat16Int8FeaturesKHR, VkPhysicalDeviceFloat16Int8FeaturesKHR;
 
 typedef struct VkPhysicalDeviceShaderFloat8FeaturesEXT
 {
@@ -16564,9 +16555,7 @@ typedef struct VkPhysicalDeviceVariablePointersFeatures
     VkBool32 variablePointersStorageBuffer;
     VkBool32 variablePointers;
 } VkPhysicalDeviceVariablePointersFeatures;
-typedef VkPhysicalDeviceVariablePointersFeatures VkPhysicalDeviceVariablePointersFeaturesKHR;
-typedef VkPhysicalDeviceVariablePointersFeatures VkPhysicalDeviceVariablePointerFeaturesKHR;
-typedef VkPhysicalDeviceVariablePointersFeatures VkPhysicalDeviceVariablePointerFeatures;
+typedef VkPhysicalDeviceVariablePointersFeatures VkPhysicalDeviceVariablePointersFeaturesKHR, VkPhysicalDeviceVariablePointerFeaturesKHR, VkPhysicalDeviceVariablePointerFeatures;
 
 typedef struct VkPhysicalDeviceVertexAttributeDivisorFeatures
 {
@@ -16575,8 +16564,7 @@ typedef struct VkPhysicalDeviceVertexAttributeDivisorFeatures
     VkBool32 vertexAttributeInstanceRateDivisor;
     VkBool32 vertexAttributeInstanceRateZeroDivisor;
 } VkPhysicalDeviceVertexAttributeDivisorFeatures;
-typedef VkPhysicalDeviceVertexAttributeDivisorFeatures VkPhysicalDeviceVertexAttributeDivisorFeaturesKHR;
-typedef VkPhysicalDeviceVertexAttributeDivisorFeatures VkPhysicalDeviceVertexAttributeDivisorFeaturesEXT;
+typedef VkPhysicalDeviceVertexAttributeDivisorFeatures VkPhysicalDeviceVertexAttributeDivisorFeaturesKHR, VkPhysicalDeviceVertexAttributeDivisorFeaturesEXT;
 
 typedef struct VkPhysicalDeviceVertexAttributeDivisorProperties
 {
@@ -17246,8 +17234,7 @@ typedef struct VkPipelineRasterizationLineStateCreateInfo
     uint32_t lineStippleFactor;
     uint16_t lineStipplePattern;
 } VkPipelineRasterizationLineStateCreateInfo;
-typedef VkPipelineRasterizationLineStateCreateInfo VkPipelineRasterizationLineStateCreateInfoKHR;
-typedef VkPipelineRasterizationLineStateCreateInfo VkPipelineRasterizationLineStateCreateInfoEXT;
+typedef VkPipelineRasterizationLineStateCreateInfo VkPipelineRasterizationLineStateCreateInfoKHR, VkPipelineRasterizationLineStateCreateInfoEXT;
 
 typedef struct VkPipelineRasterizationProvokingVertexStateCreateInfoEXT
 {
@@ -17323,8 +17310,7 @@ typedef struct VkPipelineShaderStageRequiredSubgroupSizeCreateInfo
     const void *pNext;
     uint32_t requiredSubgroupSize;
 } VkPipelineShaderStageRequiredSubgroupSizeCreateInfo;
-typedef VkPipelineShaderStageRequiredSubgroupSizeCreateInfo VkPipelineShaderStageRequiredSubgroupSizeCreateInfoEXT;
-typedef VkPipelineShaderStageRequiredSubgroupSizeCreateInfo VkShaderRequiredSubgroupSizeCreateInfoEXT;
+typedef VkPipelineShaderStageRequiredSubgroupSizeCreateInfo VkPipelineShaderStageRequiredSubgroupSizeCreateInfoEXT, VkShaderRequiredSubgroupSizeCreateInfoEXT;
 
 typedef struct VkPipelineTessellationDomainOriginStateCreateInfo
 {
@@ -17341,8 +17327,7 @@ typedef struct VkPipelineVertexInputDivisorStateCreateInfo
     uint32_t vertexBindingDivisorCount;
     const VkVertexInputBindingDivisorDescription *pVertexBindingDivisors;
 } VkPipelineVertexInputDivisorStateCreateInfo;
-typedef VkPipelineVertexInputDivisorStateCreateInfo VkPipelineVertexInputDivisorStateCreateInfoKHR;
-typedef VkPipelineVertexInputDivisorStateCreateInfo VkPipelineVertexInputDivisorStateCreateInfoEXT;
+typedef VkPipelineVertexInputDivisorStateCreateInfo VkPipelineVertexInputDivisorStateCreateInfoKHR, VkPipelineVertexInputDivisorStateCreateInfoEXT;
 
 typedef struct VkPipelineViewportCoarseSampleOrderStateCreateInfoNV
 {
@@ -17575,8 +17560,7 @@ typedef struct VkQueueFamilyGlobalPriorityProperties
     uint32_t priorityCount;
     VkQueueGlobalPriority priorities[VK_MAX_GLOBAL_PRIORITY_SIZE];
 } VkQueueFamilyGlobalPriorityProperties;
-typedef VkQueueFamilyGlobalPriorityProperties VkQueueFamilyGlobalPriorityPropertiesKHR;
-typedef VkQueueFamilyGlobalPriorityProperties VkQueueFamilyGlobalPriorityPropertiesEXT;
+typedef VkQueueFamilyGlobalPriorityProperties VkQueueFamilyGlobalPriorityPropertiesKHR, VkQueueFamilyGlobalPriorityPropertiesEXT;
 
 typedef struct VkQueueFamilyOwnershipTransferPropertiesKHR
 {
@@ -18258,8 +18242,7 @@ typedef struct VkSubresourceLayout2
     void *pNext;
     VkSubresourceLayout WINE_VK_ALIGN(8) subresourceLayout;
 } VkSubresourceLayout2;
-typedef VkSubresourceLayout2 VkSubresourceLayout2KHR;
-typedef VkSubresourceLayout2 VkSubresourceLayout2EXT;
+typedef VkSubresourceLayout2 VkSubresourceLayout2KHR, VkSubresourceLayout2EXT;
 
 typedef struct VkSurfaceCapabilities2KHR
 {
