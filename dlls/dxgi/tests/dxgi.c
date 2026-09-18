@@ -907,8 +907,9 @@ static IDXGIAdapter *get_adapter_(unsigned int line, IUnknown *device, BOOL is_d
     return adapter;
 }
 
-#define create_swapchain(a, b, c, d) create_swapchain_(__LINE__, a, b, c, d)
-static IDXGISwapChain *create_swapchain_(unsigned int line, IUnknown *device, BOOL is_d3d12, HWND window, UINT flags)
+#define create_swapchain(a, b, c, d, e) create_swapchain_(__LINE__, a, b, c, d, e)
+static IDXGISwapChain *create_swapchain_(unsigned int line, IUnknown *device, BOOL is_d3d12,
+        HWND window, UINT flags, DXGI_SWAP_EFFECT swap_effect)
 {
     DXGI_SWAP_CHAIN_DESC desc;
     IDXGISwapChain *swapchain;
@@ -925,10 +926,10 @@ static IDXGISwapChain *create_swapchain_(unsigned int line, IUnknown *device, BO
     desc.SampleDesc.Count = 1;
     desc.SampleDesc.Quality = 0;
     desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    desc.BufferCount = is_d3d12 ? 2 : 1;
+    desc.BufferCount = 2;
     desc.OutputWindow = window;
     desc.Windowed = TRUE;
-    desc.SwapEffect = is_d3d12 ? DXGI_SWAP_EFFECT_FLIP_DISCARD : DXGI_SWAP_EFFECT_DISCARD;
+    desc.SwapEffect = swap_effect;
     desc.Flags = flags;
 
     get_factory(device, is_d3d12, &factory);
@@ -7030,6 +7031,17 @@ static void test_factory_check_feature_support(void)
 
 static void test_frame_latency_event(IUnknown *device, BOOL is_d3d12)
 {
+    static const struct
+    {
+        DXGI_SWAP_EFFECT effect;
+        HRESULT expected;
+    } effects[] =
+    {
+        {DXGI_SWAP_EFFECT_DISCARD,         DXGI_ERROR_INVALID_CALL},
+        {DXGI_SWAP_EFFECT_SEQUENTIAL,      DXGI_ERROR_INVALID_CALL},
+        {DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, S_OK},
+        {DXGI_SWAP_EFFECT_FLIP_DISCARD,    S_OK},
+    };
     DXGI_SWAP_CHAIN_DESC1 swapchain_desc;
     HANDLE semaphore, semaphore2;
     IDXGISwapChain2 *swapchain2;
@@ -7089,9 +7101,11 @@ static void test_frame_latency_event(IUnknown *device, BOOL is_d3d12)
     /* test swap chain without waitable object */
     frame_latency = 0xdeadbeef;
     hr = IDXGISwapChain2_GetMaximumFrameLatency(swapchain2, &frame_latency);
+    todo_wine_if(!is_d3d12)
     ok(hr == DXGI_ERROR_INVALID_CALL, "Got unexpected hr %#lx.\n", hr);
     ok(frame_latency == 0xdeadbeef, "Got unexpected frame latency %#x.\n", frame_latency);
     hr = IDXGISwapChain2_SetMaximumFrameLatency(swapchain2, 1);
+    todo_wine_if(!is_d3d12)
     ok(hr == DXGI_ERROR_INVALID_CALL, "Got unexpected hr %#lx.\n", hr);
     semaphore = IDXGISwapChain2_GetFrameLatencyWaitableObject(swapchain2);
     ok(!semaphore, "Got unexpected semaphore %p.\n", semaphore);
@@ -7099,9 +7113,21 @@ static void test_frame_latency_event(IUnknown *device, BOOL is_d3d12)
     ref_count = IDXGISwapChain2_Release(swapchain2);
     ok(!ref_count, "Swap chain has %lu references left.\n", ref_count);
 
-    /* test swap chain with waitable object */
+    /* test waitable object compability with effects */
     swapchain_desc.Flags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
+    for (i = 0; i < ARRAY_SIZE(effects); ++i)
+    {
+        swapchain_desc.SwapEffect = effects[i].effect;
+        hr = IDXGIFactory2_CreateSwapChainForHwnd(factory2, device,
+                window, &swapchain_desc, NULL, NULL, &swapchain1);
+        ok(hr == effects[i].expected, "Effect %#x: got hr %#lx, expected %#lx.\n",
+                effects[i].effect, hr, effects[i].expected);
+        if (SUCCEEDED(hr))
+            IDXGISwapChain1_Release(swapchain1);
+    }
 
+    /* test swap chain with waitable object */
+    swapchain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     hr = IDXGIFactory2_CreateSwapChainForHwnd(factory2, device,
             window, &swapchain_desc, NULL, NULL, &swapchain1);
     ok(hr == S_OK, "Failed to create swap chain, hr %#lx.\n", hr);
@@ -7110,60 +7136,83 @@ static void test_frame_latency_event(IUnknown *device, BOOL is_d3d12)
     IDXGISwapChain1_Release(swapchain1);
 
     semaphore = IDXGISwapChain2_GetFrameLatencyWaitableObject(swapchain2);
+    todo_wine_if(!is_d3d12)
     ok(!!semaphore, "Got unexpected NULL semaphore.\n");
 
     /* a new duplicate handle is returned each time */
     semaphore2 = IDXGISwapChain2_GetFrameLatencyWaitableObject(swapchain2);
+    todo_wine_if(!is_d3d12)
     ok(!!semaphore2, "Got unexpected NULL semaphore.\n");
+    todo_wine_if(!is_d3d12)
     ok(semaphore != semaphore2, "Got the same semaphore twice %p.\n", semaphore);
 
     ret = CloseHandle(semaphore);
+    todo_wine_if(!is_d3d12)
     ok(!!ret, "Failed to close handle, last error %lu.\n", GetLastError());
     ret = CloseHandle(semaphore2);
+    todo_wine_if(!is_d3d12)
     ok(!!ret, "Failed to close handle, last error %lu.\n", GetLastError());
 
     semaphore = IDXGISwapChain2_GetFrameLatencyWaitableObject(swapchain2);
+    todo_wine_if(!is_d3d12)
     ok(!!semaphore, "Got unexpected NULL semaphore.\n");
 
     wait_result = WaitForSingleObject(semaphore, 0);
+    todo_wine_if(!is_d3d12)
     ok(!wait_result, "Got unexpected wait result %#lx.\n", wait_result);
     wait_result = WaitForSingleObject(semaphore, 0);
+    todo_wine_if(!is_d3d12)
     ok(wait_result == WAIT_TIMEOUT, "Got unexpected wait result %#lx.\n", wait_result);
 
     hr = IDXGISwapChain2_GetMaximumFrameLatency(swapchain2, &frame_latency);
+    todo_wine_if(!is_d3d12)
     ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+    todo_wine_if(!is_d3d12)
     ok(frame_latency == 1, "Got unexpected frame latency %#x.\n", frame_latency);
 
     hr = IDXGISwapChain2_SetMaximumFrameLatency(swapchain2, 0);
+    todo_wine_if(!is_d3d12)
     ok(hr == DXGI_ERROR_INVALID_CALL, "Got unexpected hr %#lx.\n", hr);
     hr = IDXGISwapChain2_GetMaximumFrameLatency(swapchain2, &frame_latency);
+    todo_wine_if(!is_d3d12)
     ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+    todo_wine_if(!is_d3d12)
     ok(frame_latency == 1, "Got unexpected frame latency %#x.\n", frame_latency);
 
     /* raising the maximum frame latency releases the semaphore the
      * corresponding number of times */
     hr = IDXGISwapChain2_SetMaximumFrameLatency(swapchain2, 3);
+    todo_wine_if(!is_d3d12)
     ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
     hr = IDXGISwapChain2_GetMaximumFrameLatency(swapchain2, &frame_latency);
+    todo_wine_if(!is_d3d12)
     ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+    todo_wine_if(!is_d3d12)
     ok(frame_latency == 3, "Got unexpected frame latency %#x.\n", frame_latency);
 
     wait_result = WaitForSingleObject(semaphore, 0);
+    todo_wine_if(!is_d3d12)
     ok(!wait_result, "Got unexpected wait result %#lx.\n", wait_result);
     wait_result = WaitForSingleObject(semaphore, 0);
+    todo_wine_if(!is_d3d12)
     ok(!wait_result, "Got unexpected wait result %#lx.\n", wait_result);
     wait_result = WaitForSingleObject(semaphore, 100);
+    todo_wine_if(!is_d3d12)
     ok(wait_result == WAIT_TIMEOUT, "Got unexpected wait result %#lx.\n", wait_result);
 
     /* lowering the maximum frame latency doesn't seem to impact the
      * semaphore */
     hr = IDXGISwapChain2_SetMaximumFrameLatency(swapchain2, 1);
+    todo_wine_if(!is_d3d12)
     ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
     hr = IDXGISwapChain2_GetMaximumFrameLatency(swapchain2, &frame_latency);
+    todo_wine_if(!is_d3d12)
     ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+    todo_wine_if(!is_d3d12)
     ok(frame_latency == 1, "Got unexpected frame latency %#x.\n", frame_latency);
 
     wait_result = WaitForSingleObject(semaphore, 100);
+    todo_wine_if(!is_d3d12)
     ok(wait_result == WAIT_TIMEOUT, "Got unexpected wait result %#lx.\n", wait_result);
 
     for (i = 0; i < 5; i++)
@@ -7172,10 +7221,12 @@ static void test_frame_latency_event(IUnknown *device, BOOL is_d3d12)
         ok(hr == S_OK, "Present %u failed with hr %#lx.\n", i, hr);
 
         wait_result = WaitForSingleObject(semaphore, 100);
+        todo_wine_if(!is_d3d12)
         ok(!wait_result, "Got unexpected wait result %#lx.\n", wait_result);
     }
 
     wait_result = WaitForSingleObject(semaphore, 100);
+    todo_wine_if(!is_d3d12)
     ok(wait_result == WAIT_TIMEOUT, "Got unexpected wait result %#lx.\n", wait_result);
 
     /* each frame presentation releases the semaphore */
@@ -7190,10 +7241,12 @@ static void test_frame_latency_event(IUnknown *device, BOOL is_d3d12)
     for (i = 0; i < 5; i++)
     {
         wait_result = WaitForSingleObject(semaphore, 100);
+        todo_wine_if(!is_d3d12)
         ok(!wait_result, "Got unexpected wait result %#lx.\n", wait_result);
     }
 
     wait_result = WaitForSingleObject(semaphore, 100);
+    todo_wine_if(!is_d3d12)
     ok(wait_result == WAIT_TIMEOUT, "Got unexpected wait result %#lx.\n", wait_result);
 
     if (is_d3d12)
@@ -7722,10 +7775,15 @@ done:
 
 static void test_swapchain_present_count(IUnknown *device, BOOL is_d3d12)
 {
-    static const UINT test_flags[] =
+    static const struct
     {
-        0,
-        DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT,
+        UINT flags;
+        DXGI_SWAP_EFFECT swap_effect;
+    } tests[] =
+    {
+        {0,                                                  DXGI_SWAP_EFFECT_DISCARD},
+        {0,                                                  DXGI_SWAP_EFFECT_FLIP_DISCARD},
+        {DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT, DXGI_SWAP_EFFECT_FLIP_DISCARD},
     };
 
     UINT present_count, expected;
@@ -7739,14 +7797,18 @@ static void test_swapchain_present_count(IUnknown *device, BOOL is_d3d12)
 
     window = create_window();
 
-    for (i = 0; i < ARRAY_SIZE(test_flags); ++i)
+    for (i = 0; i < ARRAY_SIZE(tests); ++i)
     {
-        UINT flags = test_flags[i];
+        DXGI_SWAP_EFFECT swap_effect = tests[i].swap_effect;
+        UINT flags = tests[i].flags;
 
-        if (!is_d3d12 && (flags & DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT))
+        /* D3D12 only supports flip swap effects. */
+        if (is_d3d12 && (swap_effect == DXGI_SWAP_EFFECT_DISCARD))
             continue;
 
-        swapchain = create_swapchain(device, is_d3d12, window, flags);
+        winetest_push_context("test %u", i);
+
+        swapchain = create_swapchain(device, is_d3d12, window, flags, swap_effect);
 
         present_count = ~0u;
         hr = IDXGISwapChain_GetLastPresentCount(swapchain, &present_count);
@@ -7776,10 +7838,13 @@ static void test_swapchain_present_count(IUnknown *device, BOOL is_d3d12)
 
         ShowWindow(window, SW_MINIMIZE);
         hr = IDXGISwapChain_Present(swapchain, 0, 0);
-        ok(hr == (is_d3d12 ? S_OK : DXGI_STATUS_OCCLUDED), "Got unexpected hr %#lx.\n", hr);
-        expected = present_count + !!is_d3d12;
+        todo_wine_if(!is_d3d12 && is_flip_model(swap_effect))
+        ok(hr == (is_flip_model(swap_effect) ? S_OK : DXGI_STATUS_OCCLUDED),
+                "Got unexpected hr %#lx.\n", hr);
+        expected = present_count + !!is_flip_model(swap_effect);
         hr = IDXGISwapChain_GetLastPresentCount(swapchain, &present_count);
         ok(hr == S_OK, "Got unexpected hr %#lx.\n", hr);
+        todo_wine_if(!is_d3d12 && is_flip_model(swap_effect))
         ok(present_count == expected, "Got unexpected present count %u, expected %u.\n", present_count, expected);
 
         ShowWindow(window, SW_NORMAL);
@@ -7827,6 +7892,8 @@ static void test_swapchain_present_count(IUnknown *device, BOOL is_d3d12)
         }
 
         IDXGISwapChain_Release(swapchain);
+
+        winetest_pop_context();
     }
 
     DestroyWindow(window);
@@ -7962,6 +8029,8 @@ static void run_on_d3d10(void (*test_func)(IUnknown *device, BOOL is_d3d12))
     IDXGIDevice *device;
     ULONG refcount;
 
+    winetest_push_context("d3d10");
+
     if (!(device = create_device(0)))
     {
         skip("Failed to create Direct3D 10 device.\n");
@@ -7972,6 +8041,8 @@ static void run_on_d3d10(void (*test_func)(IUnknown *device, BOOL is_d3d12))
 
     refcount = IDXGIDevice_Release(device);
     ok(!refcount, "Device has %lu references left.\n", refcount);
+
+    winetest_pop_context();
 }
 
 static void run_on_d3d12(void (*test_func)(IUnknown *device, BOOL is_d3d12))
@@ -7979,6 +8050,8 @@ static void run_on_d3d12(void (*test_func)(IUnknown *device, BOOL is_d3d12))
     ID3D12CommandQueue *queue;
     ID3D12Device *device;
     ULONG refcount;
+
+    winetest_push_context("d3d12");
 
     if (!(device = create_d3d12_device()))
     {
@@ -7996,6 +8069,8 @@ static void run_on_d3d12(void (*test_func)(IUnknown *device, BOOL is_d3d12))
     ok(!refcount, "Command queue has %lu references left.\n", refcount);
     refcount = ID3D12Device_Release(device);
     ok(!refcount, "Device has %lu references left.\n", refcount);
+
+    winetest_pop_context();
 }
 
 static void test_subresource_surface(void)
@@ -8341,6 +8416,7 @@ START_TEST(dxgi)
     run_on_d3d10(test_swapchain_formats);
     run_on_d3d10(test_output_ownership);
     run_on_d3d10(test_cursor_clipping);
+    run_on_d3d10(test_frame_latency_event);
     run_on_d3d10(test_get_containing_output);
     run_on_d3d10(test_window_association);
     run_on_d3d10(test_default_fullscreen_target_output);

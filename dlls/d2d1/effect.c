@@ -1159,11 +1159,58 @@ L"<?xml version='1.0'?>                                                         
     <Inputs>                                                                      \
       <Input name='Source'/>                                                      \
     </Inputs>                                                                     \
+    <Property name='InterpolationMode' type='enum' />                             \
+    <Property name='BorderMode' type='enum' />                                    \
+    <Property name='Depth' type='float' />                                        \
+    <Property name='PerspectiveOrigin' type='vector2' />                          \
+    <Property name='LocalOffset' type='vector3' />                                \
+    <Property name='GlobalOffset' type='vector3' />                               \
+    <Property name='RotationOrigin' type='vector3' />                             \
+    <Property name='Rotation' type='vector3' />                                   \
   </Effect>";
+
+struct _3d_perspective_transform_properties
+{
+    D2D1_3DPERSPECTIVETRANSFORM_INTERPOLATION_MODE interpolation_mode;
+    D2D1_BORDER_MODE border_mode;
+    float depth;
+    D2D1_VECTOR_2F perspective_origin;
+    D2D1_VECTOR_3F local_offset;
+    D2D1_VECTOR_3F global_offset;
+    D2D1_VECTOR_3F rotation_origin;
+    D2D1_VECTOR_3F rotation;
+};
+
+EFFECT_PROPERTY_RW(_3d_perspective_transform, interpolation_mode, ENUM)
+EFFECT_PROPERTY_RW(_3d_perspective_transform, border_mode, ENUM)
+EFFECT_PROPERTY_RW(_3d_perspective_transform, depth, FLOAT)
+EFFECT_PROPERTY_RW(_3d_perspective_transform, perspective_origin, VECTOR2)
+EFFECT_PROPERTY_RW(_3d_perspective_transform, local_offset, VECTOR3)
+EFFECT_PROPERTY_RW(_3d_perspective_transform, global_offset, VECTOR3)
+EFFECT_PROPERTY_RW(_3d_perspective_transform, rotation_origin, VECTOR3)
+EFFECT_PROPERTY_RW(_3d_perspective_transform, rotation, VECTOR3)
+
+static const D2D1_PROPERTY_BINDING _3d_perspective_transform_bindings[] =
+{
+    { L"InterpolationMode", BINDING_RW(_3d_perspective_transform, interpolation_mode) },
+    { L"BorderMode", BINDING_RW(_3d_perspective_transform, border_mode) },
+    { L"Depth", BINDING_RW(_3d_perspective_transform, depth) },
+    { L"PerspectiveOrigin", BINDING_RW(_3d_perspective_transform, perspective_origin) },
+    { L"LocalOffset", BINDING_RW(_3d_perspective_transform, local_offset) },
+    { L"GlobalOffset", BINDING_RW(_3d_perspective_transform, global_offset) },
+    { L"RotationOrigin", BINDING_RW(_3d_perspective_transform, rotation_origin) },
+    { L"Rotation", BINDING_RW(_3d_perspective_transform, rotation) },
+};
 
 static HRESULT __stdcall _3d_perspective_transform_factory(IUnknown **effect)
 {
-    return d2d_effect_create_impl(effect, NULL, 0);
+    static const struct _3d_perspective_transform_properties properties =
+    {
+        .interpolation_mode = D2D1_3DPERSPECTIVETRANSFORM_INTERPOLATION_MODE_LINEAR,
+        .border_mode = D2D1_BORDER_MODE_SOFT,
+        .depth = 1000.0f,
+    };
+    return d2d_effect_create_impl(effect, &properties, sizeof(properties));
 }
 
 static const WCHAR composite_description[] =
@@ -1177,11 +1224,28 @@ L"<?xml version='1.0'?>                                                   \
       <Input name='Source1'/>                                             \
       <Input name='Source2'/>                                             \
     </Inputs>                                                             \
+    <Property name='Mode' type='enum' />                                  \
   </Effect>";
+
+struct composite_properties
+{
+    D2D1_COMPOSITE_MODE mode;
+};
+
+EFFECT_PROPERTY_RW(composite, mode, ENUM)
+
+static const D2D1_PROPERTY_BINDING composite_bindings[] =
+{
+    { L"Mode", BINDING_RW(composite, mode) },
+};
 
 static HRESULT __stdcall composite_factory(IUnknown **effect)
 {
-    return d2d_effect_create_impl(effect, NULL, 0);
+    static const struct composite_properties properties =
+    {
+        .mode = D2D1_COMPOSITE_MODE_SOURCE_OVER,
+    };
+    return d2d_effect_create_impl(effect, &properties, sizeof(properties));
 }
 
 static const WCHAR crop_description[] =
@@ -1195,11 +1259,32 @@ L"<?xml version='1.0'?>                                                   \
       <Input name='Source'/>                                              \
     </Inputs>                                                             \
     <Property name='Rect' type='vector4' />                               \
+    <Property name='BorderMode' type='enum' />                            \
   </Effect>";
+
+struct crop_properties
+{
+    D2D1_VECTOR_4F rect;
+    D2D1_BORDER_MODE border_mode;
+};
+
+EFFECT_PROPERTY_RW(crop, rect, VECTOR4)
+EFFECT_PROPERTY_RW(crop, border_mode, ENUM)
+
+static const D2D1_PROPERTY_BINDING crop_bindings[] =
+{
+    { L"Rect", BINDING_RW(crop, rect) },
+    { L"BorderMode", BINDING_RW(crop, border_mode) },
+};
 
 static HRESULT __stdcall crop_factory(IUnknown **effect)
 {
-    return d2d_effect_create_impl(effect, NULL, 0);
+    static const struct crop_properties properties =
+    {
+        .rect = { -INFINITY, -INFINITY, INFINITY, INFINITY },
+        .border_mode = D2D1_BORDER_MODE_SOFT,
+    };
+    return d2d_effect_create_impl(effect, &properties, sizeof(properties));
 }
 
 static const WCHAR shadow_description[] =
@@ -1273,11 +1358,37 @@ L"<?xml version='1.0'?>                                                   \
     <Inputs >                                                             \
       <Input name='Source'/>                                              \
     </Inputs>                                                             \
+    <Property name='ColorMatrix' type='matrix5x4' />                      \
+    <Property name='AlphaMode' type='enum' />                             \
+    <Property name='ClampOutput' type='bool' />                           \
   </Effect>";
+
+struct color_matrix_properties
+{
+    D2D1_MATRIX_5X4_F color_matrix;
+    D2D1_COLORMATRIX_ALPHA_MODE alpha_mode;
+    BOOL clamp_output;
+};
+
+EFFECT_PROPERTY_RW(color_matrix, color_matrix, MATRIX_5X4)
+EFFECT_PROPERTY_RW(color_matrix, alpha_mode, ENUM)
+EFFECT_PROPERTY_RW(color_matrix, clamp_output, BOOL)
+
+static const D2D1_PROPERTY_BINDING color_matrix_bindings[] =
+{
+    { L"ColorMatrix", BINDING_RW(color_matrix, color_matrix) },
+    { L"AlphaMode", BINDING_RW(color_matrix, alpha_mode) },
+    { L"ClampOutput", BINDING_RW(color_matrix, clamp_output) },
+};
 
 static HRESULT __stdcall color_matrix_factory(IUnknown **effect)
 {
-    return d2d_effect_create_impl(effect, NULL, 0);
+    static const struct color_matrix_properties properties =
+    {
+        .color_matrix = { ._11 = 1.0f, ._22 = 1.0f, ._33 = 1.0f, ._44 = 1.0f },
+        .alpha_mode = D2D1_COLORMATRIX_ALPHA_MODE_PREMULTIPLIED,
+    };
+    return d2d_effect_create_impl(effect, &properties, sizeof(properties));
 }
 
 static const WCHAR flood_description[] =
@@ -1474,12 +1585,12 @@ void d2d_effects_init_builtins(struct d2d_factory *factory)
 #define X(name) name##_description, name##_factory
 #define X2(name) name##_description, name##_factory, name##_bindings, ARRAY_SIZE(name##_bindings)
         { &CLSID_D2D12DAffineTransform, X2(_2d_affine_transform) },
-        { &CLSID_D2D13DPerspectiveTransform, X(_3d_perspective_transform) },
-        { &CLSID_D2D1Composite, X(composite) },
-        { &CLSID_D2D1Crop, X(crop) },
+        { &CLSID_D2D13DPerspectiveTransform, X2(_3d_perspective_transform) },
+        { &CLSID_D2D1Composite, X2(composite) },
+        { &CLSID_D2D1Crop, X2(crop) },
         { &CLSID_D2D1Shadow, X2(shadow) },
         { &CLSID_D2D1Grayscale, X(grayscale) },
-        { &CLSID_D2D1ColorMatrix, X(color_matrix) },
+        { &CLSID_D2D1ColorMatrix, X2(color_matrix) },
         { &CLSID_D2D1Flood, X2(flood) },
         { &CLSID_D2D1GaussianBlur, X2(gaussian_blur) },
         { &CLSID_D2D1PointSpecular, X2(point_specular) },
@@ -1795,6 +1906,7 @@ static HRESULT d2d_effect_property_get_value(const struct d2d_effect_properties 
         const struct d2d_effect_property *prop, D2D1_PROPERTY_TYPE type, BYTE *value, UINT32 size)
 {
     struct d2d_effect *effect = properties->effect;
+    PD2D1_PROPERTY_GET_FUNCTION get_function = effect ? prop->get_function : NULL;
     UINT32 actual_size;
 
     memset(value, 0, size);
@@ -1808,8 +1920,8 @@ static HRESULT d2d_effect_property_get_value(const struct d2d_effect_properties 
         return E_INVALIDARG;
     }
 
-    if (prop->get_function)
-        return prop->get_function((IUnknown *)effect->impl, value, size, &actual_size);
+    if (get_function)
+        return get_function((IUnknown *)effect->impl, value, size, &actual_size);
 
     switch (prop->type)
     {
