@@ -322,6 +322,8 @@ struct constructor;
     XIID(IWinePageTransitionEvent) \
     XIID(IWineXMLHttpRequestPrivate) \
     XIID(IWineMSHTMLConsole) \
+    XIID(IWineMSHTMLCrypto) \
+    XIID(IWineMSHTMLSubtleCrypto) \
     XIID(IWineMSHTMLMediaQueryList) \
     XIID(IWineMSHTMLMutationObserver)
 
@@ -442,6 +444,7 @@ typedef struct {
     X(ClientRectList)                      \
     X(Comment)                             \
     X(Console)                             \
+    X(Crypto)                              \
     X(CustomEvent)                         \
     X(DOMImplementation)                   \
     X(DOMParser)                           \
@@ -519,6 +522,7 @@ typedef struct {
     X(StorageEvent)                        \
     X(StyleSheet)                          \
     X(StyleSheetList)                      \
+    X(SubtleCrypto)                        \
     X(Text)                                \
     X(TextRange)                           \
     X(UIEvent)                             \
@@ -807,6 +811,7 @@ struct HTMLInnerWindow {
     IHTMLStorage *session_storage;
     IHTMLStorage *local_storage;
     IWineMSHTMLConsole *console;
+    IWineMSHTMLCrypto *crypto;
 
     BOOL static_props_filled;
     BOOL performance_initialized;
@@ -1743,4 +1748,5 @@ IInternetSecurityManager *get_security_manager(void);
 
 extern HINSTANCE hInst;
 void create_console(HTMLInnerWindow *window, IWineMSHTMLConsole **ret);
+HRESULT create_crypto(HTMLInnerWindow *window, IWineMSHTMLCrypto **ret);
 HRESULT create_media_query_list(HTMLInnerWindow *window, BSTR media_query, IDispatch **ret);

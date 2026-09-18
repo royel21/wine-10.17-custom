@@ -1699,9 +1699,10 @@ static UINT window_update_client_config( struct x11drv_win_data *data )
      * window rect will be repeatedly changed by the WM and the application, causing a flickering effect */
     if (data->is_fullscreen)
     {
-        xinerama_get_fullscreen_monitors( &data->rects.visible, &old_generation, old_monitors );
-        xinerama_get_fullscreen_monitors( &data->current_state.rect, &generation, monitors );
-        if (!memcmp( old_monitors, monitors, sizeof(monitors) )) return 0;
+        if (xinerama_get_fullscreen_monitors( &data->rects.visible, &old_generation, old_monitors )
+            && xinerama_get_fullscreen_monitors( &data->current_state.rect, &generation, monitors )
+            && !memcmp( old_monitors, monitors, sizeof(monitors) ))
+            return 0;
     }
 
     flags = SWP_NOACTIVATE | SWP_NOZORDER;
@@ -2825,6 +2826,7 @@ void X11DRV_SystrayDockInit( HWND hwnd )
         systray_atom = XInternAtom( display, systray_buffer, False );
     }
     XSelectInput( display, root_window, StructureNotifyMask | PropertyChangeMask );
+    XFlush( display );
 }
 
 
@@ -2848,7 +2850,11 @@ BOOL X11DRV_SystrayDockRemove( HWND hwnd )
 
     if ((data = get_win_data( hwnd )))
     {
-        if ((ret = data->embedded)) window_set_wm_state( data, WithdrawnState, FALSE );
+        if ((ret = data->embedded))
+        {
+            window_set_wm_state( data, WithdrawnState, FALSE );
+            XFlush( data->display );
+        }
         release_win_data( data );
     }
 
@@ -2928,6 +2934,7 @@ BOOL X11DRV_SystrayDockInsert( HWND hwnd, UINT cx, UINT cy, void *icon )
     ev.xclient.data.l[3] = 0;
     ev.xclient.data.l[4] = 0;
     XSendEvent( display, systray_window, False, NoEventMask, &ev );
+    XFlush( display );
 
     return TRUE;
 }
@@ -3617,6 +3624,7 @@ void X11DRV_FlashWindowEx( FLASHWINFO *pfinfo )
 
         XSendEvent( data->display, DefaultRootWindow( data->display ), False,
                     SubstructureNotifyMask, &xev );
+        XFlush( data->display );
     }
     release_win_data( data );
 }

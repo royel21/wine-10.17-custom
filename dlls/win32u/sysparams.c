@@ -49,6 +49,7 @@ static const char devicemap_video_keyA[] = "\\Registry\\Machine\\HARDWARE\\DEVIC
 static const char enum_keyA[] = "\\Registry\\Machine\\System\\CurrentControlSet\\Enum";
 static const char control_keyA[] = "\\Registry\\Machine\\System\\CurrentControlSet\\Control";
 static const char config_keyA[] = "\\Registry\\Machine\\System\\CurrentControlSet\\Hardware Profiles\\Current";
+static const char directx_keyA[] = "\\Registry\\Machine\\Software\\Microsoft\\DirectX";
 
 static const char devpropkey_gpu_vulkan_uuidA[] = "Properties\\{233A9EF3-AFC4-4ABD-B564-C32F21F1535C}\\0002";
 static const char devpropkey_gpu_luidA[] = "Properties\\{60B193CB-5276-4D0F-96FC-F173ABAD3EC6}\\0002";
@@ -863,6 +864,11 @@ static void prepare_devices(void)
     set_reg_ascii_value( hkey, "", "Display adapters" );
     set_reg_ascii_value( hkey, "Class", "Display" );
     NtClose( hkey );
+    if ((hkey = reg_create_ascii_key( NULL, directx_keyA, 0, NULL )))
+    {
+        reg_empty_key( hkey, NULL );
+        NtClose( hkey );
+    }
 
     hkey = reg_open_ascii_key( enum_key, "PCI" );
 
@@ -1113,17 +1119,15 @@ static const char* driver_vendor_to_name( UINT16 vendor )
 static BOOL write_gpu_to_registry( const struct gpu *gpu, const struct pci_id *pci,
                                    ULONGLONG memory_size )
 {
-    const WCHAR *desc;
+    unsigned int size, name_size = (wcslen( gpu->name ) + 1) * sizeof(WCHAR);
     char buffer[4096], *tmp;
     WCHAR bufferW[512];
-    unsigned int size;
     HKEY subkey;
     LARGE_INTEGER ft;
     ULONG value;
     HKEY hkey;
 
     static const BOOL present = TRUE;
-    static const WCHAR wine_adapterW[] = {'W','i','n','e',' ','A','d','a','p','t','e','r',0};
     static const WCHAR driver_date_dataW[] =
         {'D','r','i','v','e','r','D','a','t','e','D','a','t','a',0};
     static const WCHAR adapter_stringW[] =
@@ -1189,7 +1193,7 @@ static BOOL write_gpu_to_registry( const struct gpu *gpu, const struct pci_id *p
 
     if ((subkey = reg_create_ascii_key( hkey, devpkey_device_driver_desc, 0, NULL )))
     {
-        set_reg_value( subkey, NULL, 0xffff0000 | DEVPROP_TYPE_STRING, gpu->name, (wcslen( gpu->name ) + 1) * sizeof(WCHAR) );
+        set_reg_value( subkey, NULL, 0xffff0000 | DEVPROP_TYPE_STRING, gpu->name, name_size );
         NtClose( subkey );
     }
 
@@ -1219,9 +1223,7 @@ static BOOL write_gpu_to_registry( const struct gpu *gpu, const struct pci_id *p
         NtClose( subkey );
     }
 
-    desc = gpu->name;
-    if (!desc[0]) desc = wine_adapterW;
-    set_reg_value( hkey, device_descW, REG_SZ, desc, (lstrlenW( desc ) + 1) * sizeof(WCHAR) );
+    set_reg_value( hkey, device_descW, REG_SZ, gpu->name, name_size );
 
     if ((subkey = reg_create_ascii_key( hkey, "Device Parameters", 0, NULL )))
     {
@@ -1257,14 +1259,11 @@ static BOOL write_gpu_to_registry( const struct gpu *gpu, const struct pci_id *p
     if (!(hkey = reg_create_ascii_key( control_key, buffer, 0, NULL ))) return FALSE;
 
     set_reg_value( hkey, driver_dateW, REG_SZ, bufferW, format_date( bufferW, ft.QuadPart ));
-
     set_reg_value( hkey, driver_date_dataW, REG_BINARY, &ft, sizeof(ft) );
-
-    size = (lstrlenW( desc ) + 1) * sizeof(WCHAR);
-    set_reg_value( hkey, driver_descW, REG_SZ, desc, size );
-    set_reg_value( hkey, adapter_stringW, REG_SZ, desc, size );
-    set_reg_value( hkey, bios_stringW, REG_SZ, desc, size );
-    set_reg_value( hkey, chip_typeW, REG_SZ, desc, size );
+    set_reg_value( hkey, driver_descW, REG_SZ, gpu->name, name_size );
+    set_reg_value( hkey, adapter_stringW, REG_SZ, gpu->name, name_size );
+    set_reg_value( hkey, bios_stringW, REG_SZ, gpu->name, name_size );
+    set_reg_value( hkey, chip_typeW, REG_SZ, gpu->name, name_size );
     set_reg_value( hkey, dac_typeW, REG_SZ, ramdacW, sizeof(ramdacW) );
 
     /* If we failed to retrieve the gpu memory size set a default of 1Gb */
@@ -1281,6 +1280,27 @@ static BOOL write_gpu_to_registry( const struct gpu *gpu, const struct pci_id *p
     link_device( gpu->path, guid_devinterface_display_adapterA );
     link_device( gpu->path, guid_display_device_arrivalA );
 
+    snprintf( buffer, sizeof(buffer), "%s\\%s", directx_keyA, gpu->guid );
+    hkey = reg_create_ascii_key( NULL, buffer, REG_OPTION_VOLATILE, NULL );
+    if (hkey)
+    {
+        UINT64 ver = 0x230000000f1ff4; /* Some version in the future. */
+
+        asciiz_to_unicode( bufferW, "AdapterLuid" );
+        set_reg_value( hkey, bufferW, REG_QWORD, &gpu->luid, sizeof(gpu->luid) );
+        asciiz_to_unicode( bufferW, "DriverVersion" );
+        set_reg_value( hkey, bufferW, REG_QWORD, &ver, sizeof(ver) );
+        asciiz_to_unicode( bufferW, "Description" );
+        set_reg_value( hkey, bufferW, REG_SZ, gpu->name, name_size );
+        if (pci->vendor && pci->device)
+        {
+            asciiz_to_unicode( bufferW, "DeviceId" );
+            set_reg_value( hkey, bufferW, REG_DWORD, &pci->device, sizeof(pci->device) );
+            asciiz_to_unicode( bufferW, "VendorId" );
+            set_reg_value( hkey, bufferW, REG_DWORD, &pci->vendor, sizeof(pci->vendor) );
+        }
+        NtClose( hkey );
+    }
     return TRUE;
 }
 
@@ -1356,8 +1376,9 @@ static void add_gpu( const char *name, const struct pci_id *pci_id, const GUID *
 
     if (!pci_id->vendor && !pci_id->device && vulkan_gpu) pci_id = &vulkan_gpu->pci_id;
 
-    if ((!name || !strcmp( name, "Wine GPU" )) && vulkan_gpu) name = vulkan_gpu->name;
-    if (name) RtlUTF8ToUnicodeN( gpu->name, sizeof(gpu->name) - sizeof(WCHAR), &len, name, strlen( name ) );
+    if (!name) name = "Wine Adapter";
+    if (!strcmp( name, "Wine Adapter" ) && vulkan_gpu) name = vulkan_gpu->name;
+    RtlUTF8ToUnicodeN( gpu->name, sizeof(gpu->name) - sizeof(WCHAR), &len, name, strlen( name ) );
 
     snprintf( gpu->path, sizeof(gpu->path), "PCI\\VEN_%04X&DEV_%04X&SUBSYS_%08X&REV_%02X\\%08X",
               pci_id->vendor, pci_id->device, pci_id->subsystem, pci_id->revision, gpu->index );
@@ -2250,7 +2271,7 @@ static NTSTATUS default_update_display_devices( struct device_manager_ctx *ctx )
     DEVMODEW mode = {.dmSize = sizeof(mode)};
     struct source *source;
 
-    add_gpu( "Wine GPU", &pci_id, NULL, ctx );
+    add_gpu( NULL, &pci_id, NULL, ctx );
     add_source( "Default", source_flags, system_dpi, ctx );
 
     assert( !list_empty( &sources ) );
