@@ -41,9 +41,6 @@ struct wine_queue
 struct wine_device
 {
     struct vulkan_device obj;
-    bool has_external_memory_win32;
-    bool has_external_semaphore_win32;
-    bool has_external_fence_win32;
     uint64_t queue_count;
     struct wine_queue queues[];
 };
@@ -67,14 +64,10 @@ struct wine_instance
 {
     struct vulkan_instance obj;
 
-    VkBool32 enable_win32_surface;
-
     struct wine_debug_utils_messenger *utils_messengers;
     uint32_t utils_messenger_count;
 
     struct wine_debug_report_callback default_callback;
-
-    unsigned int quirks;
 
     struct rb_tree objects;
     pthread_rwlock_t objects_lock;
@@ -112,13 +105,10 @@ static inline struct wine_debug_report_callback *wine_debug_report_callback_from
     return (struct wine_debug_report_callback *)(uintptr_t)handle;
 }
 
-BOOL wine_vk_device_extension_supported(const char *name);
-BOOL wine_vk_instance_extension_supported(const char *name);
-BOOL wine_vk_is_host_surface_extension(const char *name);
-
 BOOL wine_vk_is_type_wrapped(VkObjectType type);
 
 NTSTATUS init_vulkan(void *args);
+NTSTATUS wow64_init_vulkan(void *args);
 
 NTSTATUS vk_is_available_instance_function(void *arg);
 NTSTATUS vk_is_available_device_function(void *arg);
