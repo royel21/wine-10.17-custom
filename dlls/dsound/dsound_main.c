@@ -646,7 +646,7 @@ DirectSoundCaptureEnumerateW(
  */
 
 typedef  HRESULT (*FnCreateInstance)(REFIID riid, LPVOID *ppobj);
-
+ 
 typedef struct {
     IClassFactory IClassFactory_iface;
     REFCLSID rclsid;
@@ -706,7 +706,7 @@ static HRESULT WINAPI DSCF_CreateInstance(
     *ppobj = NULL;
     return This->pfnCreateInstance(riid, ppobj);
 }
-
+ 
 static HRESULT WINAPI DSCF_LockServer(LPCLASSFACTORY iface, BOOL dolock)
 {
     IClassFactoryImpl *This = impl_from_IClassFactory(iface);
