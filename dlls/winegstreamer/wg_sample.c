@@ -373,12 +373,10 @@ HRESULT wg_transform_push_mf(wg_transform_t transform, IMFSample *sample,
     return hr;
 }
 
-HRESULT wg_transform_read_mf(wg_transform_t transform, IMFSample *sample,
-        DWORD mf_sample_size, DWORD *flags, bool *preserve_timestamps)
+HRESULT wg_transform_read_mf(wg_transform_t transform, IMFSample *sample, DWORD *flags, bool *preserve_timestamps)
 {
     struct wg_sample *wg_sample;
     IMFMediaBuffer *buffer;
-    DWORD sample_size;
     HRESULT hr;
 
     TRACE_(mfplat)("transform %#I64x, sample %p, flags %p.\n", transform, sample, flags);
@@ -409,22 +407,7 @@ HRESULT wg_transform_read_mf(wg_transform_t transform, IMFSample *sample,
 
     if (SUCCEEDED(hr = IMFSample_ConvertToContiguousBuffer(sample, &buffer)))
     {
-        if (wg_sample->stride && mf_sample_size)
-        {
-            /* The sample size must match the frame size calculated with default alignment, which
-             * differs from the length of the contiguous buffer if the buffer has extra width, either
-             * to conform with 2D alignment or because MF_MT_FRAME_SIZE was set to a width greater
-             * than that of the actual video frame. MF allows a frame to be placed in a wider 2D buffer. */
-            sample_size = min(mf_sample_size, wg_sample->size);
-        }
-        else
-        {
-            if (wg_sample->stride)
-                FIXME("Expected an MF sample size.\n");
-            sample_size = wg_sample->size;
-        }
-
-        hr = IMFMediaBuffer_SetCurrentLength(buffer, sample_size);
+        hr = IMFMediaBuffer_SetCurrentLength(buffer, wg_sample->size);
         IMFMediaBuffer_Release(buffer);
     }
 

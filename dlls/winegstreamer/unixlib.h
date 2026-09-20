@@ -230,6 +230,7 @@ struct wg_parser_create_params
 {
     wg_parser_t parser;
     UINT32 flags;
+    UINT8 use_opengl;
     UINT8 err_on;
     UINT8 warn_on;
 };

@@ -10,7 +10,8 @@ VER_FILEDESCRIPTION_STR = "Wine GStreamer"
 VER_OLESELFREGISTER     = 1
 
 SOURCES = \
-	aac_decoder.c \
+	audio_decoder.c \
+	color_convert.c \
 	main.c \
 	media-converter/audioconv.c \
 	media-converter/audioconvbin.c \
@@ -24,10 +25,12 @@ SOURCES = \
 	mfplat.c \
 	quartz_parser.c \
 	quartz_transform.c \
+	resampler.c \
 	rsrc.rc \
 	unixlib.c \
 	video_decoder.c \
 	video_encoder.c \
+	video_processor.c \
 	wg_allocator.c \
 	wg_format.c \
 	wg_media_type.c \

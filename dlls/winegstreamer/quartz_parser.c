@@ -1897,7 +1897,7 @@ static HRESULT parser_create(UINT32 flags, struct parser **parser)
 
     object->output_compressed = flags & WG_PARSER_CREATE_FLAG_OUTPUT_COMPRESSED;
 
-    if (!(object->wg_parser = wg_parser_create(flags)))
+    if (!(object->wg_parser = wg_parser_create(flags, FALSE)))
     {
         free(object);
         return E_OUTOFMEMORY;
