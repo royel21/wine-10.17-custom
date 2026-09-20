@@ -556,7 +556,10 @@ static bool transform_create_decoder_elements(struct wg_transform *transform,
     char *str;
 
     if (!strcmp(input_mime, "audio/x-raw") || !strcmp(input_mime, "video/x-raw"))
+    {
+        transform->attrs.input_queue_length = 16;
         return true;
+    }
 
     if (!(parsed_caps = transform_get_parsed_caps(transform->input_caps, input_mime)))
         return false;
@@ -711,6 +714,9 @@ NTSTATUS wg_transform_create(void *args)
     GST_INFO("transform %p input caps %"GST_PTR_FORMAT, transform, transform->input_caps);
     input_mime = gst_structure_get_name(gst_caps_get_structure(transform->input_caps, 0));
 
+    if (!strcmp(input_mime, "video/x-h264"))
+        touch_h264_used_tag();
+
     if (!(transform->output_caps = caps_from_media_type(&params->output_type)))
         goto out;
     GST_INFO("transform %p output caps %"GST_PTR_FORMAT, transform, transform->output_caps);
@@ -771,6 +777,20 @@ NTSTATUS wg_transform_create(void *args)
     if (!(event = gst_event_new_caps(transform->input_caps))
             || !push_event(transform->my_src, event))
         goto out;
+
+    /* Check that the caps event have been accepted */
+    if (!strcmp(input_mime, "video/x-h264"))
+    {
+        GstPad *peer;
+        if (!(peer = gst_pad_get_peer(transform->my_src)))
+            goto out;
+        else if (!gst_pad_has_current_caps(peer))
+        {
+            gst_object_unref(peer);
+            goto out;
+        }
+        gst_object_unref(peer);
+    }
 
     /* We need to use GST_FORMAT_TIME here because it's the only format
      * some elements such avdec_wmav2 correctly support. */
