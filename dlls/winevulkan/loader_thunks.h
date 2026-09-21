@@ -3203,7 +3203,6 @@ struct vkCreateDevice_params
     const VkDeviceCreateInfo *pCreateInfo;
     const VkAllocationCallbacks *pAllocator;
     VkDevice *pDevice;
-    void *client_ptr;
     VkResult result;
 };
 
@@ -3295,7 +3294,6 @@ struct vkCreateInstance_params
     const VkInstanceCreateInfo *pCreateInfo;
     const VkAllocationCallbacks *pAllocator;
     VkInstance *pInstance;
-    void *client_ptr;
     VkResult result;
 };
 

@@ -176,12 +176,6 @@ PERF_CRITICAL_FUNCTIONS = [
 # part of the driver interface.
 # - dispatch (default: True):  set whether we need a function pointer in the device / instance dispatch table.
 FUNCTION_OVERRIDES = {
-    # Global functions
-    "vkCreateInstance" : {"extra_param" : "client_ptr"},
-
-    # Instance functions
-    "vkCreateDevice" : {"extra_param" : "client_ptr"},
-
     # Device functions
     "vkCreateCommandPool" : {"extra_param" : "client_ptr"},
     "vkGetDeviceProcAddr" : {"dispatch" : False},
@@ -193,12 +187,16 @@ USER_DRIVER_FUNCS = {
     "vkAcquireNextImageKHR",
     "vkAllocateMemory",
     "vkCreateBuffer",
+    "vkCreateDevice",
     "vkCreateFence",
     "vkCreateImage",
+    "vkCreateInstance",
     "vkCreateSemaphore",
     "vkCreateSwapchainKHR",
     "vkCreateWin32SurfaceKHR",
+    "vkDestroyDevice",
     "vkDestroyFence",
+    "vkDestroyInstance",
     "vkDestroySemaphore",
     "vkDestroySurfaceKHR",
     "vkDestroySwapchainKHR",
@@ -207,6 +205,8 @@ USER_DRIVER_FUNCS = {
     "vkGetDeviceBufferMemoryRequirementsKHR",
     "vkGetDeviceImageMemoryRequirements",
     "vkGetDeviceProcAddr",
+    "vkGetDeviceQueue",
+    "vkGetDeviceQueue2",
     "vkGetFenceWin32HandleKHR",
     "vkGetInstanceProcAddr",
     "vkGetMemoryWin32HandleKHR",
@@ -247,14 +247,11 @@ MANUAL_UNIX_THUNKS = {
     "vkCreateDebugReportCallbackEXT",
     "vkCreateDebugUtilsMessengerEXT",
     "vkCreateDeferredOperationKHR",
-    "vkCreateDevice",
     "vkCreateInstance",
     "vkDestroyCommandPool",
     "vkDestroyDebugReportCallbackEXT",
     "vkDestroyDebugUtilsMessengerEXT",
     "vkDestroyDeferredOperationKHR",
-    "vkDestroyDevice",
-    "vkDestroyInstance",
     "vkEnumerateDeviceLayerProperties",
     "vkEnumerateInstanceExtensionProperties",
     "vkEnumerateInstanceLayerProperties",
@@ -266,8 +263,6 @@ MANUAL_UNIX_THUNKS = {
     "vkGetCalibratedTimestampsEXT",
     "vkGetCalibratedTimestampsKHR",
     "vkGetDeviceProcAddr",
-    "vkGetDeviceQueue",
-    "vkGetDeviceQueue2",
     "vkGetInstanceProcAddr",
     "vkGetPhysicalDeviceCalibrateableTimeDomainsEXT",
     "vkGetPhysicalDeviceCalibrateableTimeDomainsKHR",
@@ -1101,9 +1096,9 @@ class VkHandle(object):
         if self.name == "VkCommandPool":
             return "wine_cmd_pool_from_handle({0})->host.command_pool".format(name)
         if self.name == "VkDebugUtilsMessengerEXT":
-            return "wine_debug_utils_messenger_from_handle({0})->host.debug_messenger".format(name)
+            return "vulkan_debug_utils_messenger_from_handle({0})->host.debug_messenger".format(name)
         if self.name == "VkDebugReportCallbackEXT":
-            return "wine_debug_report_callback_from_handle({0})->host.debug_callback".format(name)
+            return "vulkan_debug_report_callback_from_handle({0})->host.debug_callback".format(name)
         if self.name == "VkDeferredOperationKHR":
             return "wine_deferred_operation_from_handle({0})->host.deferred_operation".format(name)
         if self.name == "VkDevice":

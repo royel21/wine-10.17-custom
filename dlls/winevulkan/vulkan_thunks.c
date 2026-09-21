@@ -9848,9 +9848,9 @@ static uint64_t wine_vk_unwrap_handle(uint32_t type, uint64_t handle)
     case VK_OBJECT_TYPE_COMMAND_POOL:
         return (uint64_t) wine_cmd_pool_from_handle(handle)->host.command_pool;
     case VK_OBJECT_TYPE_DEBUG_REPORT_CALLBACK_EXT:
-        return (uint64_t) wine_debug_report_callback_from_handle(handle)->host.debug_callback;
+        return (uint64_t) vulkan_debug_report_callback_from_handle(handle)->host.debug_callback;
     case VK_OBJECT_TYPE_DEBUG_UTILS_MESSENGER_EXT:
-        return (uint64_t) wine_debug_utils_messenger_from_handle(handle)->host.debug_messenger;
+        return (uint64_t) vulkan_debug_utils_messenger_from_handle(handle)->host.debug_messenger;
     case VK_OBJECT_TYPE_DEFERRED_OPERATION_KHR:
         return (uint64_t) wine_deferred_operation_from_handle(handle)->host.deferred_operation;
     case VK_OBJECT_TYPE_DEVICE:
@@ -50992,7 +50992,7 @@ static NTSTATUS thunk64_vkCreateDevice(void *args)
 
     init_conversion_context(ctx);
     convert_VkDeviceCreateInfo_win64_to_host(ctx, params->pCreateInfo, &pCreateInfo_host);
-    params->result = wine_vkCreateDevice(params->physicalDevice, &pCreateInfo_host, params->pAllocator, params->pDevice, params->client_ptr);
+    params->result = vk_funcs->p_vkCreateDevice(params->physicalDevice, &pCreateInfo_host, params->pAllocator, params->pDevice);
     free_conversion_context(ctx);
     return STATUS_SUCCESS;
 }
@@ -51006,7 +51006,6 @@ static NTSTATUS thunk32_vkCreateDevice(void *args)
         PTR32 pCreateInfo;
         PTR32 pAllocator;
         PTR32 pDevice;
-        PTR32 client_ptr;
         VkResult result;
     } *params = args;
     VkDeviceCreateInfo pCreateInfo_host;
@@ -51019,7 +51018,7 @@ static NTSTATUS thunk32_vkCreateDevice(void *args)
     init_conversion_context(ctx);
     convert_VkDeviceCreateInfo_win32_to_host(ctx, (const VkDeviceCreateInfo32 *)UlongToPtr(params->pCreateInfo), &pCreateInfo_host);
     pDevice_host = UlongToPtr(*(PTR32 *)UlongToPtr(params->pDevice));
-    params->result = wine_vkCreateDevice((VkPhysicalDevice)UlongToPtr(params->physicalDevice), &pCreateInfo_host, (const VkAllocationCallbacks *)UlongToPtr(params->pAllocator), &pDevice_host, UlongToPtr(params->client_ptr));
+    params->result = vk_funcs->p_vkCreateDevice((VkPhysicalDevice)UlongToPtr(params->physicalDevice), &pCreateInfo_host, (const VkAllocationCallbacks *)UlongToPtr(params->pAllocator), &pDevice_host);
     *(PTR32 *)UlongToPtr(params->pDevice) = PtrToUlong(pDevice_host);
     free_conversion_context(ctx);
     return STATUS_SUCCESS;
@@ -51369,7 +51368,7 @@ static NTSTATUS thunk64_vkCreateInstance(void *args)
 
     init_conversion_context(ctx);
     convert_VkInstanceCreateInfo_win64_to_host(ctx, params->pCreateInfo, &pCreateInfo_host);
-    params->result = wine_vkCreateInstance(&pCreateInfo_host, params->pAllocator, params->pInstance, params->client_ptr);
+    params->result = wine_vkCreateInstance(&pCreateInfo_host, params->pAllocator, params->pInstance);
     free_conversion_context(ctx);
     return STATUS_SUCCESS;
 }
@@ -51382,7 +51381,6 @@ static NTSTATUS thunk32_vkCreateInstance(void *args)
         PTR32 pCreateInfo;
         PTR32 pAllocator;
         PTR32 pInstance;
-        PTR32 client_ptr;
         VkResult result;
     } *params = args;
     VkInstanceCreateInfo pCreateInfo_host;
@@ -51395,7 +51393,7 @@ static NTSTATUS thunk32_vkCreateInstance(void *args)
     init_conversion_context(ctx);
     convert_VkInstanceCreateInfo_win32_to_host(ctx, (const VkInstanceCreateInfo32 *)UlongToPtr(params->pCreateInfo), &pCreateInfo_host);
     pInstance_host = UlongToPtr(*(PTR32 *)UlongToPtr(params->pInstance));
-    params->result = wine_vkCreateInstance(&pCreateInfo_host, (const VkAllocationCallbacks *)UlongToPtr(params->pAllocator), &pInstance_host, UlongToPtr(params->client_ptr));
+    params->result = wine_vkCreateInstance(&pCreateInfo_host, (const VkAllocationCallbacks *)UlongToPtr(params->pAllocator), &pInstance_host);
     *(PTR32 *)UlongToPtr(params->pInstance) = PtrToUlong(pInstance_host);
     free_conversion_context(ctx);
     return STATUS_SUCCESS;
@@ -52856,7 +52854,7 @@ static NTSTATUS thunk64_vkDestroyDevice(void *args)
     if (!params->device)
         return STATUS_SUCCESS;
 
-    wine_vkDestroyDevice(params->device, params->pAllocator);
+    vk_funcs->p_vkDestroyDevice(params->device, params->pAllocator);
     return STATUS_SUCCESS;
 }
 #endif /* _WIN64 */
@@ -52874,7 +52872,7 @@ static NTSTATUS thunk32_vkDestroyDevice(void *args)
     if (!params->device)
         return STATUS_SUCCESS;
 
-    wine_vkDestroyDevice((VkDevice)UlongToPtr(params->device), (const VkAllocationCallbacks *)UlongToPtr(params->pAllocator));
+    vk_funcs->p_vkDestroyDevice((VkDevice)UlongToPtr(params->device), (const VkAllocationCallbacks *)UlongToPtr(params->pAllocator));
     return STATUS_SUCCESS;
 }
 
@@ -53104,7 +53102,7 @@ static NTSTATUS thunk64_vkDestroyInstance(void *args)
     if (!params->instance)
         return STATUS_SUCCESS;
 
-    wine_vkDestroyInstance(params->instance, params->pAllocator);
+    vk_funcs->p_vkDestroyInstance(params->instance, params->pAllocator);
     return STATUS_SUCCESS;
 }
 #endif /* _WIN64 */
@@ -53122,7 +53120,7 @@ static NTSTATUS thunk32_vkDestroyInstance(void *args)
     if (!params->instance)
         return STATUS_SUCCESS;
 
-    wine_vkDestroyInstance((VkInstance)UlongToPtr(params->instance), (const VkAllocationCallbacks *)UlongToPtr(params->pAllocator));
+    vk_funcs->p_vkDestroyInstance((VkInstance)UlongToPtr(params->instance), (const VkAllocationCallbacks *)UlongToPtr(params->pAllocator));
     return STATUS_SUCCESS;
 }
 
@@ -55831,7 +55829,7 @@ static NTSTATUS thunk64_vkGetDeviceQueue(void *args)
 
     TRACE("%p, %u, %u, %p\n", params->device, params->queueFamilyIndex, params->queueIndex, params->pQueue);
 
-    wine_vkGetDeviceQueue(params->device, params->queueFamilyIndex, params->queueIndex, params->pQueue);
+    vk_funcs->p_vkGetDeviceQueue(params->device, params->queueFamilyIndex, params->queueIndex, params->pQueue);
     return STATUS_SUCCESS;
 }
 #endif /* _WIN64 */
@@ -55850,7 +55848,7 @@ static NTSTATUS thunk32_vkGetDeviceQueue(void *args)
     TRACE("%#x, %u, %u, %#x\n", params->device, params->queueFamilyIndex, params->queueIndex, params->pQueue);
 
     pQueue_host = UlongToPtr(*(PTR32 *)UlongToPtr(params->pQueue));
-    wine_vkGetDeviceQueue((VkDevice)UlongToPtr(params->device), params->queueFamilyIndex, params->queueIndex, &pQueue_host);
+    vk_funcs->p_vkGetDeviceQueue((VkDevice)UlongToPtr(params->device), params->queueFamilyIndex, params->queueIndex, &pQueue_host);
     *(PTR32 *)UlongToPtr(params->pQueue) = PtrToUlong(pQueue_host);
     return STATUS_SUCCESS;
 }
@@ -55862,7 +55860,7 @@ static NTSTATUS thunk64_vkGetDeviceQueue2(void *args)
 
     TRACE("%p, %p, %p\n", params->device, params->pQueueInfo, params->pQueue);
 
-    wine_vkGetDeviceQueue2(params->device, params->pQueueInfo, params->pQueue);
+    vk_funcs->p_vkGetDeviceQueue2(params->device, params->pQueueInfo, params->pQueue);
     return STATUS_SUCCESS;
 }
 #endif /* _WIN64 */
@@ -55882,7 +55880,7 @@ static NTSTATUS thunk32_vkGetDeviceQueue2(void *args)
 
     convert_VkDeviceQueueInfo2_win32_to_host((const VkDeviceQueueInfo232 *)UlongToPtr(params->pQueueInfo), &pQueueInfo_host);
     pQueue_host = UlongToPtr(*(PTR32 *)UlongToPtr(params->pQueue));
-    wine_vkGetDeviceQueue2((VkDevice)UlongToPtr(params->device), &pQueueInfo_host, &pQueue_host);
+    vk_funcs->p_vkGetDeviceQueue2((VkDevice)UlongToPtr(params->device), &pQueueInfo_host, &pQueue_host);
     *(PTR32 *)UlongToPtr(params->pQueue) = PtrToUlong(pQueue_host);
     return STATUS_SUCCESS;
 }
