@@ -1838,6 +1838,7 @@ struct fd *alloc_pseudo_fd( const struct fd_ops *fd_user_ops, struct object *use
 
     if (do_esync())
         fd->esync_fd = esync_create_fd( 0, 0 );
+
     return fd;
 }
 
