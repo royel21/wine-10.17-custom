@@ -1434,11 +1434,11 @@ static bool fold_rshift(struct hlsl_ctx *ctx, struct hlsl_constant_value *dst, c
     return true;
 }
 
-bool hlsl_fold_constant_exprs(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, void *context)
+struct hlsl_ir_node *hlsl_fold_constant_exprs(struct hlsl_ctx *ctx,
+        struct hlsl_ir_node *instr, struct hlsl_block *block)
 {
     struct hlsl_ir_constant *arg1, *arg2 = NULL, *arg3 = NULL;
     struct hlsl_constant_value res = {0};
-    struct hlsl_ir_node *res_node;
     struct hlsl_ir_expr *expr;
     unsigned int i;
     bool success;
@@ -1638,36 +1638,32 @@ bool hlsl_fold_constant_exprs(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, 
     }
 
     if (success)
-    {
-        if (!(res_node = hlsl_new_constant(ctx, instr->data_type, &res, &instr->loc)))
-            return false;
-        list_add_before(&expr->node.entry, &res_node->entry);
-        hlsl_replace_node(&expr->node, res_node);
-    }
-    return success;
+        return hlsl_block_add_constant(ctx, block, instr->data_type, &res, &instr->loc);
+
+    return NULL;
 }
 
-bool hlsl_fold_constant_identities(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, void *context)
+struct hlsl_ir_node *hlsl_fold_constant_identities(struct hlsl_ctx *ctx,
+        struct hlsl_ir_node *instr, struct hlsl_block *block)
 {
     static const struct hlsl_constant_value zero;
     struct hlsl_ir_constant *const_arg = NULL;
     struct hlsl_ir_node *mut_arg = NULL;
-    struct hlsl_ir_node *res_node;
     struct hlsl_ir_expr *expr;
     unsigned int i;
 
     if (instr->type != HLSL_IR_EXPR)
-        return false;
+        return NULL;
     expr = hlsl_ir_expr(instr);
 
     if (instr->data_type->class > HLSL_CLASS_VECTOR)
-        return false;
+        return NULL;
 
     /* Verify that the expression has two operands. */
     for (i = 0; i < ARRAY_SIZE(expr->operands); ++i)
     {
         if (!!expr->operands[i].node != (i < 2))
-            return false;
+            return NULL;
     }
 
     if (expr->operands[0].node->type == HLSL_IR_CONSTANT)
@@ -1682,34 +1678,33 @@ bool hlsl_fold_constant_identities(struct hlsl_ctx *ctx, struct hlsl_ir_node *in
     }
     else
     {
-        return false;
+        return NULL;
     }
 
-    res_node = NULL;
     switch (expr->op)
     {
         case HLSL_OP2_ADD:
             if (hlsl_constant_is_zero(const_arg))
-                res_node = mut_arg;
+                return mut_arg;
             break;
 
         case HLSL_OP2_MUL:
             if (hlsl_constant_is_one(const_arg))
-                res_node = mut_arg;
+                return mut_arg;
             break;
 
         case HLSL_OP2_LOGIC_AND:
             if (hlsl_constant_is_zero(const_arg))
-                res_node = &const_arg->node;
+                return &const_arg->node;
             else if (hlsl_constant_is_one(const_arg))
-                res_node = mut_arg;
+                return mut_arg;
             break;
 
         case HLSL_OP2_LOGIC_OR:
             if (hlsl_constant_is_zero(const_arg))
-                res_node = mut_arg;
+                return mut_arg;
             else if (hlsl_constant_is_one(const_arg))
-                res_node = &const_arg->node;
+                return &const_arg->node;
             break;
 
         case HLSL_OP2_LESS:
@@ -1718,21 +1713,13 @@ bool hlsl_fold_constant_identities(struct hlsl_ctx *ctx, struct hlsl_ir_node *in
                     || expr->operands[1].node->type != HLSL_IR_CONSTANT
                     || !hlsl_constant_is_zero(hlsl_ir_constant(expr->operands[1].node)))
                 break;
-            if (!(res_node = hlsl_new_constant(ctx, instr->data_type, &zero, &instr->loc)))
-                break;
-            list_add_before(&expr->node.entry, &res_node->entry);
-            break;
+            return hlsl_block_add_constant(ctx, block, instr->data_type, &zero, &instr->loc);
 
         default:
             break;
     }
 
-    if (res_node)
-    {
-        hlsl_replace_node(&expr->node, res_node);
-        return true;
-    }
-    return false;
+    return NULL;
 }
 
 static bool is_op_associative(enum hlsl_ir_expr_op op, enum hlsl_base_type type)
@@ -1831,26 +1818,23 @@ static struct hlsl_ir_node *collect_exprs(struct hlsl_ctx *ctx, struct hlsl_bloc
     return hlsl_block_add_expr(ctx, block, opl, operands, instr->data_type, &instr->loc);
 }
 
-bool hlsl_normalize_binary_exprs(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, void *context)
+struct hlsl_ir_node *hlsl_fold_binary_exprs(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, struct hlsl_block *block)
 {
     struct hlsl_ir_node *arg1, *arg2, *tmp;
     struct hlsl_ir_expr *expr;
     enum hlsl_base_type type;
     enum hlsl_ir_expr_op op;
-    struct hlsl_block block;
     bool progress = false;
 
     if (instr->type != HLSL_IR_EXPR)
-        return false;
+        return NULL;
     expr = hlsl_ir_expr(instr);
 
     if (instr->data_type->class > HLSL_CLASS_VECTOR)
-        return false;
+        return NULL;
 
     if (expr->operands[2].node)
-        return false;
-
-    hlsl_block_init(&block);
+        return NULL;
 
     arg1 = expr->operands[0].node;
     arg2 = expr->operands[1].node;
@@ -1858,15 +1842,11 @@ bool hlsl_normalize_binary_exprs(struct hlsl_ctx *ctx, struct hlsl_ir_node *inst
     op = expr->op;
 
     if (!arg1 || !arg2)
-        return false;
+        return NULL;
 
-    if ((tmp = collect_exprs(ctx, &block, instr, op, arg1, arg2)))
-    {
-        /* (x OPL a) OPR (x OPL b) -> x OPL (a OPR b) */
-        list_move_before(&instr->entry, &block.instrs);
-        hlsl_replace_node(instr, tmp);
-        return true;
-    }
+    /* (x OPL a) OPR (x OPL b) -> x OPL (a OPR b) */
+    if ((tmp = collect_exprs(ctx, block, instr, op, arg1, arg2)))
+        return tmp;
 
     if (is_op_commutative(op) && arg1->type == HLSL_IR_CONSTANT && arg2->type != HLSL_IR_CONSTANT)
     {
@@ -1889,13 +1869,13 @@ bool hlsl_normalize_binary_exprs(struct hlsl_ctx *ctx, struct hlsl_ir_node *inst
             {
                 /* (x OP a) OP b -> x OP (a OP b) */
                 arg1 = e1->operands[0].node;
-                arg2 = hlsl_block_add_binary_expr(ctx, &block, op, e1->operands[1].node, arg2);
+                arg2 = hlsl_block_add_binary_expr(ctx, block, op, e1->operands[1].node, arg2);
                 progress = true;
             }
             else if (is_op_commutative(op))
             {
                 /* (x OP a) OP y -> (x OP y) OP a */
-                arg1 = hlsl_block_add_binary_expr(ctx, &block, op, e1->operands[0].node, arg2);
+                arg1 = hlsl_block_add_binary_expr(ctx, block, op, e1->operands[0].node, arg2);
                 arg2 = e1->operands[1].node;
                 progress = true;
             }
@@ -1905,13 +1885,13 @@ bool hlsl_normalize_binary_exprs(struct hlsl_ctx *ctx, struct hlsl_ir_node *inst
                 && e2->operands[0].node->type != HLSL_IR_CONSTANT && e2->operands[1].node->type == HLSL_IR_CONSTANT)
         {
             /* x OP (y OP a) -> (x OP y) OP a */
-            arg1 = hlsl_block_add_binary_expr(ctx, &block, op, arg1, e2->operands[0].node);
+            arg1 = hlsl_block_add_binary_expr(ctx, block, op, arg1, e2->operands[0].node);
             arg2 = e2->operands[1].node;
             progress = true;
         }
 
         if (!progress && e1 && e1->op == op
-                && (tmp = collect_exprs(ctx, &block, instr, op, e1->operands[1].node, arg2)))
+                && (tmp = collect_exprs(ctx, block, instr, op, e1->operands[1].node, arg2)))
         {
             /* (y OPR (x OPL a)) OPR (x OPL b) -> y OPR (x OPL (a OPR b)) */
             arg1 = e1->operands[0].node;
@@ -1920,7 +1900,7 @@ bool hlsl_normalize_binary_exprs(struct hlsl_ctx *ctx, struct hlsl_ir_node *inst
         }
 
         if (!progress && is_op_commutative(op) && e1 && e1->op == op
-                && (tmp = collect_exprs(ctx, &block, instr, op, e1->operands[0].node, arg2)))
+                && (tmp = collect_exprs(ctx, block, instr, op, e1->operands[0].node, arg2)))
         {
             /* ((x OPL a) OPR y) OPR (x OPL b) -> (x OPL (a OPR b)) OPR y */
             arg1 = tmp;
@@ -1929,7 +1909,7 @@ bool hlsl_normalize_binary_exprs(struct hlsl_ctx *ctx, struct hlsl_ir_node *inst
         }
 
         if (!progress && e2 && e2->op == op
-                && (tmp = collect_exprs(ctx, &block, instr, op, arg1, e2->operands[0].node)))
+                && (tmp = collect_exprs(ctx, block, instr, op, arg1, e2->operands[0].node)))
         {
             /* (x OPL a) OPR ((x OPL b) OPR y) -> (x OPL (a OPR b)) OPR y */
             arg1 = tmp;
@@ -1938,7 +1918,7 @@ bool hlsl_normalize_binary_exprs(struct hlsl_ctx *ctx, struct hlsl_ir_node *inst
         }
 
         if (!progress && is_op_commutative(op) && e2 && e2->op == op
-                && (tmp = collect_exprs(ctx, &block, instr, op, arg1, e2->operands[1].node)))
+                && (tmp = collect_exprs(ctx, block, instr, op, arg1, e2->operands[1].node)))
         {
             /* (x OPL a) OPR (y OPR (x OPL b)) -> (x OPL (a OPR b)) OPR y */
             arg1 = tmp;
@@ -1950,39 +1930,30 @@ bool hlsl_normalize_binary_exprs(struct hlsl_ctx *ctx, struct hlsl_ir_node *inst
     if (progress)
     {
         struct hlsl_ir_node *operands[HLSL_MAX_OPERANDS] = {arg1, arg2};
-        struct hlsl_ir_node *res;
 
-        res = hlsl_block_add_expr(ctx, &block, op, operands, instr->data_type, &instr->loc);
-
-        list_move_before(&instr->entry, &block.instrs);
-        hlsl_replace_node(instr, res);
+        return hlsl_block_add_expr(ctx, block, op, operands, instr->data_type, &instr->loc);
     }
 
-    return progress;
+    return NULL;
 }
 
-bool hlsl_fold_constant_swizzles(struct hlsl_ctx *ctx, struct hlsl_ir_node *instr, void *context)
+struct hlsl_ir_node *hlsl_fold_constant_swizzles(struct hlsl_ctx *ctx,
+        struct hlsl_ir_node *instr, struct hlsl_block *block)
 {
     struct hlsl_constant_value value;
     struct hlsl_ir_swizzle *swizzle;
     struct hlsl_ir_constant *src;
-    struct hlsl_ir_node *dst;
     unsigned int i;
 
     if (instr->type != HLSL_IR_SWIZZLE)
-        return false;
+        return NULL;
     swizzle = hlsl_ir_swizzle(instr);
     if (swizzle->val.node->type != HLSL_IR_CONSTANT)
-        return false;
+        return NULL;
     src = hlsl_ir_constant(swizzle->val.node);
 
     for (i = 0; i < swizzle->node.data_type->e.numeric.dimx; ++i)
         value.u[i] = src->value.u[hlsl_swizzle_get_component(swizzle->u.vector, i)];
 
-    if (!(dst = hlsl_new_constant(ctx, instr->data_type, &value, &instr->loc)))
-        return false;
-
-    list_add_before(&swizzle->node.entry, &dst->entry);
-    hlsl_replace_node(&swizzle->node, dst);
-    return true;
+    return hlsl_block_add_constant(ctx, block, instr->data_type, &value, &instr->loc);
 }

@@ -60,6 +60,7 @@ enum vkd3d_shader_api_version
     VKD3D_SHADER_API_VERSION_1_15,
     VKD3D_SHADER_API_VERSION_1_16,
     VKD3D_SHADER_API_VERSION_1_17,
+    VKD3D_SHADER_API_VERSION_1_18,
 
     VKD3D_FORCE_32_BIT_ENUM(VKD3D_SHADER_API_VERSION),
 };
@@ -961,6 +962,102 @@ enum vkd3d_shader_parameter_name
      * \since 1.15
      */
     VKD3D_SHADER_PARAMETER_NAME_FOG_SOURCE,
+    /**
+     * Bump-mapping matrix. This parameter is used in the evaluation of the
+     * Shader Model 1.x instructions BEM, TEXBEM, and TEXBEML.
+     *
+     * This parameter specifies a 2x2 matrix, packed into a vector in the order
+     * [00, 01, 10, 11], where "01" specifies the component at column 0 and row
+     * 1. These coordinates correspond to the Direct3D notation.
+     *
+     * To use this parameter to implement Direct3D bump mapping, pass the values
+     * of the texture stage states D3DTSS_BUMPENVMAT00, D3DTSS_BUMPENVMAT01,
+     * D3DTSS_BUMPENVMAT10, and D3DTSS_BUMPENVMAT11, in that order.
+     *
+     * These enum values are contiguous and arithmetic may safely be performed
+     * on them. That is, VKD3D_SHADER_PARAMETER_NAME_BUMP_MATRIX_[n] is
+     * VKD3D_SHADER_PARAMETER_NAME_BUMP_MATRIX_0 plus n.
+     *
+     * The data type for each parameter must be
+     * VKD3D_SHADER_PARAMETER_DATA_TYPE_FLOAT32_VEC4.
+     *
+     * The default value for each parameter is the zero matrix [0, 0; 0, 0].
+     *
+     * \since 1.18
+     */
+    VKD3D_SHADER_PARAMETER_NAME_BUMP_MATRIX_0,
+    VKD3D_SHADER_PARAMETER_NAME_BUMP_MATRIX_1,
+    VKD3D_SHADER_PARAMETER_NAME_BUMP_MATRIX_2,
+    VKD3D_SHADER_PARAMETER_NAME_BUMP_MATRIX_3,
+    VKD3D_SHADER_PARAMETER_NAME_BUMP_MATRIX_4,
+    VKD3D_SHADER_PARAMETER_NAME_BUMP_MATRIX_5,
+    /**
+     * Bump-mapping luminance scale factor. This parameter is used in the
+     * evaluation of the Shader Model 1.x instruction TEXBEML.
+     *
+     * To use this parameter to implement Direct3D bump mapping, pass the value
+     * of the texture stage state D3DTSS_BUMPENVLSCALE.
+     *
+     * These enum values are contiguous and arithmetic may safely be performed
+     * on them. That is, VKD3D_SHADER_PARAMETER_NAME_BUMP_LUMINANCE_SCALE_[n] is
+     * VKD3D_SHADER_PARAMETER_NAME_BUMP_LUMINANCE_SCALE_0 plus n.
+     *
+     * The data type for each parameter must be
+     * VKD3D_SHADER_PARAMETER_DATA_TYPE_FLOAT32.
+     *
+     * The default value for each parameter is 0.0.
+     *
+     * \since 1.18
+     */
+    VKD3D_SHADER_PARAMETER_NAME_BUMP_LUMINANCE_SCALE_0,
+    VKD3D_SHADER_PARAMETER_NAME_BUMP_LUMINANCE_SCALE_1,
+    VKD3D_SHADER_PARAMETER_NAME_BUMP_LUMINANCE_SCALE_2,
+    VKD3D_SHADER_PARAMETER_NAME_BUMP_LUMINANCE_SCALE_3,
+    VKD3D_SHADER_PARAMETER_NAME_BUMP_LUMINANCE_SCALE_4,
+    VKD3D_SHADER_PARAMETER_NAME_BUMP_LUMINANCE_SCALE_5,
+    /**
+     * Bump-mapping luminance offset. This parameter is used in the
+     * evaluation of the Shader Model 1.x instruction TEXBEML.
+     *
+     * To use this parameter to implement Direct3D bump mapping, pass the value
+     * of the texture stage state D3DTSS_BUMPENVLOFFSET.
+     *
+     * These enum values are contiguous and arithmetic may safely be performed
+     * on them. That is, VKD3D_SHADER_PARAMETER_NAME_BUMP_LUMINANCE_OFFSET_[n] is
+     * VKD3D_SHADER_PARAMETER_NAME_BUMP_LUMINANCE_OFFSET_0 plus n.
+     *
+     * The data type for each parameter must be
+     * VKD3D_SHADER_PARAMETER_DATA_TYPE_FLOAT32.
+     *
+     * The default value for each parameter is 0.0.
+     *
+     * \since 1.18
+     */
+    VKD3D_SHADER_PARAMETER_NAME_BUMP_LUMINANCE_OFFSET_0,
+    VKD3D_SHADER_PARAMETER_NAME_BUMP_LUMINANCE_OFFSET_1,
+    VKD3D_SHADER_PARAMETER_NAME_BUMP_LUMINANCE_OFFSET_2,
+    VKD3D_SHADER_PARAMETER_NAME_BUMP_LUMINANCE_OFFSET_3,
+    VKD3D_SHADER_PARAMETER_NAME_BUMP_LUMINANCE_OFFSET_4,
+    VKD3D_SHADER_PARAMETER_NAME_BUMP_LUMINANCE_OFFSET_5,
+    /**
+     * A mask of projected textures.
+     *
+     * When this parameter is provided to a shader model 1.0-1.3 pixel shader,
+     * for each nonzero bit of this mask, the corresponding texture will be
+     * projected. That is, it will have its coordinates divided by their W
+     * component before sampling.
+     *
+     * The default value is zero, i.e. no textures are projected.
+     *
+     * The data type for this parameter must be
+     * VKD3D_SHADER_PARAMETER_DATA_TYPE_UINT32.
+     *
+     * Only VKD3D_SHADER_PARAMETER_TYPE_IMMEDIATE_CONSTANT is supported in this
+     * version of vkd3d-shader.
+     *
+     * \since 1.19
+     */
+    VKD3D_SHADER_PARAMETER_NAME_PROJECTED_TEXTURE_MASK,
 
     VKD3D_FORCE_32_BIT_ENUM(VKD3D_SHADER_PARAMETER_NAME),
 };
@@ -2875,6 +2972,7 @@ VKD3D_SHADER_API const enum vkd3d_shader_target_type *vkd3d_shader_get_supported
  * - vkd3d_shader_scan_descriptor_info
  * - vkd3d_shader_scan_hull_shader_tessellation_info
  * - vkd3d_shader_scan_signature_info
+ * - vkd3d_shader_scan_thread_group_size_info
  * - vkd3d_shader_spirv_domain_shader_target_info
  * - vkd3d_shader_spirv_target_info
  * - vkd3d_shader_transform_feedback_info
@@ -3063,10 +3161,21 @@ VKD3D_SHADER_API int vkd3d_shader_convert_root_signature(struct vkd3d_shader_ver
  * \param compile_info A chained structure containing scan parameters.
  * \n
  * The scanner supports the following chained structures:
+ * - vkd3d_shader_d3dbc_source_info
+ * - vkd3d_shader_descriptor_offset_info
+ * - vkd3d_shader_hlsl_source_info
+ * - vkd3d_shader_interface_info
+ * - vkd3d_shader_parameter_info
+ * - vkd3d_shader_preprocess_info
  * - vkd3d_shader_scan_combined_resource_sampler_info
  * - vkd3d_shader_scan_descriptor_info
  * - vkd3d_shader_scan_hull_shader_tessellation_info
  * - vkd3d_shader_scan_signature_info
+ * - vkd3d_shader_scan_thread_group_size_info
+ * - vkd3d_shader_spirv_domain_shader_target_info
+ * - vkd3d_shader_spirv_target_info
+ * - vkd3d_shader_transform_feedback_info
+ * - vkd3d_shader_varying_map_info
  * \n
  * Although the \a compile_info parameter is read-only, chained structures
  * passed to this function need not be, and may serve as output parameters,

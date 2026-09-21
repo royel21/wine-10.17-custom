@@ -19,8 +19,6 @@
 #include "vkd3d_utils_private.h"
 #undef D3D12CreateDevice
 
-/* VKD3D_DEBUG_ENV_NAME("VKD3D_DEBUG"); */
-
 static const char *debug_d3d_blob_part(D3D_BLOB_PART part)
 {
     switch (part)

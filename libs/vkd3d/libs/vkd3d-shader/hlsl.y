@@ -471,7 +471,7 @@ static void append_conditional_break(struct hlsl_ctx *ctx, struct hlsl_block *co
 
     hlsl_block_init(&then_block);
     hlsl_block_add_jump(ctx, &then_block, HLSL_IR_JUMP_BREAK, NULL, &condition->loc);
-    hlsl_block_add_if(ctx, cond_block, not, &then_block, NULL, &condition->loc);
+    hlsl_block_add_if(ctx, cond_block, not, &then_block, NULL, HLSL_IF_FLATTEN_DEFAULT, &condition->loc);
 }
 
 static void check_attribute_list_for_duplicates(struct hlsl_ctx *ctx, const struct parse_attribute_list *attrs)
@@ -544,16 +544,9 @@ static void check_loop_attributes(struct hlsl_ctx *ctx, const struct parse_attri
         hlsl_error(ctx, loc, VKD3D_SHADER_ERROR_HLSL_INVALID_SYNTAX, "Unroll attribute can't be used with 'fastopt' attribute.");
 }
 
-static struct hlsl_default_value evaluate_static_expression(struct hlsl_ctx *ctx,
-        struct hlsl_block *block, struct hlsl_type *dst_type, const struct vkd3d_shader_location *loc)
+static bool is_static_expression(struct hlsl_block *block)
 {
-    struct hlsl_default_value ret = {0};
     struct hlsl_ir_node *node;
-    struct hlsl_block expr;
-    struct hlsl_src src;
-
-    if (node_from_block(block)->data_type->class == HLSL_CLASS_ERROR)
-        return ret;
 
     LIST_FOR_EACH_ENTRY(node, &block->instrs, struct hlsl_ir_node, entry)
     {
@@ -582,11 +575,27 @@ static struct hlsl_default_value evaluate_static_expression(struct hlsl_ctx *ctx
             case HLSL_IR_SWITCH:
             case HLSL_IR_STATEBLOCK_CONSTANT:
             case HLSL_IR_SYNC:
-                hlsl_error(ctx, &node->loc, VKD3D_SHADER_ERROR_HLSL_INVALID_SYNTAX,
-                        "Expected literal expression.");
-                break;
+                return false;
         }
     }
+
+    return true;
+}
+
+static struct hlsl_default_value evaluate_static_expression(struct hlsl_ctx *ctx,
+        struct hlsl_block *block, struct hlsl_type *dst_type, const struct vkd3d_shader_location *loc)
+{
+    struct hlsl_default_value ret = {0};
+    struct hlsl_ir_node *node;
+    struct hlsl_block expr;
+    struct hlsl_src src;
+
+    if (node_from_block(block)->data_type->class == HLSL_CLASS_ERROR)
+        return ret;
+
+    if (!is_static_expression(block))
+        hlsl_error(ctx, &node_from_block(block)->loc, VKD3D_SHADER_ERROR_HLSL_INVALID_SYNTAX,
+                "Expected literal expression.");
 
     if (!hlsl_clone_block(ctx, &expr, &ctx->static_initializers))
         return ret;
@@ -2246,18 +2255,14 @@ static void initialize_var_components(struct hlsl_ctx *ctx, struct hlsl_block *i
 
             if (src->type == HLSL_IR_COMPILE || src->type == HLSL_IR_SAMPLER_STATE)
             {
-                if (hlsl_is_numeric_type(dst_comp_type))
+                /* Default values are discarded if they contain an object
+                 * literal expression for a numeric component. */
+                if (hlsl_is_numeric_type(dst_comp_type) && dst->default_values)
                 {
-                    /* Default values are discarded if they contain an object
-                     * literal expression for a numeric component. */
-                    if (dst->default_values)
-                    {
-                        hlsl_warning(ctx, &src->loc, VKD3D_SHADER_WARNING_HLSL_IGNORED_DEFAULT_VALUE,
-                                "Component %u in variable '%s' initializer is object literal. Default values discarded.",
-                                k, dst->name);
-                        vkd3d_free(dst->default_values);
-                        dst->default_values = NULL;
-                    }
+                    hlsl_warning(ctx, &src->loc, VKD3D_SHADER_WARNING_HLSL_IGNORED_DEFAULT_VALUE,
+                            "Component %u in variable '%s' initializer is object literal. Default values discarded.",
+                            k, dst->name);
+                    hlsl_free_default_values(dst);
                 }
             }
             else
@@ -2268,6 +2273,8 @@ static void initialize_var_components(struct hlsl_ctx *ctx, struct hlsl_block *i
 
                 if (dst->default_values)
                     dst->default_values[*store_index] = default_value;
+                else
+                    hlsl_free_default_value(&default_value);
 
                 hlsl_block_cleanup(&block);
             }
@@ -2672,7 +2679,7 @@ static struct hlsl_block *initialize_vars(struct hlsl_ctx *ctx, struct list *var
 
         if (v->initializer.args_count)
         {
-            bool is_default_values_initializer;
+            bool is_default_values_initializer, static_initialization;
 
             is_default_values_initializer = (ctx->cur_buffer != ctx->globals_buffer)
                     || (var->storage_modifiers & HLSL_STORAGE_UNIFORM)
@@ -2681,6 +2688,10 @@ static struct hlsl_block *initialize_vars(struct hlsl_ctx *ctx, struct list *var
                 is_default_values_initializer = false;
             if (hlsl_type_is_shader(type))
                 is_default_values_initializer = false;
+
+            static_initialization = var->storage_modifiers & HLSL_STORAGE_STATIC
+                    || (var->data_type->modifiers & HLSL_MODIFIER_CONST
+                    && is_static_expression(v->initializer.instrs));
 
             if (is_default_values_initializer)
             {
@@ -2710,7 +2721,7 @@ static struct hlsl_block *initialize_vars(struct hlsl_ctx *ctx, struct list *var
             {
                 hlsl_dump_var_default_values(var);
             }
-            else if (var->storage_modifiers & HLSL_STORAGE_STATIC)
+            else if (static_initialization)
             {
                 hlsl_block_add_block(&ctx->static_initializers, v->initializer.instrs);
             }
@@ -3038,10 +3049,7 @@ static struct hlsl_ir_node *add_user_call(struct hlsl_ctx *ctx,
             if (!param->default_values[j].string)
             {
                 value.u[0] = param->default_values[j].number;
-                if (!(comp = hlsl_new_constant(ctx, type, &value, loc)))
-                    return NULL;
-                hlsl_block_add_instr(args->instrs, comp);
-
+                comp = hlsl_block_add_constant(ctx, args->instrs, type, &value, loc);
                 hlsl_block_add_store_component(ctx, args->instrs, &param_deref, j, comp);
             }
         }
@@ -3956,7 +3964,6 @@ static bool intrinsic_firstbithigh(struct hlsl_ctx *ctx,
     struct hlsl_ir_node *operands[HLSL_MAX_OPERANDS] = {0};
     struct hlsl_type *type = params->args[0]->data_type;
     struct hlsl_ir_node *c, *clz, *eq, *xor;
-    struct hlsl_constant_value v;
 
     if (hlsl_version_lt(ctx, 4, 0))
         hlsl_error(ctx, loc, VKD3D_SHADER_ERROR_HLSL_INCOMPATIBLE_PROFILE,
@@ -3978,20 +3985,14 @@ static bool intrinsic_firstbithigh(struct hlsl_ctx *ctx,
     if (hlsl_version_lt(ctx, 5, 0))
         return add_expr(ctx, params->instrs, HLSL_OP1_FIND_MSB, operands, type, loc);
 
-    v.u[0].u = 0x1f;
-    if (!(c = hlsl_new_constant(ctx, hlsl_get_scalar_type(ctx, HLSL_TYPE_UINT), &v, loc)))
-        return false;
-    hlsl_block_add_instr(params->instrs, c);
+    c = hlsl_block_add_uint_constant(ctx, params->instrs, 0x1f, loc);
 
     if (!(clz = add_expr(ctx, params->instrs, HLSL_OP1_CLZ, operands, type, loc)))
         return false;
     if (!(xor = add_binary_arithmetic_expr(ctx, params->instrs, HLSL_OP2_BIT_XOR, c, clz, loc)))
         return false;
 
-    v.u[0].i = -1;
-    if (!(c = hlsl_new_constant(ctx, hlsl_get_scalar_type(ctx, HLSL_TYPE_UINT), &v, loc)))
-        return false;
-    hlsl_block_add_instr(params->instrs, c);
+    c = hlsl_block_add_uint_constant(ctx, params->instrs, ~0u, loc);
 
     if (!(eq = add_binary_comparison_expr(ctx, params->instrs, HLSL_OP2_EQUAL, clz, c, loc)))
         return false;
@@ -4043,9 +4044,7 @@ static bool intrinsic_fmod(struct hlsl_ctx *ctx, const struct parse_initializer 
     if (!(div = add_binary_arithmetic_expr(ctx, params->instrs, HLSL_OP2_DIV, x, y, loc)))
         return false;
 
-    if (!(zero = hlsl_new_constant(ctx, div->data_type, &zero_value, loc)))
-        return false;
-    hlsl_block_add_instr(params->instrs, zero);
+    zero = hlsl_block_add_constant(ctx, params->instrs, div->data_type, &zero_value, loc);
 
     if (!(abs = add_unary_arithmetic_expr(ctx, params->instrs, HLSL_OP1_ABS, div, loc)))
         return false;
@@ -4641,9 +4640,8 @@ static bool intrinsic_sign(struct hlsl_ctx *ctx,
     struct hlsl_type *int_type = hlsl_get_numeric_type(ctx, arg->data_type->class, HLSL_TYPE_INT,
             arg->data_type->e.numeric.dimx, arg->data_type->e.numeric.dimy);
 
-    if (!(zero = hlsl_new_constant(ctx, hlsl_get_scalar_type(ctx, arg->data_type->e.numeric.type), &zero_value, loc)))
-        return false;
-    hlsl_block_add_instr(params->instrs, zero);
+    zero = hlsl_block_add_constant(ctx, params->instrs,
+            hlsl_get_scalar_type(ctx, arg->data_type->e.numeric.type), &zero_value, loc);
 
     /* Check if 0 < arg, cast bool to int */
 
@@ -9152,6 +9150,7 @@ selection_statement:
         {
             struct hlsl_ir_node *condition = node_from_block($4);
             const struct parse_attribute_list *attributes = &$1;
+            enum hlsl_if_flatten_type flatten_type = HLSL_IF_FLATTEN_DEFAULT;
             unsigned int i;
 
             check_attribute_list_for_duplicates(ctx, attributes);
@@ -9160,10 +9159,19 @@ selection_statement:
             {
                 const struct hlsl_attribute *attr = attributes->attrs[i];
 
-                if (!strcmp(attr->name, "branch")
-                        || !strcmp(attr->name, "flatten"))
+                if (!strcmp(attr->name, "branch"))
                 {
-                    hlsl_warning(ctx, &@1, VKD3D_SHADER_WARNING_HLSL_IGNORED_ATTRIBUTE, "Unhandled attribute '%s'.", attr->name);
+                    if (flatten_type == HLSL_IF_FORCE_FLATTEN)
+                        hlsl_error(ctx, &@1, VKD3D_SHADER_ERROR_HLSL_INVALID_SYNTAX,
+                                "The 'branch' and 'flatten' attributes are mutually exclusive.");
+                    flatten_type = HLSL_IF_FORCE_BRANCH;
+                }
+                else if (!strcmp(attr->name, "flatten"))
+                {
+                    if (flatten_type == HLSL_IF_FORCE_BRANCH)
+                        hlsl_error(ctx, &@1, VKD3D_SHADER_ERROR_HLSL_INVALID_SYNTAX,
+                                "The 'branch' and 'flatten' attributes are mutually exclusive.");
+                    flatten_type = HLSL_IF_FORCE_FLATTEN;
                 }
                 else
                 {
@@ -9171,10 +9179,16 @@ selection_statement:
                 }
             }
 
+            if (flatten_type == HLSL_IF_FORCE_BRANCH && hlsl_version_lt(ctx, 2, 1))
+            {
+                hlsl_error(ctx, &@1, VKD3D_SHADER_ERROR_HLSL_INCOMPATIBLE_PROFILE,
+                        "The 'branch' attribute requires shader model 2.1 or higher.");
+            }
+
             check_condition_type(ctx, condition);
 
             condition = add_cast(ctx, $4, condition, hlsl_get_scalar_type(ctx, HLSL_TYPE_BOOL), &@4);
-            hlsl_block_add_if(ctx, $4, condition, $6.then_block, $6.else_block, &@2);
+            hlsl_block_add_if(ctx, $4, condition, $6.then_block, $6.else_block, flatten_type, &@2);
 
             destroy_block($6.then_block);
             destroy_block($6.else_block);
