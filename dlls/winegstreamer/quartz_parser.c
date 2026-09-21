@@ -1361,7 +1361,6 @@ static void send_buffer(struct parser_source *pin, struct parser *filter, const 
 {
     HRESULT hr;
     IMediaSample *sample;
-    AM_MEDIA_TYPE *mt;
 
     if (pin->need_segment)
     {
@@ -1388,16 +1387,6 @@ static void send_buffer(struct parser_source *pin, struct parser *filter, const 
                 break;
             }
 
-            if ((hr = IMediaSample_GetMediaType(sample, &mt)) == S_OK)
-            {
-                FIXME("Dynamic format change.\n");
-                DeleteMediaType(mt);
-            }
-            else if (hr != S_FALSE)
-            {
-                ERR("Failed to get media type, hr %#lx.\n", hr);
-            }
-
             advance = min(IMediaSample_GetSize(sample), buffer->size - offset);
 
             hr = send_sample(pin, sample, buffer, offset, advance, format->nAvgBytesPerSec);
@@ -1418,64 +1407,7 @@ static void send_buffer(struct parser_source *pin, struct parser *filter, const 
         }
         else
         {
-            /* Dynamic format change. */
-            if ((hr = IMediaSample_GetMediaType(sample, &mt)) == S_OK)
-            {
-                struct wg_format format;
-
-                if (filter->output_compressed)
-                {
-                    ERR("Ignoring dynamic format change attempt for compressed output.\n");
-                    send_sample(pin, sample, buffer, 0, buffer->size, 0);
-                }
-                else if (amt_to_wg_format(mt, &format))
-                {
-                    if (!memcmp(&format, &pin->current_format, sizeof(format)))
-                    {
-                        send_sample(pin, sample, buffer, 0, buffer->size, 0);
-                    }
-                    else
-                    {
-                        TRACE("Executing dynamic format change. Current format:\n");
-                        strmbase_dump_media_type(&pin->pin.pin.mt);
-                        TRACE("New format:\n");
-                        strmbase_dump_media_type(mt);
-
-                        FreeMediaType(&pin->pin.pin.mt);
-                        CopyMediaType(&pin->pin.pin.mt, mt);
-                        pin->current_format = format;
-                        wg_parser_stream_enable(pin->wg_stream, &format);
-
-                        /* We can't send the wg_parser_buffer we were about to
-                         * send; it's in the old format.
-                         *
-                         * Also, we need to seek to re-decode any further
-                         * queued buffers. This is not reliably seamless.
-                         * See reader_SetOutputProps() in wm_reader.c.
-                         * In practice it's unlikely to matter, since dynamic
-                         * reconnection is usually done only at the beginning
-                         * of a stream. */
-                        wg_parser_stream_seek(pin->wg_stream, pin->seek.dRate, pin->seek.llCurrent, 0,
-                                AM_SEEKING_AbsolutePositioning, AM_SEEKING_NoPositioning);
-                    }
-                }
-                else
-                {
-                    /* This isn't supposed to happen; the downstream filter
-                     * should call QueryAccept() first. */
-                    ERR("Attempt to dynamically set an unsupported format.\n");
-                }
-
-                DeleteMediaType(mt);
-            }
-            else if (hr == S_FALSE)
-            {
-                send_sample(pin, sample, buffer, 0, buffer->size, 0);
-            }
-            else
-            {
-                ERR("Failed to get media type, hr %#lx.\n", hr);
-            }
+            hr = send_sample(pin, sample, buffer, 0, buffer->size, 0);
 
             IMediaSample_Release(sample);
         }
