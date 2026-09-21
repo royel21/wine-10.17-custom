@@ -382,7 +382,8 @@ static LPDLGTEMPLATEW create_options_page(HDC hdc, int *from_index,
                 return NULL;
             }
         }
-        if (!opt.is_active)
+        if (!opt.is_active ||
+            (opt.type==TYPE_INT && opt.size!=sizeof(int)))
             continue;
 
         len = create_item(hdc, &opt, ID_BASE + i, &item_tpl, y, &x, &count);
@@ -1140,8 +1141,7 @@ static INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM
                     case PSN_APPLY:
                         if (psn->lParam)
                         {
-                            activeDS.currentState = 6;
-                            SANE_Notify(MSG_XFERREADY);
+                            SANE_XferReady();
                         }
                         break;
                     case PSN_QUERYCANCEL:
