@@ -53,6 +53,29 @@ static void *client_objects[MAX_USER_HANDLES];
 #define PLACE_MAX		0x0002
 #define PLACE_RECT		0x0004
 
+static volatile unsigned int startup_info_flags;
+static unsigned int startup_show_window;
+
+static unsigned int set_startup_info_flags( unsigned int mask, unsigned int flags )
+{
+    unsigned int prev, new;
+
+    do
+    {
+        prev = startup_info_flags;
+        new = (prev & ~mask) | flags;
+    } while (InterlockedCompareExchange( (LONG volatile *)&startup_info_flags, new, prev ) != prev );
+    return prev;
+}
+
+void init_startup_info(void)
+{
+    RTL_USER_PROCESS_PARAMETERS *p = NtCurrentTeb()->Peb->ProcessParameters;
+
+    startup_show_window = p->wShowWindow;
+    set_startup_info_flags( ~0u, p->dwFlags );
+}
+
 /***********************************************************************
  *           alloc_user_handle
  */
@@ -3947,7 +3970,7 @@ BOOL set_window_pos( WINDOWPOS *winpos, int parent_x, int parent_y )
         if ((style & (WS_CHILD | WS_POPUP)) == WS_CHILD)
             send_message( winpos->hwnd, WM_CHILDACTIVATE, 0, 0 );
         else if (!(style & WS_MINIMIZE))
-            set_foreground_window( winpos->hwnd, FALSE );
+            set_foreground_window( winpos->hwnd, FALSE, FALSE );
     }
 
     if(!(orig_flags & SWP_DEFERERASE))
@@ -4292,7 +4315,7 @@ static void activate_other_window( HWND hwnd )
     TRACE( "win = %p fg = %p\n", hwnd_to, fg );
     if (!fg || hwnd == fg)
     {
-        if (set_foreground_window( hwnd_to, FALSE )) return;
+        if (set_foreground_window( hwnd_to, FALSE, FALSE )) return;
     }
     if (NtUserSetActiveWindow( hwnd_to )) NtUserSetActiveWindow( 0 );
 }
@@ -4727,7 +4750,6 @@ void update_window_state( HWND hwnd )
  */
 static BOOL show_window( HWND hwnd, INT cmd )
 {
-    static volatile LONG first_window = 1;
     WND *win;
     HWND parent;
     DWORD style = get_window_long( hwnd, GWL_STYLE ), new_style;
@@ -4742,13 +4764,12 @@ static BOOL show_window( HWND hwnd, INT cmd )
 
     if ((!(style & (WS_POPUP | WS_CHILD))
          || ((style & (WS_POPUP | WS_CHILD | WS_CAPTION)) == (WS_POPUP | WS_CAPTION)))
-        && InterlockedExchange( &first_window, 0 ))
+        && !get_window_relative( hwnd, GW_OWNER )
+        && set_startup_info_flags( STARTF_USESHOWWINDOW, 0 ) & STARTF_USESHOWWINDOW)
     {
-        RTL_USER_PROCESS_PARAMETERS *params = NtCurrentTeb()->Peb->ProcessParameters;
-
-        if (params->dwFlags & STARTF_USESHOWWINDOW && (cmd == SW_SHOW || cmd == SW_SHOWNORMAL || cmd == SW_SHOWDEFAULT))
+        if (cmd == SW_SHOW || cmd == SW_SHOWNORMAL || cmd == SW_SHOWDEFAULT)
         {
-            cmd = params->wShowWindow;
+            cmd = startup_show_window;
             TRACE( "hwnd=%p, using cmd %d from startup info.\n", hwnd, cmd );
         }
     }
@@ -6007,6 +6028,9 @@ ULONG_PTR WINAPI NtUserCallHwnd( HWND hwnd, DWORD code )
         activate_other_window( hwnd );
         return 0;
 
+    case NtUserCallHwnd_SetForegroundWindowInternal:
+        return set_foreground_window( hwnd, FALSE, TRUE );
+
     case NtUserCallHwnd_GetDpiForWindow:
         return get_dpi_for_window( hwnd );
 
@@ -6432,5 +6456,16 @@ BOOL WINAPI NtUserGetWindowDisplayAffinity( HWND hwnd, DWORD *affinity )
     }
 
     *affinity = WDA_NONE;
+    return TRUE;
+}
+
+/*****************************************************************
+ *           NtUserModifyUserStartupInfoFlags (win32u.@)
+ */
+BOOL WINAPI NtUserModifyUserStartupInfoFlags( DWORD mask, DWORD flags )
+{
+    TRACE( "%#x, %#x.\n", mask, flags );
+
+    set_startup_info_flags( mask, flags );
     return TRUE;
 }

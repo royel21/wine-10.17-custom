@@ -510,11 +510,11 @@ static const struct sf_generators SF_DEFAULT_GENERATORS =
     }
 };
 
-static BOOL parse_soundfont_generators(struct soundfont *soundfont, UINT index,
-        struct sf_generators *preset_generators, struct sf_generators *generators)
+static BOOL parse_soundfont_generators(struct soundfont *soundfont, UINT index, BOOL preset,
+        struct sf_generators *generators)
 {
-    struct sf_bag *bag = (preset_generators ? soundfont->ibag : soundfont->pbag) + index;
-    struct sf_gen *gen, *gens = preset_generators ? soundfont->igen : soundfont->pgen;
+    struct sf_bag *bag = (preset ? soundfont->pbag : soundfont->ibag) + index;
+    struct sf_gen *gen, *gens = preset ? soundfont->pgen : soundfont->igen;
 
     for (gen = gens + bag->gen_ndx; gen < gens + (bag + 1)->gen_ndx; gen++)
     {
@@ -533,25 +533,24 @@ static BOOL parse_soundfont_generators(struct soundfont *soundfont, UINT index,
         case SF_GEN_SAMPLE_MODES:
         case SF_GEN_EXCLUSIVE_CLASS:
         case SF_GEN_OVERRIDING_ROOT_KEY:
-            if (preset_generators) generators->amount[gen->oper] = gen->amount;
+            if (!preset) generators->amount[gen->oper] = gen->amount;
             else WARN("Ignoring invalid preset generator %s\n", debugstr_sf_gen(gen));
             break;
 
         case SF_GEN_INSTRUMENT:
-            if (!preset_generators) generators->amount[gen->oper] = gen->amount;
+            if (preset) generators->amount[gen->oper] = gen->amount;
             else WARN("Ignoring invalid instrument generator %s\n", debugstr_sf_gen(gen));
             /* should always be the last generator */
             return FALSE;
 
         case SF_GEN_SAMPLE_ID:
-            if (preset_generators) generators->amount[gen->oper] = gen->amount;
+            if (!preset) generators->amount[gen->oper] = gen->amount;
             else WARN("Ignoring invalid preset generator %s\n", debugstr_sf_gen(gen));
             /* should always be the last generator */
             return FALSE;
 
         default:
             generators->amount[gen->oper] = gen->amount;
-            if (preset_generators) generators->amount[gen->oper].value += preset_generators->amount[gen->oper].value;
             break;
         }
     }
@@ -574,6 +573,7 @@ static HRESULT instrument_add_soundfont_region(struct instrument *This, struct s
     region->header.RangeKey.usHigh = generators->amount[SF_GEN_KEY_RANGE].range.high;
     region->header.RangeVelocity.usLow = generators->amount[SF_GEN_VEL_RANGE].range.low;
     region->header.RangeVelocity.usHigh = generators->amount[SF_GEN_VEL_RANGE].range.high;
+    region->header.usKeyGroup = generators->amount[SF_GEN_EXCLUSIVE_CLASS].value;
 
     region->wave_link.ulTableIndex = sample_index;
 
@@ -593,7 +593,7 @@ static HRESULT instrument_add_soundfont_region(struct instrument *This, struct s
     unity_note = generators->amount[SF_GEN_OVERRIDING_ROOT_KEY].value;
     if (unity_note == (WORD)-1) unity_note = sample->original_key;
     region->wave_sample.usUnityNote = unity_note - (SHORT)generators->amount[SF_GEN_COARSE_TUNE].value;
-    region->wave_sample.sFineTune = sample->correction + generators->amount[SF_GEN_FINE_TUNE].value;
+    region->wave_sample.sFineTune = sample->correction + (SHORT)generators->amount[SF_GEN_FINE_TUNE].value;
     region->wave_sample.lAttenuation = (LONG)round(attenuation * -65536.);
 
     start_loop = generators->amount[SF_GEN_STARTLOOP_ADDRS_OFFSET].value;
@@ -629,13 +629,14 @@ static HRESULT instrument_add_soundfont_instrument(struct instrument *This, stru
     struct sf_generators global_generators = SF_DEFAULT_GENERATORS;
     struct sf_instrument *instrument = soundfont->inst + index;
     UINT i = instrument->bag_ndx;
+    sf_generator oper;
     HRESULT hr = S_OK;
 
     for (i = instrument->bag_ndx; SUCCEEDED(hr) && i < (instrument + 1)->bag_ndx; i++)
     {
         struct sf_generators generators = global_generators;
 
-        if (parse_soundfont_generators(soundfont, i, preset_generators, &generators))
+        if (parse_soundfont_generators(soundfont, i, FALSE, &generators))
         {
             if (i > instrument->bag_ndx)
                 WARN("Ignoring instrument zone without a sample id\n");
@@ -643,6 +644,9 @@ static HRESULT instrument_add_soundfont_instrument(struct instrument *This, stru
                 global_generators = generators;
             continue;
         }
+
+        for (oper = 0; oper < SF_GEN_END_OPER; ++oper)
+            generators.amount[oper].value += preset_generators->amount[oper].value;
 
         hr = instrument_add_soundfont_region(This, soundfont, &generators);
     }
@@ -666,6 +670,8 @@ HRESULT instrument_create_from_soundfont(struct soundfont *soundfont, UINT index
     This = impl_from_IDirectMusicInstrument(iface);
 
     This->header.Locale.ulBank = (preset->bank & 0x7f) | ((preset->bank << 1) & 0x7f00);
+    if (preset->bank == 128)
+        This->header.Locale.ulBank = F_INSTRUMENT_DRUMS;
     This->header.Locale.ulInstrument = preset->preset;
     MultiByteToWideChar(CP_ACP, 0, preset->name, strlen(preset->name) + 1,
             desc->wszName, sizeof(desc->wszName));
@@ -675,7 +681,7 @@ HRESULT instrument_create_from_soundfont(struct soundfont *soundfont, UINT index
         struct sf_generators generators = global_generators;
         UINT instrument;
 
-        if (parse_soundfont_generators(soundfont, i, NULL, &generators))
+        if (parse_soundfont_generators(soundfont, i, TRUE, &generators))
         {
             if (i > preset->bag_ndx)
                 WARN("Ignoring preset zone without an instrument\n");
