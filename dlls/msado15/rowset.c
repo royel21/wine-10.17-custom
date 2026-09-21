@@ -183,20 +183,19 @@ static HRESULT WINAPI rowset_GetData(IRowsetExactScroll *iface, HROW row, HACCES
     struct accessor *accessor = (struct accessor *)hacc;
     DBSTATUS status = DBSTATUS_S_OK;
     BOOL succ = FALSE, err = FALSE;
+    HRESULT hr = S_OK;
     DBLENGTH len;
-    VARIANT val;
-    HRESULT hr;
     int i, idx;
 
     TRACE("%p, %Id, %Id, %p\n", rowset, row, hacc, data);
 
     if (!accessor->bindings_count) return DB_E_BADACCESSORTYPE;
-    if (row > rowset->row_cnt) return DB_E_BADROWHANDLE;
+    if (row < 1 || row > rowset->row_cnt) return DB_E_BADROWHANDLE;
     for (i = 0; i < accessor->bindings_count; i++)
     {
-        if (accessor->bindings[i].wType != DBTYPE_VARIANT)
+        if (accessor->bindings[i].dwMemOwner != DBMEMOWNER_CLIENTOWNED)
         {
-            FIXME("data conversion not implemented\n");
+            FIXME("dwMemOwner = %lx\n", accessor->bindings[i].dwMemOwner);
             return E_NOTIMPL;
         }
     }
@@ -204,21 +203,41 @@ static HRESULT WINAPI rowset_GetData(IRowsetExactScroll *iface, HROW row, HACCES
     for (i = 0; i < accessor->bindings_count; i++)
     {
         idx = (row - 1) * rowset->columns_cnt + accessor->bindings[i].iOrdinal;
-
-        len = sizeof(val);
         status = DBSTATUS_S_OK;
+        len = 0;
+
+        if (accessor->bindings[i].wType != DBTYPE_VARIANT)
+        {
+            hr = IDataConvert_GetConversionSize(rowset->convert, DBTYPE_VARIANT,
+                    accessor->bindings[i].wType, NULL, &len, &rowset->data[idx]);
+            if (FAILED(hr)) status = DBSTATUS_E_CANTCONVERTVALUE;
+        }
+        else len = sizeof(VARIANT);
+
+        if (status != DBSTATUS_S_OK) {}
         if (accessor->bindings[i].cbMaxLen < len)
             status = DBSTATUS_E_DATAOVERFLOW;
+        else if (!(accessor->bindings[i].dwPart & DBPART_VALUE))
+            status = DBSTATUS_E_BADACCESSOR;
+        else if (accessor->bindings[i].wType != DBTYPE_VARIANT)
+        {
+            hr = IDataConvert_DataConvert(rowset->convert, DBTYPE_VARIANT,
+                    accessor->bindings[i].wType, sizeof(VARIANT), NULL,
+                    &rowset->data[idx], (BYTE *)data + accessor->bindings[i].obValue,
+                    accessor->bindings[i].cbMaxLen, DBSTATUS_S_OK, &status,
+                    accessor->bindings[i].bPrecision, accessor->bindings[i].bScale, 0);
+            if (FAILED(hr) && status == DBSTATUS_S_OK)
+                status = DBSTATUS_E_CANTCONVERTVALUE;
+        }
         else
         {
-            VariantInit(&val);
-            if (idx < rowset->data_cnt)
-            {
-                hr = VariantCopy(&val, &rowset->data[idx]);
-                if (FAILED(hr)) return hr;
-            }
+            VARIANT val;
 
-            if (accessor->bindings[i].dwPart & DBPART_VALUE && status == DBSTATUS_S_OK)
+            VariantInit(&val);
+            hr = VariantCopy(&val, &rowset->data[idx]);
+            if (FAILED(hr))
+                status = DBSTATUS_E_CANTCONVERTVALUE;
+            else
                 memcpy((BYTE *)data + accessor->bindings[i].obValue, &val, sizeof(val));
         }
 
@@ -317,15 +336,57 @@ static HRESULT WINAPI rowset_Compare(IRowsetExactScroll *iface, HCHAPTER hReserv
     return E_NOTIMPL;
 }
 
-static HRESULT WINAPI rowset_GetRowsAt(IRowsetExactScroll *iface, HWATCHREGION hReserved1,
-        HCHAPTER hReserved2, DBBKMARK cbBookmark, const BYTE *pBookmark, DBROWOFFSET lRowsOffset,
-        DBROWCOUNT cRows, DBCOUNTITEM *pcRowsObtained, HROW **prghRows)
+static HRESULT WINAPI rowset_GetRowsAt(IRowsetExactScroll *iface, HWATCHREGION watchregion,
+        HCHAPTER chapter, DBBKMARK bookmark_size, const BYTE *bookmark, DBROWOFFSET offset,
+        DBROWCOUNT count, DBCOUNTITEM *obtained, HROW **rows)
 {
     struct rowset *rowset = impl_from_IRowsetExactScroll(iface);
+    int idx = -1, i, row_count;
 
-    FIXME("%p, %Id, %Id, %Iu, %p, %Id, %Id, %p, %p\n", rowset, hReserved1, hReserved2,
-            cbBookmark, pBookmark, lRowsOffset, cRows, pcRowsObtained, prghRows);
-    return E_NOTIMPL;
+    TRACE("%p, %Id, %Id, %Iu, %p, %Id, %Id, %p, %p\n", rowset, watchregion, chapter,
+            bookmark_size, bookmark, offset, count, obtained, rows);
+
+    if (!bookmark_size || !bookmark || !obtained || !rows)
+        return E_INVALIDARG;
+    *obtained = 0;
+
+    if (watchregion || chapter)
+    {
+        FIXME("unsupported arguments\n");
+        return E_NOTIMPL;
+    }
+
+    if (bookmark_size == 1 && bookmark[0] == DBBMK_FIRST)
+        idx = 0;
+    else if (bookmark_size == 1 && bookmark[0] == DBBMK_LAST)
+        idx = rowset->row_cnt ? rowset->row_cnt - 1 : 0;
+    else if (bookmark_size == sizeof(int))
+        idx = *(int*)bookmark - 1;
+
+    if (idx < 0 || (idx && idx >= rowset->row_cnt)) return DB_E_BADBOOKMARK;
+
+    idx += offset;
+    if (idx < 0 || (idx && idx >= rowset->row_cnt)) return DB_E_BADSTARTPOSITION;
+
+    if (count > 0) row_count = min(rowset->row_cnt - idx, count);
+    else if (!rowset->row_cnt) row_count = 0;
+    else row_count = min(idx + 1, -count);
+    if (!row_count) return count ? DB_S_ENDOFROWSET : S_OK;
+
+    if (!*rows)
+    {
+        *rows = CoTaskMemAlloc(sizeof(**rows) * row_count);
+        if (!*rows) return E_OUTOFMEMORY;
+    }
+
+    for (i = 0; i < row_count; i++)
+    {
+        (*rows)[i] = idx + 1;
+        idx += (count > 0 ? 1 : -1);
+    }
+
+    *obtained = row_count;
+    return row_count == count || row_count == -count ? S_OK : DB_S_ENDOFROWSET;
 }
 
 static HRESULT WINAPI rowset_GetRowsByBookmark(IRowsetExactScroll *iface, HCHAPTER hReserved,
@@ -552,17 +613,6 @@ static HRESULT WINAPI rowset_change_SetData(IRowsetChange *iface, HROW row, HACC
         if (rowset->columns[accessor->bindings[i].iOrdinal].wType != DBTYPE_VARIANT)
             FIXME("convert data to column type\n");
 
-        if (idx > rowset->data_cnt)
-        {
-            size_t size = max(max(rowset->data_cnt, idx), 8);
-            VARIANT *data = realloc(rowset->data, size * sizeof(*rowset->data));
-
-            if (!data) return E_OUTOFMEMORY;
-            memset(data + rowset->data_cnt, 0, (size - rowset->data_cnt) * sizeof(*rowset->data));
-            rowset->data = data;
-            rowset->data_cnt = size;
-        }
-
         len = sizeof(VARIANT);
         status = DBSTATUS_S_OK;
         if (accessor->bindings[i].cbMaxLen < len)
@@ -598,6 +648,7 @@ static HRESULT WINAPI rowset_change_InsertRow(IRowsetChange *iface, HCHAPTER res
         HACCESSOR accessor, void *data, HROW *row)
 {
     struct rowset *rowset = impl_from_IRowsetChange(iface);
+    int idx, size;
 
     TRACE("%p, %Iu, %Id, %p, %p\n", rowset, reserved, accessor, data, row);
 
@@ -607,7 +658,26 @@ static HRESULT WINAPI rowset_change_InsertRow(IRowsetChange *iface, HCHAPTER res
         return E_NOTIMPL;
     }
 
+    idx = rowset->row_cnt * rowset->columns_cnt;
+    size = idx + rowset->columns_cnt;
+    if (size > rowset->data_cnt)
+    {
+        VARIANT *tmp;
+
+        size = max(size, rowset->data_cnt * 2);
+        size = max(size, 8 * rowset->columns_cnt);
+        tmp = realloc(rowset->data, size * sizeof(*rowset->data));
+        if (!tmp) return E_OUTOFMEMORY;
+
+        memset(tmp + rowset->data_cnt, 0, (size - rowset->data_cnt) * sizeof(*rowset->data));
+        rowset->data = tmp;
+        rowset->data_cnt = size;
+    }
+
     rowset->row_cnt++;
+    V_VT(&rowset->data[idx]) = VT_I4;
+    V_I4(&rowset->data[idx]) = rowset->row_cnt;
+
     if (row) *row = rowset->row_cnt;
     return S_OK;
 }
