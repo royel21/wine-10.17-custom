@@ -53,7 +53,6 @@ struct wgl_pbuffer
 };
 
 static const struct opengl_driver_funcs nulldrv_funcs, *driver_funcs = &nulldrv_funcs;
-static const struct opengl_funcs *default_funcs; /* default GL function table from opengl32 */
 static struct list devices_egl = LIST_INIT( devices_egl );
 static struct egl_platform display_egl;
 static struct opengl_funcs display_funcs;
@@ -975,6 +974,11 @@ static void init_egl_devices( struct opengl_funcs *funcs )
     LOAD_FUNCPTR( eglQueryDisplayAttribEXT );
 #undef LOAD_FUNCPTR
 
+#define LOAD_FUNCPTR( func )                                                                    \
+    if (!(funcs->p_##func = (void *)funcs->p_eglGetProcAddress( #func ))) WARN( #func " not found\n" );
+    LOAD_FUNCPTR( eglQueryDeviceBinaryEXT );
+#undef LOAD_FUNCPTR
+
     if (!funcs->p_eglQueryDisplayAttribEXT( display_egl.display, EGL_DEVICE_EXT, (EGLAttrib *)&display_egl.device ))
     {
         WARN( "Failed to query EGL display device (error %#x).\n", funcs->p_eglGetError() );
@@ -1090,6 +1094,14 @@ static void init_device_info( struct egl_platform *egl, const struct opengl_func
     }
     TRACE( "  - device_id: %#x\n", egl->device_id );
     TRACE( "  - vendor_id: %#x\n", egl->vendor_id );
+
+    if (has_extension( extensions, "EGL_EXT_device_persistent_id" ))
+    {
+        funcs->p_eglQueryDeviceBinaryEXT( egl->device, EGL_DEVICE_UUID_EXT, sizeof(egl->device_uuid), &egl->device_uuid, &count );
+        funcs->p_eglQueryDeviceBinaryEXT( egl->device, EGL_DRIVER_UUID_EXT, sizeof(egl->driver_uuid), &egl->driver_uuid, &count );
+    }
+    TRACE( "  - device_uuid: %s\n", debugstr_guid(&egl->device_uuid) );
+    TRACE( "  - driver_uuid: %s\n", debugstr_guid(&egl->driver_uuid) );
 
     funcs->p_eglBindAPI( EGL_OPENGL_API );
     funcs->p_eglGetConfigs( egl->display, &config, 1, &count );
@@ -2454,10 +2466,7 @@ static void display_funcs_init(void)
 
 #define USE_GL_FUNC(func) \
     if (!display_funcs.p_##func && !(display_funcs.p_##func = driver_funcs->p_get_proc_address( #func ))) \
-    { \
-        WARN( "%s not found for memory DCs.\n", #func ); \
-        display_funcs.p_##func = default_funcs->p_##func; \
-    }
+        WARN( "%s not found.\n", #func );
     ALL_GL_FUNCS
     USE_GL_FUNC(glBindFramebuffer)
     USE_GL_FUNC(glCheckNamedFramebufferStatus)
@@ -2553,11 +2562,9 @@ static void display_funcs_init(void)
 /***********************************************************************
  *      __wine_get_wgl_driver  (win32u.@)
  */
-const struct opengl_funcs *__wine_get_wgl_driver( HDC hdc, UINT version, const struct opengl_funcs *null_funcs )
+const struct opengl_funcs *__wine_get_opengl_driver( UINT version )
 {
     static pthread_once_t init_once = PTHREAD_ONCE_INIT;
-    DWORD is_disabled, is_display, is_memdc;
-    DC *dc;
 
     if (version != WINE_OPENGL_DRIVER_VERSION)
     {
@@ -2566,16 +2573,6 @@ const struct opengl_funcs *__wine_get_wgl_driver( HDC hdc, UINT version, const s
         return NULL;
     }
 
-    InterlockedExchangePointer( (void *)&default_funcs, (void *)null_funcs );
-
-    if (!(dc = get_dc_ptr( hdc ))) return NULL;
-    is_memdc = get_gdi_object_type( hdc ) == NTGDI_OBJ_MEMDC;
-    is_display = dc->is_display;
-    is_disabled = dc->attr->disabled;
-    release_dc_ptr( dc );
-
-    if (is_disabled) return NULL;
-    if (!is_display && !is_memdc) return NULL;
     pthread_once( &init_once, display_funcs_init );
     return &display_funcs;
 }

@@ -101,7 +101,12 @@ struct pdb_type_hash_entry
 struct pdb_dbi_hash_entry
 {
     pdbsize_t dbi_stream_offset;
-    struct pdb_dbi_hash_entry *next;
+};
+
+struct pdb_dbi_hash_bucket
+{
+    unsigned num_entries;
+    struct pdb_dbi_hash_entry *entries;
 };
 
 struct pdb_compiland
@@ -110,6 +115,8 @@ struct pdb_compiland
     unsigned short are_symbols_loaded;
     unsigned short compiland_stream_id;
     pdbsize_t compiland_symbols_size;
+    pdbsize_t compiland_linetab2_offset;
+    pdbsize_t compiland_linetab2_size; /* in compiland stream id (starting at compiland_linetab2_offset) */
     struct symt_compiland* compiland;
 };
 
@@ -150,7 +157,7 @@ struct pdb_reader
     unsigned num_action_globals;
     unsigned num_action_entries;
     struct pdb_action_entry *action_store;
-    struct pdb_dbi_hash_entry *dbi_symbols_hash;
+    struct pdb_dbi_hash_bucket dbi_symbols_hash_buckets[DBI_MAX_HASH + 1];
     unsigned short dbi_substreams[16]; /* 0 means non existing stream */
 
     /* compilands */
@@ -1000,18 +1007,14 @@ static enum pdb_result pdb_reader_set_lineinfo_filename(struct pdb_reader *pdb, 
     return result;
 }
 
-static enum pdb_result pdb_reader_search_linetab2(struct pdb_reader *pdb, const PDB_SYMBOL_FILE_EX *dbi_cu_header,
+static enum pdb_result pdb_reader_search_linetab2(struct pdb_reader *pdb, struct pdb_reader_walker *linetab2_walker,
                                                   DWORD64 address, struct lineinfo_t *line_info)
 {
-    struct pdb_reader_walker linetab2_walker;
     struct CV_DebugSLinesFileBlockHeader_t files_hdr;
-    enum pdb_result result;
     DWORD64 lineblk_base;
     struct CV_Line_t *lines;
 
-    if ((result = pdb_reader_walker_init_linetab2(pdb, dbi_cu_header, &linetab2_walker))) return result;
-
-    if (!pdb_reader_locate_filehdr_in_linetab2(pdb, linetab2_walker, address, &lineblk_base, &files_hdr, &lines))
+    if (!pdb_reader_locate_filehdr_in_linetab2(pdb, *linetab2_walker, address, &lineblk_base, &files_hdr, &lines))
     {
         unsigned i;
 
@@ -1020,7 +1023,7 @@ static enum pdb_result pdb_reader_search_linetab2(struct pdb_reader *pdb, const 
             /* found block... */
             line_info->address = lineblk_base + lines[i].offset;
             line_info->line_number = lines[i].linenumStart;
-            return pdb_reader_set_lineinfo_filename(pdb, linetab2_walker, files_hdr.offFile, line_info);
+            return pdb_reader_set_lineinfo_filename(pdb, *linetab2_walker, files_hdr.offFile, line_info);
         }
         pdb_reader_free(pdb, lines);
     }
@@ -1028,28 +1031,18 @@ static enum pdb_result pdb_reader_search_linetab2(struct pdb_reader *pdb, const 
 }
 
 static enum pdb_result pdb_reader_get_line_from_address_internal(struct pdb_reader *pdb,
-                                                                 DWORD64 address, struct lineinfo_t *line_info,
-                                                                 pdbsize_t *compiland_offset)
+                                                                 DWORD64 address, struct lineinfo_t *line_info)
 {
-    struct pdb_reader_compiland_iterator compiland_iter;
     enum pdb_result result;
+    unsigned segment, offset, compiland;
+    struct pdb_reader_walker linetab2_walker;
 
-    if ((result = pdb_reader_compiland_iterator_init(pdb, &compiland_iter))) return result;
-    do
-    {
-        if (compiland_iter.dbi_cu_header.lineno2_size)
-        {
-            result = pdb_reader_search_linetab2(pdb, &compiland_iter.dbi_cu_header, address, line_info);
-            if (!result)
-            {
-                *compiland_offset = compiland_iter.dbi_walker.offset - sizeof(compiland_iter.dbi_cu_header);
-                return result;
-            }
-            if (result != R_PDB_NOT_FOUND) return result;
-        }
-    } while (pdb_reader_compiland_iterator_next(pdb, &compiland_iter) == R_PDB_SUCCESS);
-
-    return R_PDB_NOT_FOUND;
+    if ((result = pdb_reader_get_segment_offset_from_address(pdb, address, &segment, &offset))) return result;
+    if ((result = pdb_reader_lookup_compiland_by_segment_offset(pdb, segment, offset, &compiland))) return result;
+    if ((result = pdb_reader_walker_init(pdb, pdb->compilands[compiland].compiland_stream_id, &linetab2_walker))) return result;
+    if ((result = pdb_reader_walker_narrow(&linetab2_walker, pdb->compilands[compiland].compiland_linetab2_offset,
+                                           pdb->compilands[compiland].compiland_linetab2_size))) return result;
+    return pdb_reader_search_linetab2(pdb, &linetab2_walker, address, line_info);
 }
 
 struct pdb_module_info
@@ -1075,77 +1068,68 @@ static enum method_result pdb_method_result(enum pdb_result result)
 static enum method_result pdb_method_get_line_from_address(struct module_format *modfmt,
                                                            DWORD64 address, struct lineinfo_t *line_info)
 {
-    enum pdb_result result;
     struct pdb_reader *pdb;
-    pdbsize_t compiland_offset;
 
     pdb = pdb_get_current_reader(modfmt);
-    result = pdb_reader_get_line_from_address_internal(pdb, address, line_info, &compiland_offset);
-    return pdb_method_result(result);
+    return pdb_method_result(pdb_reader_get_line_from_address_internal(pdb, address, line_info));
 }
 
 static enum pdb_result pdb_reader_advance_line_info(struct pdb_reader *pdb,
                                                     struct lineinfo_t *line_info, BOOL forward)
 {
-    struct pdb_reader_compiland_iterator compiland_iter;
     struct pdb_reader_walker linetab2_walker;
     struct CV_DebugSLinesFileBlockHeader_t files_hdr;
     DWORD64 lineblk_base;
     struct CV_Line_t *lines;
     enum pdb_result result;
+    unsigned segment, offset;
+    unsigned compiland;
     unsigned i;
 
-    if ((result = pdb_reader_compiland_iterator_init(pdb, &compiland_iter)))
+    if ((result = pdb_reader_get_segment_offset_from_address(pdb, line_info->address, &segment, &offset))) return result;
+    if ((result = pdb_reader_lookup_compiland_by_segment_offset(pdb, segment, offset, &compiland))) return result;
+    if ((result = pdb_reader_walker_init(pdb, pdb->compilands[compiland].compiland_stream_id, &linetab2_walker))) return result;
+    if ((result = pdb_reader_walker_narrow(&linetab2_walker, pdb->compilands[compiland].compiland_linetab2_offset,
+                                           pdb->compilands[compiland].compiland_linetab2_size))) return result;
+
+    if ((result = pdb_reader_locate_filehdr_in_linetab2(pdb, linetab2_walker, line_info->address, &lineblk_base, &files_hdr, &lines)))
         return result;
-    do
+    if ((result = pdb_find_matching_linetab2(lines, files_hdr.nLines, line_info->address - lineblk_base, &i)))
+        return result;
+
+    /* It happens that several entries have same address (yet potentially different line numbers)
+     * Simplify handling by getting the first entry (forward or backward) with a different address.
+     * More tests from native are required.
+     */
+    if (forward)
     {
-        if (compiland_iter.dbi_cu_header.lineno2_size)
+        for (; i + 1 < files_hdr.nLines; i++)
+            if (line_info->address != lineblk_base + lines[i + 1].offset)
+            {
+                line_info->address = lineblk_base + lines[i + 1].offset;
+                line_info->line_number = lines[i + 1].linenumStart;
+                break;
+            }
+        if (i + 1 >= files_hdr.nLines)
+            result = R_PDB_INVALID_ARGUMENT;
+    }
+    else
+    {
+        for (; i; --i)
         {
-            if ((result = pdb_reader_walker_init_linetab2(pdb, &compiland_iter.dbi_cu_header, &linetab2_walker)))
-                return result;
-            result = pdb_reader_locate_filehdr_in_linetab2(pdb, linetab2_walker, line_info->address, &lineblk_base, &files_hdr, &lines);
-            if (result == R_PDB_NOT_FOUND) continue;
-            if (result) return result;
-            if ((result = pdb_find_matching_linetab2(lines, files_hdr.nLines, line_info->address - lineblk_base, &i)))
-                return result;
-
-            /* It happens that several entries have same address (yet potentially different line numbers)
-             * Simplify handling by getting the first entry (forward or backward) with a different address.
-             * More tests from native are required.
-             */
-            if (forward)
+            if (line_info->address != lineblk_base + lines[i - 1].offset)
             {
-                for (; i + 1 < files_hdr.nLines; i++)
-                    if (line_info->address != lineblk_base + lines[i + 1].offset)
-                    {
-                        line_info->address = lineblk_base + lines[i + 1].offset;
-                        line_info->line_number = lines[i + 1].linenumStart;
-                        break;
-                    }
-                if (i + 1 >= files_hdr.nLines)
-                    result = R_PDB_INVALID_ARGUMENT;
+                line_info->address = lineblk_base + lines[i - 1].offset;
+                line_info->line_number = lines[i - 1].linenumStart;
+                break;
             }
-            else
-            {
-                for (; i; --i)
-                {
-                    if (line_info->address != lineblk_base + lines[i - 1].offset)
-                    {
-                        line_info->address = lineblk_base + lines[i - 1].offset;
-                        line_info->line_number = lines[i - 1].linenumStart;
-                        break;
-                    }
-                }
-                if (!i)
-                    result = R_PDB_INVALID_ARGUMENT;
-            }
-            pdb_reader_free(pdb, lines);
-            /* refresh filename in case it has been tempered with */
-            return result ? result : pdb_reader_set_lineinfo_filename(pdb, linetab2_walker, files_hdr.offFile, line_info);
         }
-    } while (pdb_reader_compiland_iterator_next(pdb, &compiland_iter) == R_PDB_SUCCESS);
-
-    return R_PDB_NOT_FOUND;
+        if (!i)
+            result = R_PDB_INVALID_ARGUMENT;
+    }
+    pdb_reader_free(pdb, lines);
+    /* refresh filename in case it has been tempered with */
+    return result ? result : pdb_reader_set_lineinfo_filename(pdb, linetab2_walker, files_hdr.offFile, line_info);
 }
 
 static enum method_result pdb_method_advance_line_info(struct module_format *modfmt,
@@ -1630,7 +1614,6 @@ static enum pdb_result pdb_reader_load_DBI_hash_table(struct pdb_reader *pdb)
     UINT32 bitmap;
     UINT32 start_index, end_index;
     unsigned index, last_index, i, j;
-    struct pdb_dbi_hash_entry *entry;
 
     if ((result = pdb_reader_walker_init(pdb, pdb->dbi_header.global_hash_stream, &walker))) return result;
     if ((result = pdb_reader_READ(pdb, &walker, &dbi_hash_header))) return result;
@@ -1651,17 +1634,14 @@ static enum pdb_result pdb_reader_load_DBI_hash_table(struct pdb_reader *pdb)
         }
     }
 
-    if ((result = pdb_reader_alloc(pdb, sizeof(pdb->dbi_symbols_hash[0]) * (DBI_MAX_HASH + 1), (void **)&pdb->dbi_symbols_hash))) return result;
-    memset(pdb->dbi_symbols_hash, 0, sizeof(pdb->dbi_symbols_hash[0]) * (DBI_MAX_HASH + 1));
-    for (index = 0, i = 0; i <= DBI_MAX_HASH; i++)
-        pdb->dbi_symbols_hash[i].next = &pdb->dbi_symbols_hash[i];
-
+    memset(pdb->dbi_symbols_hash_buckets, 0, sizeof(pdb->dbi_symbols_hash_buckets));
     if (!dbi_hash_header.hash_records_size) return R_PDB_SUCCESS;
     num_hash_records = dbi_hash_header.hash_records_size / sizeof(DBI_HASH_RECORD);
     last_index = (walker.last - (sizeof(DBI_HASH_HEADER) + dbi_hash_header.hash_records_size + DBI_BITMAP_HASH_SIZE)) / sizeof(UINT32);
 
     for (index = 0, i = 0; i <= DBI_MAX_HASH; i++)
     {
+        struct pdb_dbi_hash_bucket *bucket = &pdb->dbi_symbols_hash_buckets[i];
         if ((i & 31) == 0)
         {
             walker.offset = sizeof(DBI_HASH_HEADER) + dbi_hash_header.hash_records_size + (i / 32) * 4;
@@ -1686,24 +1666,14 @@ static enum pdb_result pdb_reader_load_DBI_hash_table(struct pdb_reader *pdb)
                 end_index = num_hash_records;
             index++;
 
+            bucket->num_entries = end_index - start_index;
+            if (end_index > start_index && (result = pdb_reader_alloc(pdb, sizeof(*bucket->entries) * bucket->num_entries, (void **)&bucket->entries))) goto on_error;
             for (j = start_index; j < end_index; j++)
             {
                 walker.offset = sizeof(DBI_HASH_HEADER) + j * sizeof(DBI_HASH_RECORD);
                 if ((result = pdb_reader_READ(pdb, &walker, &hash_record))) goto on_error;
-                if (pdb->dbi_symbols_hash[i].next == &pdb->dbi_symbols_hash[i]) /* empty slot */
-                {
-                    pdb->dbi_symbols_hash[i].dbi_stream_offset = hash_record.offset - 1;
-                    pdb->dbi_symbols_hash[i].next = NULL;
-                }
-                else
-                {
-                    struct pdb_dbi_hash_entry **last;
-                    if ((result = pdb_reader_alloc(pdb, sizeof(*entry), (void **)&entry))) goto on_error;
-                    entry->dbi_stream_offset = hash_record.offset - 1;
-                    entry->next = NULL;
-                    for (last = &pdb->dbi_symbols_hash[i].next; *last; last = &(*last)->next) {}
-                    *last = entry;
-                }
+
+                bucket->entries[j - start_index].dbi_stream_offset = hash_record.offset - 1;
             }
         }
     }
@@ -1711,16 +1681,10 @@ static enum pdb_result pdb_reader_load_DBI_hash_table(struct pdb_reader *pdb)
 on_error:
     for (i = 0; i <= DBI_MAX_HASH; i++)
     {
-        struct pdb_dbi_hash_entry *current, *next;
-        if (pdb->dbi_symbols_hash[i].next == &pdb->dbi_symbols_hash[i]) continue;
-        for (current = pdb->dbi_symbols_hash[i].next; current; current = next)
-        {
-            next = current->next;
-            pdb_reader_free(pdb, current);
-        }
+        if (pdb->dbi_symbols_hash_buckets[i].entries)
+            pdb_reader_free(pdb, pdb->dbi_symbols_hash_buckets[i].entries);
     }
-    pdb_reader_free(pdb, pdb->dbi_symbols_hash);
-    pdb->dbi_symbols_hash = NULL;
+    memset(pdb->dbi_symbols_hash_buckets, 0, sizeof(pdb->dbi_symbols_hash_buckets));
     return result;
 }
 
@@ -1766,12 +1730,13 @@ static enum pdb_result pdb_reader_read_DBI_codeview_symbol_by_name(struct pdb_re
 
     if ((result = pdb_reader_walker_init(pdb, pdb->dbi_header.gsym_stream, &walker))) return result;
     hash = codeview_compute_hash(name, strlen(name)) % DBI_MAX_HASH;
-    if (pdb->dbi_symbols_hash[hash].next != &pdb->dbi_symbols_hash[hash])
+    if (pdb->dbi_symbols_hash_buckets[hash].num_entries)
     {
-        struct pdb_dbi_hash_entry *entry;
-        for (entry = &pdb->dbi_symbols_hash[hash]; entry; entry = entry->next)
+        unsigned int i;
+        struct pdb_dbi_hash_bucket *bucket = &pdb->dbi_symbols_hash_buckets[hash];
+        for (i = 0; bucket->num_entries; i++)
         {
-            walker.offset = entry->dbi_stream_offset;
+            walker.offset = bucket->entries[i].dbi_stream_offset;
             if ((result = pdb_reader_alloc_and_read_full_codeview_symbol(pdb, &walker, &full_cv_symbol))) return result;
             if (pdb_reader_extract_name_out_of_codeview_symbol(full_cv_symbol, &cv_name, &cv_length) == R_PDB_SUCCESS)
             {
@@ -1779,7 +1744,7 @@ static enum pdb_result pdb_reader_read_DBI_codeview_symbol_by_name(struct pdb_re
                 {
                     *cv_symbol = *full_cv_symbol;
                     pdb_reader_free(pdb, full_cv_symbol);
-                    *stream_offset = entry->dbi_stream_offset;
+                    *stream_offset = bucket->entries[i].dbi_stream_offset;
                     return R_PDB_SUCCESS;
                 }
                 pdb_reader_free(pdb, full_cv_symbol);
@@ -1905,6 +1870,12 @@ static enum pdb_result pdb_reader_init_DBI(struct pdb_reader *pdb)
         pdb->compilands[i].compiland = NULL;
         pdb->compilands[i].compiland_stream_id = compiland_iter.dbi_cu_header.stream;
         pdb->compilands[i].compiland_symbols_size = compiland_iter.dbi_cu_header.symbol_size;
+        /* in today's PDB, lineno_size is zero and we wouldn't need to store it...
+         * but just in case...
+         */
+        pdb->compilands[i].compiland_linetab2_offset = compiland_iter.dbi_cu_header.symbol_size +
+            compiland_iter.dbi_cu_header.lineno_size;
+        pdb->compilands[i].compiland_linetab2_size = compiland_iter.dbi_cu_header.lineno2_size;
         pdb->compilands[i].are_symbols_loaded = pdb->compilands[i].compiland_stream_id == 0xffff;
         result = pdb_reader_compiland_iterator_next(pdb, &compiland_iter);
         if ((result == R_PDB_SUCCESS) != (i + 1 < pdb->num_compilands)) return result ? result : R_PDB_INVALID_PDB_FILE;
@@ -1915,20 +1886,21 @@ static enum pdb_result pdb_reader_init_DBI(struct pdb_reader *pdb)
 
     for (hash = 0; hash < DBI_MAX_HASH; hash++)
     {
-        struct pdb_dbi_hash_entry *entry, *entry2;
+        struct pdb_dbi_hash_bucket *bucket = &pdb->dbi_symbols_hash_buckets[hash];
         DWORD64 address;
         symref_t type_symref;
+        unsigned int i, j;
         BOOL found;
 
-        if (pdb->dbi_symbols_hash[hash].next == &pdb->dbi_symbols_hash[hash]) continue;
-        for (entry = &pdb->dbi_symbols_hash[hash]; entry; entry = entry->next)
+        if (!bucket->num_entries) continue;
+        for (i = 0; i < bucket->num_entries; i++)
         {
-            if (!pdb_reader_whole_stream_access_codeview_symbol(pdb, &whole, entry->dbi_stream_offset, &cv_global_symbol))
+            if (!pdb_reader_whole_stream_access_codeview_symbol(pdb, &whole, bucket->entries[i].dbi_stream_offset, &cv_global_symbol))
             {
                 switch (cv_global_symbol->generic.id)
                 {
                 case S_UDT:
-                    if ((result = pdb_reader_push_action(pdb, action_type_globals, entry->dbi_stream_offset,
+                    if ((result = pdb_reader_push_action(pdb, action_type_globals, bucket->entries[i].dbi_stream_offset,
                                                          cv_global_symbol->generic.len + sizeof(cv_global_symbol->generic.len), 0, &symref))) return result;
                     break;
                 case S_GDATA32:
@@ -1942,9 +1914,9 @@ static enum pdb_result pdb_reader_init_DBI(struct pdb_reader *pdb)
                      * there.
                      */
                     found = FALSE;
-                    for (entry2 = &pdb->dbi_symbols_hash[hash]; !found && entry2 && entry2 != entry; entry2 = entry2->next)
+                    for (j = 0; !found && j < i; j++)
                     {
-                        if (!pdb_reader_whole_stream_access_codeview_symbol(pdb, &whole, entry2->dbi_stream_offset, &cv_global_symbol2))
+                        if (!pdb_reader_whole_stream_access_codeview_symbol(pdb, &whole, bucket->entries[j].dbi_stream_offset, &cv_global_symbol2))
                             found = !strcmp(cv_global_symbol->data_v3.name, cv_global_symbol2->data_v3.name);
                     }
                     if (!found &&
@@ -4150,6 +4122,11 @@ static enum pdb_result pdb_reader_create_inline_site(struct pdb_reader *pdb, str
     symref_t type_symref;
     unsigned opcode, arg1, arg2;
 
+    if (cv_inlinee_id & 0x80000000)
+    {
+        WARN("Unsupported inlinee id %x\n", cv_inlinee_id);
+        return R_PDB_INVALID_ARGUMENT;
+    }
     if ((result = pdb_reader_IPI_alloc_and_read_full_codeview_type(pdb, cv_inlinee_id, &cv_type)))
     {
         WARN("Couldn't find type %x in IPI stream\n", cv_inlinee_id);
