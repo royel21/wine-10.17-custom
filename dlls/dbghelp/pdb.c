@@ -108,7 +108,8 @@ struct pdb_compiland
 {
     pdbsize_t stream_offset; /* in DBI stream for compiland description */
     unsigned short are_symbols_loaded;
-    unsigned short stream_id; /* for all symbols of given compiland */
+    unsigned short compiland_stream_id;
+    pdbsize_t compiland_symbols_size;
     struct symt_compiland* compiland;
 };
 
@@ -1902,8 +1903,9 @@ static enum pdb_result pdb_reader_init_DBI(struct pdb_reader *pdb)
     {
         pdb->compilands[i].stream_offset = compiland_iter.dbi_walker.offset;
         pdb->compilands[i].compiland = NULL;
-        pdb->compilands[i].stream_id = compiland_iter.dbi_cu_header.stream;
-        pdb->compilands[i].are_symbols_loaded = pdb->compilands[i].stream_id == 0xffff;
+        pdb->compilands[i].compiland_stream_id = compiland_iter.dbi_cu_header.stream;
+        pdb->compilands[i].compiland_symbols_size = compiland_iter.dbi_cu_header.symbol_size;
+        pdb->compilands[i].are_symbols_loaded = pdb->compilands[i].compiland_stream_id == 0xffff;
         result = pdb_reader_compiland_iterator_next(pdb, &compiland_iter);
         if ((result == R_PDB_SUCCESS) != (i + 1 < pdb->num_compilands)) return result ? result : R_PDB_INVALID_PDB_FILE;
     }
@@ -4182,6 +4184,7 @@ static enum pdb_result pdb_reader_create_inline_site(struct pdb_reader *pdb, str
 
     while (pdb_reader_read_inlinesite_annotation(pdb, annotation_walker, &opcode, &arg1, &arg2) == R_PDB_SUCCESS)
     {
+        if (opcode == BA_OP_Invalid) break;
         switch (opcode)
         {
         case BA_OP_CodeOffset:
@@ -4284,6 +4287,10 @@ static enum pdb_result pdb_reader_load_compiland_symbols(struct pdb_reader *pdb,
     unsigned top_frame_size = -1;
     DWORD64 address;
     symref_t type_symref;
+
+    /* skip first DWORD, always 4 AFAICT */
+    walker->offset += sizeof(UINT32);
+
     /*
      * Loop over the different types of records and whenever we
      * find something we are interested in, record it and move on.
@@ -4320,10 +4327,16 @@ static enum pdb_result pdb_reader_load_compiland_symbols(struct pdb_reader *pdb,
             break;
 
         case S_THUNK32:
+            if (curr_func) WARN("not expecting thunks inside functions\n");
             if ((result = pdb_reader_get_segment_address(pdb, cv_symbol->thunk_v3.segment, cv_symbol->thunk_v3.offset, &address))) goto failure;
             symt_new_thunk(pdb->module, compiland,
                            cv_symbol->thunk_v3.name, cv_symbol->thunk_v3.thtype,
                            address, cv_symbol->thunk_v3.thunk_len);
+            /* FIXME: we've seen S_FRAMEPROC inside S_THUNK...
+             * so until it's better supported, skip until end of thunk declaration
+             */
+            walker->offset = cv_symbol->thunk_v3.pend;
+            if ((result = pdb_reader_symbol_skip_if(pdb, walker, S_END))) goto failure;
             break;
 
         /*
@@ -4633,8 +4646,9 @@ static enum pdb_result pdb_reader_ensure_symbols_loaded_from_compiland(struct pd
         compiland->compiland = symt_new_compiland(pdb->module, obj_name);
         pdb_reader_free(pdb, obj_name);
 
-        if ((result = pdb_reader_walker_init(pdb, compiland->stream_id, &walker))) return result;
-        walker.offset = sizeof(UINT32);
+        if ((result = pdb_reader_walker_init(pdb, compiland->compiland_stream_id, &walker))) return result;
+        if ((result = pdb_reader_walker_narrow(&walker, 0, compiland->compiland_symbols_size))) return result;
+
         if ((result = pdb_reader_load_compiland_symbols(pdb, (struct symt_compiland *)compiland->compiland, &walker))) return result;
         compiland->are_symbols_loaded = TRUE;
     }
@@ -4685,7 +4699,7 @@ static enum pdb_result pdb_reader_dereference_procedure(struct pdb_reader *pdb, 
 
     if (!compiland_id || compiland_id > pdb->num_compilands) return R_PDB_INVALID_ARGUMENT;
     compiland_id--;
-    stream_id = pdb->compilands[compiland_id].stream_id;
+    stream_id = pdb->compilands[compiland_id].compiland_stream_id;
 
     if ((result = pdb_reader_walker_init(pdb, stream_id, &walker))) return result;
     walker.offset = stream_offset;
