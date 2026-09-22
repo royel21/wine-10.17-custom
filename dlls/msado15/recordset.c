@@ -2254,6 +2254,7 @@ static HRESULT get_accessor( struct recordset *recordset, VARIANT *fields, HACCE
         {
             if ((BYTE *)key != tmp) free( key );
             free( bindings );
+            return E_OUTOFMEMORY;
         }
 
         for (i = 0; i < key->len; i++)
@@ -2277,7 +2278,6 @@ static HRESULT get_accessor( struct recordset *recordset, VARIANT *fields, HACCE
             memcpy( elem->key.data, key->data, key->len * sizeof(key->data[0]) );
             rb_put( &recordset->hacc_cache, key, &elem->entry );
         }
-        free( key );
     }
     if ((BYTE *)key != tmp) free( key );
 
@@ -3623,7 +3623,7 @@ static HRESULT WINAPI rsconstruction_put_Rowset(ADORecordsetConstruction *iface,
         propid[14] = DBPROP_IRowsetIndex;
         propid[15] = DBPROP_IRowsetCurrentIndex;
         propid[16] = DBPROP_REMOVEDELETED;
-        hr = IRowsetInfo_GetProperties( rowset_info, 1, &propidset,
+        IRowsetInfo_GetProperties( rowset_info, 1, &propidset,
                 &recordset->prop_count, &recordset->prop);
         IRowsetInfo_Release( rowset_info );
     }
