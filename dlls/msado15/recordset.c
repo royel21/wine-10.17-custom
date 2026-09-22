@@ -99,6 +99,7 @@ struct recordset
     IRowsetExactScroll *rowset_es;
     IRowsetChange     *rowset_change;
     IAccessor         *accessor;
+    IRowsetCurrentIndex *rowset_cur_idx;
     EditModeEnum       editmode;
     HROW               current_row;
     struct
@@ -1640,6 +1641,9 @@ static void close_recordset( struct recordset *recordset )
     if ( recordset->rowset_change && recordset->rowset_change != NO_INTERFACE )
         IRowsetChange_Release( recordset->rowset_change );
     recordset->rowset_change = NULL;
+    if ( recordset->rowset_cur_idx && recordset->rowset_cur_idx != NO_INTERFACE )
+        IRowsetCurrentIndex_Release( recordset->rowset_cur_idx );
+    recordset->rowset_cur_idx = NULL;
 
     for (i = 0; i < recordset->fields.count; i++)
     {
@@ -2651,9 +2655,162 @@ static HRESULT WINAPI recordset_NextRecordset( _Recordset *iface, VARIANT *recor
     return E_NOTIMPL;
 }
 
+static BOOL recordset_get_prop( struct recordset *recordset,
+        const GUID *prop_set, DWORD propid, VARIANT *v )
+{
+    HRESULT hr = E_FAIL;
+    int i, j;
+
+    for (i = 0; i < recordset->prop_count; i++)
+    {
+        if (!IsEqualGUID( &recordset->prop[i].guidPropertySet, prop_set )) continue;
+
+        for (j=0; j < recordset->prop[i].cProperties; j++)
+        {
+            if (recordset->prop[i].rgProperties[j].dwStatus == DBPROPSTATUS_OK &&
+                    recordset->prop[i].rgProperties[j].dwPropertyID == propid)
+            {
+                *v = recordset->prop[i].rgProperties[j].vValue;
+                break;
+            }
+        }
+        if (j != recordset->prop[i].cProperties) break;
+    }
+    if (i == recordset->prop_count) return FALSE;
+
+    if (IsEqualGUID( prop_set, &DBPROPSET_ROWSET ))
+    {
+        switch (propid)
+        {
+        case DBPROP_UPDATABILITY:
+            hr = VariantChangeType( v, v, 0, VT_I4 );
+            break;
+        case DBPROP_CANHOLDROWS:
+        case DBPROP_CANSCROLLBACKWARDS:
+        case DBPROP_IRowsetLocate:
+        case DBPROP_IRowsetScroll:
+        case DBPROP_IRowsetUpdate:
+        case DBPROP_IRowsetResynch:
+        case DBPROP_IConnectionPointContainer:
+        case DBPROP_IRowsetFind:
+        case DBPROP_IRowsetIndex:
+        case DBPROP_IRowsetCurrentIndex:
+            hr = VariantChangeType( v, v, 0, VT_BOOL );
+            break;
+        }
+    }
+    return SUCCEEDED( hr );
+}
+
 static HRESULT WINAPI recordset_Supports( _Recordset *iface, CursorOptionEnum cursor_options, VARIANT_BOOL *ret )
 {
-    FIXME( "%p, %08x, %p\n", iface, cursor_options, ret );
+    struct recordset *recordset = impl_from_Recordset( iface );
+    VARIANT v;
+
+    TRACE( "%p, %08x, %p\n", iface, cursor_options, ret );
+
+    if (!ret) return MAKE_ADO_HRESULT( adErrInvalidArgument );
+    if (cursor_options & ~(adHoldRecords | adMovePrevious | adAddNew | adDelete |
+                adUpdate | adBookmark | adApproxPosition | adUpdateBatch |
+                adResync | adNotify | adFind | adSeek | adIndex))
+    {
+        FIXME( "unsupported cursor_options: %x\n", cursor_options );
+        *ret = VARIANT_FALSE;
+        return S_OK;
+    }
+
+    if ((cursor_options & adHoldRecords) &&
+            (!recordset_get_prop( recordset, &DBPROPSET_ROWSET, DBPROP_CANHOLDROWS, &v ) ||
+             !V_BOOL(&v)))
+    {
+        *ret = VARIANT_FALSE;
+        return S_OK;
+    }
+    if ((cursor_options & adMovePrevious) &&
+            (!recordset_get_prop( recordset, &DBPROPSET_ROWSET, DBPROP_CANSCROLLBACKWARDS, &v ) ||
+             !V_BOOL(&v)))
+    {
+        *ret = VARIANT_FALSE;
+        return S_OK;
+    }
+    if ((cursor_options & adBookmark) &&
+            (!recordset_get_prop( recordset, &DBPROPSET_ROWSET, DBPROP_IRowsetLocate, &v ) ||
+             !V_BOOL(&v)))
+    {
+        *ret = VARIANT_FALSE;
+        return S_OK;
+    }
+    if ((cursor_options & adApproxPosition) &&
+        (!recordset_get_prop( recordset, &DBPROPSET_ROWSET, DBPROP_IRowsetScroll, &v ) ||
+             !V_BOOL(&v)))
+    {
+        *ret = VARIANT_FALSE;
+        return S_OK;
+    }
+    if ((cursor_options & adUpdateBatch) &&
+            (!recordset_get_prop( recordset, &DBPROPSET_ROWSET, DBPROP_IRowsetUpdate, &v ) ||
+             !V_BOOL(&v)))
+    {
+        *ret = VARIANT_FALSE;
+        return S_OK;
+    }
+    if ((cursor_options & adResync) &&
+            (!recordset_get_prop( recordset, &DBPROPSET_ROWSET, DBPROP_IRowsetResynch, &v ) ||
+             !V_BOOL(&v)))
+    {
+        *ret = VARIANT_FALSE;
+        return S_OK;
+    }
+    if ((cursor_options & adNotify) &&
+            (!recordset_get_prop( recordset, &DBPROPSET_ROWSET, DBPROP_IConnectionPointContainer, &v ) ||
+             !V_BOOL(&v)))
+    {
+        *ret = VARIANT_FALSE;
+        return S_OK;
+    }
+    if ((cursor_options & adFind) &&
+            (!recordset_get_prop( recordset, &DBPROPSET_ROWSET, DBPROP_IRowsetFind, &v ) ||
+             !V_BOOL(&v)))
+    {
+        *ret = VARIANT_FALSE;
+        return S_OK;
+    }
+    if ((cursor_options & adSeek) &&
+            (!recordset_get_prop( recordset, &DBPROPSET_ROWSET, DBPROP_IRowsetIndex, &v ) ||
+             !V_BOOL(&v)))
+    {
+        *ret = VARIANT_FALSE;
+        return S_OK;
+    }
+    if ((cursor_options & adIndex) &&
+            (!recordset_get_prop( recordset, &DBPROPSET_ROWSET, DBPROP_IRowsetCurrentIndex, &v ) ||
+             !V_BOOL(&v)))
+    {
+        *ret = VARIANT_FALSE;
+        return S_OK;
+    }
+    if ((cursor_options & adAddNew) &&
+            (!recordset_get_prop( recordset, &DBPROPSET_ROWSET, DBPROP_UPDATABILITY, &v ) ||
+             !(V_I4(&v) & DBPROPVAL_UP_INSERT)))
+    {
+        *ret = VARIANT_FALSE;
+        return S_OK;
+    }
+    if ((cursor_options & adDelete) &&
+            (!recordset_get_prop( recordset, &DBPROPSET_ROWSET, DBPROP_UPDATABILITY, &v ) ||
+             !(V_I4(&v) & DBPROPVAL_UP_DELETE)))
+    {
+        *ret = VARIANT_FALSE;
+        return S_OK;
+    }
+    if ((cursor_options & adUpdate) &&
+            (!recordset_get_prop( recordset, &DBPROPSET_ROWSET, DBPROP_UPDATABILITY, &v ) ||
+             !(V_I4(&v) & DBPROPVAL_UP_CHANGE)))
+    {
+        *ret = VARIANT_FALSE;
+        return S_OK;
+    }
+
     *ret = VARIANT_TRUE;
     return S_OK;
 }
@@ -2790,14 +2947,63 @@ static HRESULT WINAPI recordset_Seek( _Recordset *iface, VARIANT key_values, See
 
 static HRESULT WINAPI recordset_put_Index( _Recordset *iface, BSTR index )
 {
-    FIXME( "%p, %s\n", iface, debugstr_w(index) );
-    return E_NOTIMPL;
+    struct recordset *recordset = impl_from_Recordset( iface );
+    HRESULT hr;
+    DBID dbid;
+
+    TRACE( "%p, %s\n", iface, debugstr_w(index) );
+
+    if (!recordset->rowset_cur_idx)
+    {
+        hr = IRowset_QueryInterface( recordset->row_set, &IID_IRowsetCurrentIndex, (void **)&recordset->rowset_cur_idx );
+        if (FAILED(hr) || !recordset->rowset_cur_idx)
+            recordset->rowset_cur_idx = NO_INTERFACE;
+    }
+    if (recordset->rowset_cur_idx == NO_INTERFACE)
+        return MAKE_ADO_HRESULT( adErrFeatureNotAvailable );
+
+    cache_release( recordset );
+
+    memset( &dbid, 0, sizeof(dbid) );
+    dbid.eKind = DBKIND_NAME;
+    dbid.uName.pwszName = index;
+    hr = IRowsetCurrentIndex_SetIndex( recordset->rowset_cur_idx, &dbid );
+    if (FAILED(hr)) return hr;
+
+    return _Recordset_MoveFirst( iface );
 }
 
 static HRESULT WINAPI recordset_get_Index( _Recordset *iface, BSTR *index )
 {
-    FIXME( "%p, %p\n", iface, index );
-    return E_NOTIMPL;
+    struct recordset *recordset = impl_from_Recordset( iface );
+    HRESULT hr;
+    DBID *dbid;
+
+    TRACE( "%p, %p\n", iface, index );
+
+    if (!index) return MAKE_ADO_HRESULT( adErrInvalidArgument );
+
+    if (!recordset->rowset_cur_idx)
+    {
+        hr = IRowset_QueryInterface( recordset->row_set, &IID_IRowsetCurrentIndex, (void **)&recordset->rowset_cur_idx );
+        if (FAILED(hr) || !recordset->rowset_cur_idx)
+            recordset->rowset_cur_idx = NO_INTERFACE;
+    }
+    if (recordset->rowset_cur_idx == NO_INTERFACE)
+        return MAKE_ADO_HRESULT( adErrFeatureNotAvailable );
+
+    hr = IRowsetCurrentIndex_GetIndex( recordset->rowset_cur_idx, &dbid );
+    if (FAILED(hr)) return hr;
+
+    if (dbid->eKind == DBKIND_GUID_NAME || dbid->eKind == DBKIND_NAME)
+    {
+        *index = SysAllocString( dbid->uName.pwszName );
+        CoTaskMemFree( dbid->uName.pwszName );
+    }
+    else
+        *index = NULL;
+    CoTaskMemFree( dbid );
+    return S_OK;
 }
 
 static HRESULT WINAPI recordset_Save( _Recordset *iface, VARIANT destination, PersistFormatEnum persist_format )
@@ -3087,44 +3293,6 @@ static void init_bookmark( struct recordset *recordset )
     CoTaskMemFree( colinfo );
 }
 
-static BOOL recordset_get_prop( struct recordset *recordset,
-        const GUID *prop_set, DWORD propid, VARIANT *v )
-{
-    HRESULT hr = E_FAIL;
-    int i, j;
-
-    for (i = 0; i < recordset->prop_count; i++)
-    {
-        if (!IsEqualGUID( &recordset->prop[i].guidPropertySet, prop_set )) continue;
-
-        for (j=0; j < recordset->prop[i].cProperties; j++)
-        {
-            if (recordset->prop[i].rgProperties[j].dwStatus == DBPROPSTATUS_OK &&
-                    recordset->prop[i].rgProperties[j].dwPropertyID == propid)
-            {
-                *v = recordset->prop[i].rgProperties[j].vValue;
-                break;
-            }
-        }
-        if (j != recordset->prop[i].cProperties) break;
-    }
-    if (i == recordset->prop_count) return FALSE;
-
-    if (IsEqualGUID( prop_set, &DBPROPSET_ROWSET ))
-    {
-        switch (propid)
-        {
-        case DBPROP_UPDATABILITY:
-            hr = VariantChangeType( v, v, 0, VT_I4 );
-            break;
-        case DBPROP_IRowsetUpdate:
-            hr = VariantChangeType( v, v, 0, VT_BOOL );
-            break;
-        }
-    }
-    return SUCCEEDED( hr );
-}
-
 static HRESULT WINAPI rsconstruction_put_Rowset(ADORecordsetConstruction *iface, IUnknown *unk)
 {
     struct recordset *recordset = impl_from_ADORecordsetConstruction( iface );
@@ -3146,13 +3314,28 @@ static HRESULT WINAPI rsconstruction_put_Rowset(ADORecordsetConstruction *iface,
     if (SUCCEEDED(hr))
     {
         DBPROPIDSET propidset;
-        DBPROPID propid[2];
+        DBPROPID propid[17];
 
         propidset.guidPropertySet = DBPROPSET_ROWSET;
-        propidset.cPropertyIDs = 2;
+        propidset.cPropertyIDs = ARRAY_SIZE( propid );
         propidset.rgPropertyIDs = propid;
-        propid[0] = DBPROP_UPDATABILITY;
-        propid[1] = DBPROP_IRowsetUpdate;
+        propid[0] = DBPROP_OTHERUPDATEDELETE;
+        propid[1] = DBPROP_OTHERINSERT;
+        propid[2] = DBPROP_CANHOLDROWS;
+        propid[3] = DBPROP_CANSCROLLBACKWARDS;
+        propid[4] = DBPROP_UPDATABILITY;
+        propid[5] = DBPROP_IRowsetLocate;
+        propid[6] = DBPROP_IRowsetScroll;
+        propid[7] = DBPROP_IRowsetUpdate;
+        propid[8] = DBPROP_IRowsetResynch;
+        propid[9] = DBPROP_IConnectionPointContainer;
+        propid[10] = DBPROP_BOOKMARKSKIPPED;
+        propid[11] = DBPROP_IRowsetFind;
+        propid[12] = DBPROP_IRowsetRefresh;
+        propid[13] = DBPROP_LOCKMODE;
+        propid[14] = DBPROP_IRowsetIndex;
+        propid[15] = DBPROP_IRowsetCurrentIndex;
+        propid[16] = DBPROP_REMOVEDELETED;
         hr = IRowsetInfo_GetProperties( rowset_info, 1, &propidset,
                 &recordset->prop_count, &recordset->prop);
         IRowsetInfo_Release( rowset_info );
