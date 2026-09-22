@@ -3327,6 +3327,8 @@ struct cancel_async_request
 struct cancel_async_reply
 {
     struct reply_header __header;
+    obj_handle_t cancel_handle;
+    char __pad_12[4];
 };
 
 
@@ -7161,6 +7163,6 @@ union generic_reply
     struct d3dkmt_mutex_release_reply d3dkmt_mutex_release_reply;
 };
 
-#define SERVER_PROTOCOL_VERSION 927
+#define SERVER_PROTOCOL_VERSION 928
 
 #endif /* __WINE_WINE_SERVER_PROTOCOL_H */
