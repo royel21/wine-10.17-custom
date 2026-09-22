@@ -131,6 +131,7 @@ enum wined3d_gl_extension
     ARB_TEXTURE_ENV_COMBINE,
     ARB_TEXTURE_ENV_DOT3,
     ARB_TEXTURE_FILTER_ANISOTROPIC,
+    ARB_TEXTURE_FILTER_MINMAX,
     ARB_TEXTURE_FLOAT,
     ARB_TEXTURE_GATHER,
     ARB_TEXTURE_MIRRORED_REPEAT,
@@ -405,6 +406,7 @@ static inline GLenum wined3d_gl_min_mip_filter(enum wined3d_texture_filter_type 
 }
 
 GLenum wined3d_gl_compare_func(enum wined3d_cmp_func f);
+GLenum wined3d_gl_filter_reduction_mode(enum wined3d_filter_reduction_mode m);
 
 const char *debug_fboattachment(GLenum attachment);
 const char *debug_fbostatus(GLenum status);
@@ -646,7 +648,6 @@ struct wined3d_context_gl
     HGLRC restore_ctx;
     HDC restore_dc;
     int restore_pf;
-    HWND restore_pf_win;
     HGLRC gl_ctx;
     HDC dc;
     int pixel_format;
