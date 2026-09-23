@@ -4297,12 +4297,6 @@ msgstr ""
 msgid "Wine kernel DLL"
 msgstr ""
 
-#: include/wine/wine_common_ver.rc:128 dlls/winemac.drv/winemac.rc:32
-#: programs/wineboot/wineboot.rc:42 programs/winecfg/winecfg.rc:143
-#, fuzzy
-msgid "Wine"
-msgstr "Wine Помощ"
-
 #: dlls/kernelbase/kernelbase.rc:29
 msgid "Western Europe and United States"
 msgstr ""
@@ -13184,6 +13178,12 @@ msgstr ""
 msgid "Microsoft VBScript runtime error"
 msgstr ""
 
+#: dlls/winemac.drv/winemac.rc:32 programs/wineboot/wineboot.rc:42
+#: programs/winecfg/winecfg.rc:143
+#, fuzzy
+msgid "Wine"
+msgstr "Wine Помощ"
+
 #: dlls/winemac.drv/winemac.rc:33
 msgid "Hide %@"
 msgstr ""
@@ -17522,10 +17522,6 @@ msgstr ""
 #: programs/taskkill/taskkill.rc:45
 msgid ""
 "Sent termination signal to process with PID %1!u!, child of PID %2!u!.\n"
-msgstr ""
-
-#: include/wine/wine_common_ver.rc:123
-msgid "Wine tasklist"
 msgstr ""
 
 #: programs/tasklist/tasklist.rc:29

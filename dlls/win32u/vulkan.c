@@ -312,7 +312,7 @@ static HANDLE create_shared_resource_handle( D3DKMT_HANDLE local, const VkExport
     return NULL;
 }
 
-static HANDLE open_shared_resource_from_name( const WCHAR *name )
+HANDLE open_shared_resource_from_name( const WCHAR *name )
 {
     D3DKMT_OPENNTHANDLEFROMNAME open_name = {0};
     WCHAR bufferW[MAX_PATH * 2];
@@ -1690,7 +1690,7 @@ static void fill_luid_property( VkPhysicalDeviceProperties2 *properties2 )
 
     if (!vk11 && !id) return;
     uuid = (const GUID *)(id ? id->deviceUUID : vk11->deviceUUID);
-    device_luid_valid = get_luid_from_vulkan_uuid( uuid, &luid, &node_mask );
+    device_luid_valid = get_gpu_luid_from_uuid( uuid, &luid, &node_mask );
     if (!device_luid_valid) WARN( "luid for %s not found\n", debugstr_guid(uuid) );
 
     if (id)
@@ -2362,7 +2362,7 @@ static HANDLE create_shared_semaphore_handle( D3DKMT_HANDLE local, const VkExpor
     return NULL;
 }
 
-static HANDLE open_shared_semaphore_from_name( const WCHAR *name )
+HANDLE open_shared_semaphore_from_name( const WCHAR *name )
 {
     D3DKMT_OPENSYNCOBJECTNTHANDLEFROMNAME open_name = {0};
     WCHAR bufferW[MAX_PATH * 2];

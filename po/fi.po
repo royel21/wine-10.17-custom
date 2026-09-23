@@ -4222,11 +4222,6 @@ msgstr "Ominaisuudella ei voi olla sekä hakufunktiota että arvoa"
 msgid "Wine kernel DLL"
 msgstr "Winen ydin-DLL"
 
-#: include/wine/wine_common_ver.rc:128 dlls/winemac.drv/winemac.rc:32
-#: programs/wineboot/wineboot.rc:42 programs/winecfg/winecfg.rc:143
-msgid "Wine"
-msgstr "Wine"
-
 #: dlls/kernelbase/kernelbase.rc:29
 msgid "Western Europe and United States"
 msgstr "Länsi-Eurooppa ja Yhdysvallat"
@@ -12799,6 +12794,11 @@ msgstr "Microsoft VBScript -käännösvirhe"
 msgid "Microsoft VBScript runtime error"
 msgstr "Microsoft VBScript -suoritusvirhe"
 
+#: dlls/winemac.drv/winemac.rc:32 programs/wineboot/wineboot.rc:42
+#: programs/winecfg/winecfg.rc:143
+msgid "Wine"
+msgstr "Wine"
+
 #: dlls/winemac.drv/winemac.rc:33
 msgid "Hide %@"
 msgstr "Piilota %@"
@@ -17566,10 +17566,6 @@ msgid ""
 msgstr ""
 "Lähetettiin lopetussignaali prosessille PID %1!u! (prosessin PID %2!u! "
 "lapsi).\n"
-
-#: include/wine/wine_common_ver.rc:123
-msgid "Wine tasklist"
-msgstr "Winen tehtävälista"
 
 #: programs/tasklist/tasklist.rc:29
 msgid "Usage: tasklist [/?]\n"

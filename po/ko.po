@@ -4208,11 +4208,6 @@ msgstr "속성에 접근자와 값을 둘 다 지정할 수는 없습니다"
 msgid "Wine kernel DLL"
 msgstr "Wine 커널 DLL"
 
-#: include/wine/wine_common_ver.rc:128 dlls/winemac.drv/winemac.rc:32
-#: programs/wineboot/wineboot.rc:42 programs/winecfg/winecfg.rc:143
-msgid "Wine"
-msgstr "Wine"
-
 #: dlls/kernelbase/kernelbase.rc:29
 msgid "Western Europe and United States"
 msgstr "서유럽 및 미국"
@@ -12780,6 +12775,11 @@ msgstr "Microsoft VBScript 컴파일 오류"
 msgid "Microsoft VBScript runtime error"
 msgstr "Microsoft VBScript 런타임 오류"
 
+#: dlls/winemac.drv/winemac.rc:32 programs/wineboot/wineboot.rc:42
+#: programs/winecfg/winecfg.rc:143
+msgid "Wine"
+msgstr "Wine"
+
 #: dlls/winemac.drv/winemac.rc:33
 msgid "Hide %@"
 msgstr "%@ 숨기기"
@@ -17536,10 +17536,6 @@ msgid ""
 "Sent termination signal to process with PID %1!u!, child of PID %2!u!.\n"
 msgstr ""
 "PID %1!u!, 자식 프로세스 PID %2!u!인 프로세스에 종료 신호를 보냈습니다.\n"
-
-#: include/wine/wine_common_ver.rc:123
-msgid "Wine tasklist"
-msgstr "Wine 작업 목록"
 
 #: programs/tasklist/tasklist.rc:29
 msgid "Usage: tasklist [/?]\n"

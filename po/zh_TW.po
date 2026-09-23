@@ -4238,11 +4238,6 @@ msgstr "屬性不可同時有存取子和值"
 msgid "Wine kernel DLL"
 msgstr "Wine 核心 DLL"
 
-#: include/wine/wine_common_ver.rc:128 dlls/winemac.drv/winemac.rc:32
-#: programs/wineboot/wineboot.rc:42 programs/winecfg/winecfg.rc:143
-msgid "Wine"
-msgstr "Wine"
-
 #: dlls/kernelbase/kernelbase.rc:29
 msgid "Western Europe and United States"
 msgstr "西歐和美國"
@@ -12807,6 +12802,11 @@ msgstr "Microsoft VBScript 編譯錯誤"
 msgid "Microsoft VBScript runtime error"
 msgstr "Microsoft VBScript 執行期錯誤"
 
+#: dlls/winemac.drv/winemac.rc:32 programs/wineboot/wineboot.rc:42
+#: programs/winecfg/winecfg.rc:143
+msgid "Wine"
+msgstr "Wine"
+
 #: dlls/winemac.drv/winemac.rc:33
 msgid "Hide %@"
 msgstr "隱藏 %@"
@@ -17569,12 +17569,6 @@ msgstr "處理程序 PID %1!u! 已被強制終止。\n"
 msgid ""
 "Sent termination signal to process with PID %1!u!, child of PID %2!u!.\n"
 msgstr ""
-
-#: include/wine/wine_common_ver.rc:123
-#, fuzzy
-#| msgid "page tab list"
-msgid "Wine tasklist"
-msgstr "索引標籤清單"
 
 #: programs/tasklist/tasklist.rc:29
 msgid "Usage: tasklist [/?]\n"

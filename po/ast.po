@@ -4254,11 +4254,6 @@ msgstr ""
 msgid "Wine kernel DLL"
 msgstr "DLL del kernel de Wine"
 
-#: include/wine/wine_common_ver.rc:128 dlls/winemac.drv/winemac.rc:32
-#: programs/wineboot/wineboot.rc:42 programs/winecfg/winecfg.rc:143
-msgid "Wine"
-msgstr "Wine"
-
 #: dlls/kernelbase/kernelbase.rc:29
 msgid "Western Europe and United States"
 msgstr "Europa occidental y Estaos Xuníos"
@@ -12792,6 +12787,11 @@ msgstr ""
 msgid "Microsoft VBScript runtime error"
 msgstr ""
 
+#: dlls/winemac.drv/winemac.rc:32 programs/wineboot/wineboot.rc:42
+#: programs/winecfg/winecfg.rc:143
+msgid "Wine"
+msgstr "Wine"
+
 #: dlls/winemac.drv/winemac.rc:33
 msgid "Hide %@"
 msgstr ""
@@ -17592,10 +17592,6 @@ msgid ""
 msgstr ""
 "Unvióse la señal pa que'l procesu col PID %1!u! (fíu del PID %2!u!) termine "
 "de forma automática.\n"
-
-#: include/wine/wine_common_ver.rc:123
-msgid "Wine tasklist"
-msgstr "Llista de xeres de WIne"
 
 #: programs/tasklist/tasklist.rc:29
 msgid "Usage: tasklist [/?]\n"

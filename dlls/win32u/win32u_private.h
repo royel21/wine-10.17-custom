@@ -189,10 +189,12 @@ extern void reset_monitor_update_serial(void);
 extern void user_lock(void);
 extern void user_unlock(void);
 extern void user_check_not_lock(void);
+extern BOOL get_gpu_uuid_from_luid( const LUID *luid, GUID *uuid );
+extern BOOL get_gpu_luid_from_uuid( const GUID *uuid, LUID *luid, UINT32 *node_mask );
 
 /* d3dkmtc. */
 
-struct vulkan_gpu
+struct gpu_info
 {
     struct list entry;
     struct pci_id pci_id;
@@ -202,12 +204,12 @@ struct vulkan_gpu
 };
 
 extern BOOL get_vulkan_gpus( struct list *gpus );
-extern void free_vulkan_gpu( struct vulkan_gpu *gpu );
-extern BOOL get_vulkan_uuid_from_luid( const LUID *luid, GUID *uuid );
-extern BOOL get_luid_from_vulkan_uuid( const GUID *uuid, LUID *luid, UINT32 *node_mask );
 
 extern int d3dkmt_object_get_fd( D3DKMT_HANDLE local );
 extern NTSTATUS d3dkmt_destroy_mutex( D3DKMT_HANDLE local );
+
+extern HANDLE open_shared_resource_from_name( const WCHAR *name );
+extern HANDLE open_shared_semaphore_from_name( const WCHAR *name );
 
 extern D3DKMT_HANDLE d3dkmt_create_resource( int fd, D3DKMT_HANDLE *global );
 extern D3DKMT_HANDLE d3dkmt_open_resource( D3DKMT_HANDLE global, HANDLE shared, D3DKMT_HANDLE *mutex_local, D3DKMT_HANDLE *sync_local );
@@ -216,6 +218,10 @@ extern NTSTATUS d3dkmt_destroy_resource( D3DKMT_HANDLE local );
 extern D3DKMT_HANDLE d3dkmt_create_sync( int fd, D3DKMT_HANDLE *global );
 extern D3DKMT_HANDLE d3dkmt_open_sync( D3DKMT_HANDLE global, HANDLE shared );
 extern NTSTATUS d3dkmt_destroy_sync( D3DKMT_HANDLE local );
+
+/* opengl.c */
+
+extern BOOL get_opengl_gpus( struct list *gpus );
 
 /* winstation.c */
 

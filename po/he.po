@@ -4303,11 +4303,6 @@ msgstr ""
 msgid "Wine kernel DLL"
 msgstr ""
 
-#: include/wine/wine_common_ver.rc:128 dlls/winemac.drv/winemac.rc:32
-#: programs/wineboot/wineboot.rc:42 programs/winecfg/winecfg.rc:143
-msgid "Wine"
-msgstr "Wine"
-
 #: dlls/kernelbase/kernelbase.rc:29
 msgid "Western Europe and United States"
 msgstr "מערב אירופאי וארצות הברית"
@@ -13921,6 +13916,11 @@ msgstr ""
 msgid "Microsoft VBScript runtime error"
 msgstr ""
 
+#: dlls/winemac.drv/winemac.rc:32 programs/wineboot/wineboot.rc:42
+#: programs/winecfg/winecfg.rc:143
+msgid "Wine"
+msgstr "Wine"
+
 #: dlls/winemac.drv/winemac.rc:33
 #, fuzzy
 #| msgid "Hide"
@@ -18314,12 +18314,6 @@ msgstr "Process with PID %1!u! was forcibly terminated.\n"
 msgid ""
 "Sent termination signal to process with PID %1!u!, child of PID %2!u!.\n"
 msgstr ""
-
-#: include/wine/wine_common_ver.rc:123
-#, fuzzy
-#| msgid "Wine &license"
-msgid "Wine tasklist"
-msgstr "ה&רישיון של Wine"
 
 #: programs/tasklist/tasklist.rc:29
 msgid "Usage: tasklist [/?]\n"

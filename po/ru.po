@@ -4290,11 +4290,6 @@ msgstr "Свойство не может одновременно иметь м�
 msgid "Wine kernel DLL"
 msgstr "Библиотека ядра Wine"
 
-#: include/wine/wine_common_ver.rc:128 dlls/winemac.drv/winemac.rc:32
-#: programs/wineboot/wineboot.rc:42 programs/winecfg/winecfg.rc:143
-msgid "Wine"
-msgstr "Wine"
-
 #: dlls/kernelbase/kernelbase.rc:29
 msgid "Western Europe and United States"
 msgstr "Западный"
@@ -13153,6 +13148,11 @@ msgstr "Ошибка компиляции Microsoft VBScript"
 msgid "Microsoft VBScript runtime error"
 msgstr "Ошибка выполнения Microsoft VBScript"
 
+#: dlls/winemac.drv/winemac.rc:32 programs/wineboot/wineboot.rc:42
+#: programs/winecfg/winecfg.rc:143
+msgid "Wine"
+msgstr "Wine"
+
 #: dlls/winemac.drv/winemac.rc:33
 msgid "Hide %@"
 msgstr "Скрыть %@"
@@ -17825,12 +17825,6 @@ msgstr "Процесс с PID %1!u! завершён принудительно.
 msgid ""
 "Sent termination signal to process with PID %1!u!, child of PID %2!u!.\n"
 msgstr ""
-
-#: include/wine/wine_common_ver.rc:123
-#, fuzzy
-#| msgid "page tab list"
-msgid "Wine tasklist"
-msgstr "список вкладок страницы"
 
 #: programs/tasklist/tasklist.rc:29
 msgid "Usage: tasklist [/?]\n"

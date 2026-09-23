@@ -4308,11 +4308,6 @@ msgstr "La propiedad no puede tener tanto descriptores de acceso como un valor"
 msgid "Wine kernel DLL"
 msgstr "DLL de núcle Wine"
 
-#: include/wine/wine_common_ver.rc:128 dlls/winemac.drv/winemac.rc:32
-#: programs/wineboot/wineboot.rc:42 programs/winecfg/winecfg.rc:143
-msgid "Wine"
-msgstr "Wine"
-
 #: dlls/kernelbase/kernelbase.rc:29
 msgid "Western Europe and United States"
 msgstr ""
@@ -13465,6 +13460,11 @@ msgstr ""
 msgid "Microsoft VBScript runtime error"
 msgstr ""
 
+#: dlls/winemac.drv/winemac.rc:32 programs/wineboot/wineboot.rc:42
+#: programs/winecfg/winecfg.rc:143
+msgid "Wine"
+msgstr "Wine"
+
 #: dlls/winemac.drv/winemac.rc:33
 msgid "Hide %@"
 msgstr "Ocultar %@"
@@ -18173,12 +18173,6 @@ msgstr "El proceso con el PID %1!u! ha sido terminado forzosamente.\n"
 msgid ""
 "Sent termination signal to process with PID %1!u!, child of PID %2!u!.\n"
 msgstr ""
-
-#: include/wine/wine_common_ver.rc:123
-#, fuzzy
-#| msgid "page tab list"
-msgid "Wine tasklist"
-msgstr "lista de pestañas"
 
 #: programs/tasklist/tasklist.rc:29
 msgid "Usage: tasklist [/?]\n"
