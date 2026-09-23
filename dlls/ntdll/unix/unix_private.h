@@ -202,6 +202,7 @@ extern HANDLE keyed_event;
 extern timeout_t server_start_time;
 extern sigset_t server_block_set;
 extern struct _KUSER_SHARED_DATA *user_shared_data;
+extern ULONG process_cookie;
 
 extern void init_environment(void);
 extern void init_startup_info(void);
