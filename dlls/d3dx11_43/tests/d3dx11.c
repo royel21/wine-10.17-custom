@@ -3674,13 +3674,6 @@ static void test_get_image_info(void)
     check_dds_dxt10_format(DXGI_FORMAT_B8G8R8X8_UNORM, DXGI_FORMAT_B8G8R8X8_UNORM, FALSE);
     check_dds_dxt10_format(DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_B8G8R8A8_UNORM, FALSE);
 
-    if (!strcmp(winetest_platform, "wine"))
-    {
-        skip("Skipping D3DX11GetImageInfoFromResource() tests.\n");
-        CoUninitialize();
-        return;
-    }
-
     /* D3DX11GetImageInfoFromResource tests */
 
     hr2 = 0xdeadbeef;
@@ -3980,14 +3973,6 @@ static void test_create_texture(void)
     check_resource_info(resource, test_image, __LINE__);
     check_resource_data(resource, test_image, __LINE__);
     ID3D11Resource_Release(resource);
-
-    if (!strcmp(winetest_platform, "wine"))
-    {
-        skip("Skipping D3DX11CreateTextureFrom{File,Resource} tests.\n");
-        CoUninitialize();
-        ok(!ID3D11Device_Release(device), "Unexpected refcount.\n");
-        return;
-    }
 
     /* D3DX11CreateTextureFromFile tests */
 
