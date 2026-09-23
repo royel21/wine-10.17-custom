@@ -1211,6 +1211,7 @@ static void x11drv_surface_flush( struct opengl_drawable *base, UINT flags )
     TRACE( "%s flags %#x\n", debugstr_opengl_drawable( base ), flags );
 
     if (flags & GL_FLUSH_INTERVAL) set_swap_interval( gl, base->interval );
+    if (!(flags & GL_FLUSH_PRESENT)) return;
 
     if (InterlockedCompareExchange( &base->client->offscreen, 0, 0 ))
     {
@@ -1495,6 +1496,7 @@ static void x11drv_egl_surface_flush( struct opengl_drawable *base, UINT flags )
     TRACE( "%s\n", debugstr_opengl_drawable( base ) );
 
     if (flags & GL_FLUSH_INTERVAL) funcs->p_eglSwapInterval( egl->display, abs( base->interval ) );
+    if (!(flags & GL_FLUSH_PRESENT)) return;
 
     if (InterlockedCompareExchange( &base->client->offscreen, 0, 0 ))
     {

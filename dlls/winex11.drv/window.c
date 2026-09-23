@@ -2032,14 +2032,14 @@ void net_active_window_init( struct x11drv_thread_data *data )
     data->current_state.net_active_window = window;
 }
 
-static BOOL window_set_pending_activate( HWND hwnd )
+static BOOL window_set_pending_activate( HWND hwnd, BOOL *withdrawn )
 {
     struct x11drv_win_data *data;
     BOOL pending;
 
     if (!(data = get_win_data( hwnd ))) return FALSE;
     if ((pending = !!data->wm_state_serial)) data->pending_state.activate = TRUE;
-    if (data->pending_state.wm_state == WithdrawnState) pending = TRUE;
+    *withdrawn = data->pending_state.wm_state == WithdrawnState;
     release_win_data( data );
 
     return pending;
@@ -2048,13 +2048,14 @@ static BOOL window_set_pending_activate( HWND hwnd )
 void set_net_active_window( HWND hwnd, HWND previous )
 {
     struct x11drv_thread_data *data = x11drv_thread_data();
+    BOOL withdrawn = FALSE;
     Window window;
     XEvent xev;
 
     if (!is_net_supported( x11drv_atom(_NET_ACTIVE_WINDOW) )) return;
     if (!(window = X11DRV_get_whole_window( hwnd ))) return;
     if (data->pending_state.net_active_window == window) return;
-    if (window_set_pending_activate( hwnd )) return;
+    if (window_set_pending_activate( hwnd, &withdrawn )) return;
 
     xev.xclient.type = ClientMessage;
     xev.xclient.window = window;
@@ -2071,6 +2072,15 @@ void set_net_active_window( HWND hwnd, HWND previous )
 
     data->pending_state.net_active_window = window;
     data->net_active_window_serial = NextRequest( data->display );
+
+    if (withdrawn)
+    {
+        /* workaround requesting activation of withdrawn windows which breaks some WM, assume the window will soon be mapped */
+        WARN( "skipping _NET_ACTIVE_WINDOW for withdrawn window %p/%lx serial %lu\n", hwnd, window, data->net_active_window_serial );
+        XNoOp( data->display );
+        return;
+    }
+
     TRACE( "requesting _NET_ACTIVE_WINDOW %p/%lx serial %lu\n", hwnd, window, data->net_active_window_serial );
     XSendEvent( data->display, DefaultRootWindow( data->display ), False,
                 SubstructureRedirectMask | SubstructureNotifyMask, &xev );
@@ -2246,6 +2256,7 @@ Window get_dummy_parent(void)
     if (!dummy_parent)
     {
         XSetWindowAttributes attrib;
+        unsigned long opacity = 0;
 
         attrib.override_redirect = True;
         attrib.border_pixel = 0;
@@ -2259,6 +2270,8 @@ Window get_dummy_parent(void)
                                           CWColormap | CWBorderPixel | CWOverrideRedirect, &attrib );
             XShapeCombineRectangles( gdi_display, dummy_parent, ShapeBounding, 0, 0, &empty_rect, 1,
                                      ShapeSet, YXBanded );
+            XShapeCombineRectangles( gdi_display, dummy_parent, ShapeInput, 0, 0, &empty_rect, 1,
+                                     ShapeSet, YXBanded );
         }
 #else
         dummy_parent = XCreateWindow( gdi_display, root_window, -1, -1, 1, 1, 0, default_visual.depth,
@@ -2266,6 +2279,8 @@ Window get_dummy_parent(void)
                                       CWColormap | CWBorderPixel | CWOverrideRedirect, &attrib );
         WARN("Xshape support is not compiled in. Applications under XWayland may have poor performance.\n");
 #endif
+        XChangeProperty( gdi_display, dummy_parent, x11drv_atom(_NET_WM_WINDOW_OPACITY),
+                         XA_CARDINAL, 32, PropModeReplace, (unsigned char *)&opacity, 1 );
         XMapWindow( gdi_display, dummy_parent );
     }
     return dummy_parent;
