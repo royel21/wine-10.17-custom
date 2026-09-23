@@ -2097,6 +2097,7 @@ NTSTATUS sock_ioctl( HANDLE handle, HANDLE event, PIO_APC_ROUTINE apc, void *apc
             {
                 ws_linger->l_onoff = unix_linger.l_onoff;
                 ws_linger->l_linger = unix_linger.l_linger;
+                io->Status = STATUS_SUCCESS;
                 io->Information = sizeof(*ws_linger);
             }
 
@@ -2168,7 +2169,7 @@ NTSTATUS sock_ioctl( HANDLE handle, HANDLE event, PIO_APC_ROUTINE apc, void *apc
             else
             {
                 io->Information = len;
-                status = STATUS_SUCCESS;
+                io->Status = status = STATUS_SUCCESS;
             }
             break;
         }
@@ -2385,7 +2386,7 @@ NTSTATUS sock_ioctl( HANDLE handle, HANDLE event, PIO_APC_ROUTINE apc, void *apc
             else
             {
                 io->Information = len;
-                status = STATUS_SUCCESS;
+                io->Status = status = STATUS_SUCCESS;
             }
             break;
         }
@@ -2622,7 +2623,7 @@ NTSTATUS sock_ioctl( HANDLE handle, HANDLE event, PIO_APC_ROUTINE apc, void *apc
                 ws_dev->irdaDeviceHints2 = unix_dev->hints[1];
                 ws_dev->irdaCharSet = unix_dev->charset;
             }
-            status = STATUS_SUCCESS;
+            io->Status = status = STATUS_SUCCESS;
             break;
         }
 #endif

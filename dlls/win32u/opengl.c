@@ -2279,6 +2279,7 @@ static BOOL win32u_wgl_context_flush( struct wgl_context *context, void (*flush)
     TRACE( "context %p, hwnd %p, interval %d, flush %p\n", context, draw->client->hwnd, interval, flush );
 
     context_sync_drawables( context, 0, 0 );
+    if (!(draw = context->draw)) return FALSE; /* should never happen */
 
     if (flush) flush();
     if (flush == funcs->p_glFinish) flags |= GL_FLUSH_FINISHED;
@@ -2528,6 +2529,11 @@ static void display_funcs_init(void)
     display_funcs.p_wgl_context_reset = win32u_wgl_context_reset;
     display_funcs.p_wgl_context_flush = win32u_wgl_context_flush;
 
+    register_extension( wgl_extensions, ARRAY_SIZE(wgl_extensions), "WGL_ARB_pixel_format" );
+    display_funcs.p_wglChoosePixelFormatARB      = (void *)1; /* never called */
+    display_funcs.p_wglGetPixelFormatAttribfvARB = (void *)1; /* never called */
+    display_funcs.p_wglGetPixelFormatAttribivARB = (void *)1; /* never called */
+
     if (display_egl.has_EGL_EXT_pixel_format_float)
     {
         register_extension( wgl_extensions, ARRAY_SIZE(wgl_extensions), "WGL_ARB_pixel_format_float" );
@@ -2545,11 +2551,6 @@ static void display_funcs_init(void)
      */
     register_extension( wgl_extensions, ARRAY_SIZE(wgl_extensions), "WGL_WINE_pixel_format_passthrough" );
     display_funcs.p_wglSetPixelFormatWINE = win32u_wglSetPixelFormatWINE;
-
-    register_extension( wgl_extensions, ARRAY_SIZE(wgl_extensions), "WGL_ARB_pixel_format" );
-    display_funcs.p_wglChoosePixelFormatARB      = (void *)1; /* never called */
-    display_funcs.p_wglGetPixelFormatAttribfvARB = (void *)1; /* never called */
-    display_funcs.p_wglGetPixelFormatAttribivARB = (void *)1; /* never called */
 
     register_extension( wgl_extensions, ARRAY_SIZE(wgl_extensions), "WGL_ARB_create_context" );
     register_extension( wgl_extensions, ARRAY_SIZE(wgl_extensions), "WGL_ARB_create_context_no_error" );
