@@ -296,7 +296,7 @@ static NTSTATUS d3dkmt_object_alloc( UINT size, enum d3dkmt_type type, void **ob
 /* create a global D3DKMT object, either with a global handle or later shareable */
 static NTSTATUS d3dkmt_object_create( struct d3dkmt_object *object, int fd, UINT value, BOOL shared,
                                       const void *runtime, UINT runtime_size )
- {
+{
     NTSTATUS status;
 
     if (fd >= 0) wine_server_send_fd( fd );
@@ -1446,6 +1446,25 @@ failed:
     return status;
 }
 
+/******************************************************************************
+ *           NtGdiDdDDICreateKeyedMutex    (win32u.@)
+ */
+NTSTATUS WINAPI NtGdiDdDDICreateKeyedMutex( D3DKMT_CREATEKEYEDMUTEX *params )
+{
+    D3DKMT_CREATEKEYEDMUTEX2 params2 = {0};
+    NTSTATUS status;
+
+    TRACE( "params %p\n", params );
+
+    if (!params) return STATUS_INVALID_PARAMETER;
+
+    params2.InitialValue = params->InitialValue;
+    status = NtGdiDdDDICreateKeyedMutex2( &params2 );
+    params->hSharedHandle = params2.hSharedHandle;
+    params->hKeyedMutex = params2.hKeyedMutex;
+    return status;
+}
+
 NTSTATUS d3dkmt_destroy_mutex( D3DKMT_HANDLE local )
 {
     struct d3dkmt_mutex *mutex;
@@ -1472,25 +1491,6 @@ NTSTATUS d3dkmt_destroy_mutex( D3DKMT_HANDLE local )
 
     d3dkmt_object_free( &mutex->obj );
     return STATUS_SUCCESS;
-}
-
-/******************************************************************************
- *           NtGdiDdDDICreateKeyedMutex    (win32u.@)
- */
-NTSTATUS WINAPI NtGdiDdDDICreateKeyedMutex( D3DKMT_CREATEKEYEDMUTEX *params )
-{
-    D3DKMT_CREATEKEYEDMUTEX2 params2 = {0};
-    NTSTATUS status;
-
-    TRACE( "params %p\n", params );
-
-    if (!params) return STATUS_INVALID_PARAMETER;
-
-    params2.InitialValue = params->InitialValue;
-    status = NtGdiDdDDICreateKeyedMutex2( &params2 );
-    params->hSharedHandle = params2.hSharedHandle;
-    params->hKeyedMutex = params2.hKeyedMutex;
-    return status;
 }
 
 /******************************************************************************
@@ -1855,6 +1855,8 @@ failed:
  */
 NTSTATUS WINAPI NtGdiDdDDIDestroySynchronizationObject( const D3DKMT_DESTROYSYNCHRONIZATIONOBJECT *params )
 {
+    TRACE( "params %p\n", params );
+
     return d3dkmt_destroy_sync( params->hSyncObject );
 }
 

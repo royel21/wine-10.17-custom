@@ -652,7 +652,7 @@ BOOL WINAPI NtGdiMaskBlt( HDC hdcDest, INT nXDest, INT nYDest, INT nWidth, INT n
     HDC hDC1, hDC2;
     HBRUSH hbrMask, hbrDst, hbrTmp;
 
-    static const DWORD ROP3Table[256] = 
+    static const DWORD ROP3Table[256] =
     {
         0x00000042, 0x00010289,
         0x00020C89, 0x000300AA,

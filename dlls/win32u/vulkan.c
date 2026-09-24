@@ -277,7 +277,7 @@ static VkExternalFenceHandleTypeFlagBits get_host_external_fence_type(void)
     struct vulkan_device_extensions extensions = {.has_VK_KHR_external_fence_win32 = 1};
     driver_funcs->p_map_device_extensions( &extensions );
     if (extensions.has_VK_KHR_external_fence_fd) return VK_EXTERNAL_FENCE_HANDLE_TYPE_OPAQUE_FD_BIT;
-     return 0;
+    return 0;
 }
 
 static void init_shared_resource_path( const WCHAR *name, UNICODE_STRING *str )
@@ -950,12 +950,6 @@ static VkResult win32u_vkAllocateMemory( VkDevice client_device, const VkMemoryA
             break;
         }
 
-        if ((fd_info.fd = d3dkmt_object_get_fd( memory->local )) < 0)
-        {
-            res = VK_ERROR_INVALID_EXTERNAL_HANDLE;
-            goto failed;
-        }
-
         if (device->client.device->extensions.has_VK_KHR_win32_keyed_mutex && memory->sync)
         {
             VkSemaphoreTypeCreateInfo semaphore_type = {.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO};
@@ -974,6 +968,12 @@ static VkResult win32u_vkAllocateMemory( VkDevice client_device, const VkMemoryA
             }
 
             if ((res = device->p_vkImportSemaphoreFdKHR( device->host.device, &fd_info ))) goto failed;
+        }
+
+        if ((fd_info.fd = d3dkmt_object_get_fd( memory->local )) < 0)
+        {
+            res = VK_ERROR_INVALID_EXTERNAL_HANDLE;
+            goto failed;
         }
 
         fd_info.handleType = get_host_external_memory_type();
@@ -1971,6 +1971,13 @@ static VkResult win32u_vkQueuePresentKHR( VkQueue client_queue, const VkPresentI
 
     client_swapchains = present_info->pSwapchains;
     present_info->pSwapchains = swapchains;
+
+    for (uint32_t i = 0; i < present_info->swapchainCount; i++)
+    {
+        struct swapchain *swapchain = swapchain_from_handle( client_swapchains[i] );
+        struct surface *surface = swapchain->surface;
+        client_surface_update( surface->client );
+    }
 
     res = device->p_vkQueuePresentKHR( queue->host.queue, present_info );
 

@@ -3343,13 +3343,11 @@ VkResult WINAPI vkCreateImage(VkDevice device, const VkImageCreateInfo *pCreateI
 VkResult WINAPI vkCreateImageView(VkDevice device, const VkImageViewCreateInfo *pCreateInfo, const VkAllocationCallbacks *pAllocator, VkImageView *pView)
 {
     struct vkCreateImageView_params params;
-    NTSTATUS status;
     params.device = device;
     params.pCreateInfo = pCreateInfo;
     params.pAllocator = pAllocator;
     params.pView = pView;
-    status = UNIX_CALL(vkCreateImageView, &params);
-    assert(!status && "vkCreateImageView");
+    UNIX_CALL(vkCreateImageView, &params);
     return params.result;
 }
 
