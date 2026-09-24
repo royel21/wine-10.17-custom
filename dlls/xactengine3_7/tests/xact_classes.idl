@@ -1,5 +1,7 @@
 /*
- * Copyright 2019 Nikolay Sivov for CodeWeavers
+ * Local include to allow compiling xaudio2.idl with the right XAUDIO2_VER
+ *
+ * Copyright 2025 Elizabeth Figura for CodeWeavers
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,17 +18,8 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#pragma makedep register
+#pragma makedep header
 
-[
-    helpstring("File scheme handler"),
-    threading(both),
-    uuid(477ec299-1421-4bdd-971f-7ccb933f21ad)
-]
-coclass FileSchemePlugin { }
-
-[
-    threading(both),
-    uuid(9ec4b4f9-3029-45ad-947b-344de2a249e2)
-]
-coclass UrlmonSchemePlugin {}
+#define XAUDIO2_VER 7
+#include "xaudio2.idl"
+#include "xaudio2fx.idl"

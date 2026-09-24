@@ -23,26 +23,14 @@
 
 WINE_DEFAULT_DEBUG_CHANNEL(d3dx);
 
-struct d3dx9_track
-{
-    D3DXTRACK_DESC desc;
-    int set_idx;
-};
-
 struct d3dx9_animation_controller
 {
     ID3DXAnimationController ID3DXAnimationController_iface;
     LONG ref;
 
     UINT max_outputs;
-
-    ID3DXAnimationSet **animation_sets;
-    UINT num_sets;
     UINT max_sets;
-
-    struct d3dx9_track *tracks;
     UINT max_tracks;
-
     UINT max_events;
 };
 
@@ -87,14 +75,6 @@ static ULONG WINAPI d3dx9_animation_controller_Release(ID3DXAnimationController 
 
     if (!refcount)
     {
-        unsigned int i;
-
-        for (i = 0; i < animation->max_sets; i++)
-        {
-            if (animation->animation_sets[i])
-                animation->animation_sets[i]->lpVtbl->Release(animation->animation_sets[i]);
-        }
-        free(animation->animation_sets);
         free(animation);
     }
 
@@ -149,17 +129,9 @@ static HRESULT WINAPI d3dx9_animation_controller_RegisterAnimationOutput(ID3DXAn
 static HRESULT WINAPI d3dx9_animation_controller_RegisterAnimationSet(ID3DXAnimationController *iface,
         ID3DXAnimationSet *anim_set)
 {
-    struct d3dx9_animation_controller *animation = impl_from_ID3DXAnimationController(iface);
-
     FIXME("iface %p, anim_set %p stub.\n", iface, anim_set);
 
-    if (!anim_set || animation->num_sets >= animation->max_sets)
-        return D3DERR_INVALIDCALL;
-
-    animation->animation_sets[animation->num_sets++] = anim_set;
-    anim_set->lpVtbl->AddRef(anim_set);
-
-    return D3D_OK;
+    return E_NOTIMPL;
 }
 
 static HRESULT WINAPI d3dx9_animation_controller_UnregisterAnimationSet(ID3DXAnimationController *iface,
@@ -172,11 +144,9 @@ static HRESULT WINAPI d3dx9_animation_controller_UnregisterAnimationSet(ID3DXAni
 
 static UINT WINAPI d3dx9_animation_controller_GetNumAnimationSets(ID3DXAnimationController *iface)
 {
-    struct d3dx9_animation_controller *animation = impl_from_ID3DXAnimationController(iface);
-
     FIXME("iface %p stub.\n", iface);
 
-    return animation->num_sets;
+    return 0;
 }
 
 static HRESULT WINAPI d3dx9_animation_controller_GetAnimationSet(ID3DXAnimationController *iface,
@@ -220,47 +190,17 @@ static double WINAPI d3dx9_animation_controller_GetTime(ID3DXAnimationController
 static HRESULT WINAPI d3dx9_animation_controller_SetTrackAnimationSet(ID3DXAnimationController *iface,
         UINT track, ID3DXAnimationSet *anim_set)
 {
-    struct d3dx9_animation_controller *animation = impl_from_ID3DXAnimationController(iface);
-    unsigned int i;
-    int idx;
-
     FIXME("iface %p, track %u, anim_set %p stub.\n", iface, track, anim_set);
 
-    if (track > animation->max_tracks || !anim_set || (animation->tracks[track].set_idx >= 0))
-        return D3DERR_INVALIDCALL;
-
-    idx = -1;
-    for (i = 0; i < animation->num_sets; i++)
-    {
-        if (animation->animation_sets[i] == anim_set)
-        {
-            idx = i;
-            break;
-        }
-    }
-
-    animation->tracks[track].set_idx = idx;
-
-    return idx >= 0 ? D3D_OK : D3DERR_INVALIDCALL;
+    return E_NOTIMPL;
 }
 
 static HRESULT WINAPI d3dx9_animation_controller_GetTrackAnimationSet(ID3DXAnimationController *iface,
         UINT track, ID3DXAnimationSet **anim_set)
 {
-    struct d3dx9_animation_controller *animation = impl_from_ID3DXAnimationController(iface);
-    int set_idx;
-
     FIXME("iface %p, track %u, anim_set %p stub.\n", iface, track, anim_set);
 
-    if (track > animation->max_tracks || !anim_set)
-        return D3DERR_INVALIDCALL;
-
-    set_idx = animation->tracks[track].set_idx;
-    *anim_set = set_idx >= 0 ? animation->animation_sets[set_idx] : NULL;
-
-    if (*anim_set)
-        (*anim_set)->lpVtbl->AddRef(*anim_set);
-    return D3D_OK;
+    return E_NOTIMPL;
 }
 
 static HRESULT WINAPI d3dx9_animation_controller_SetTrackPriority(ID3DXAnimationController *iface,
@@ -306,29 +246,17 @@ static HRESULT WINAPI d3dx9_animation_controller_SetTrackEnable(ID3DXAnimationCo
 static HRESULT WINAPI d3dx9_animation_controller_SetTrackDesc(ID3DXAnimationController *iface,
         UINT track, D3DXTRACK_DESC *desc)
 {
-    struct d3dx9_animation_controller *animation = impl_from_ID3DXAnimationController(iface);
-
     FIXME("iface %p, track %u, desc %p stub.\n", iface, track, desc);
 
-    if (track > animation->max_tracks || !desc)
-        return D3DERR_INVALIDCALL;
-
-    animation->tracks[track].desc = *desc;
-    return D3D_OK;
+    return E_NOTIMPL;
 }
 
 static HRESULT WINAPI d3dx9_animation_controller_GetTrackDesc(ID3DXAnimationController *iface,
         UINT track, D3DXTRACK_DESC *desc)
 {
-    struct d3dx9_animation_controller *animation = impl_from_ID3DXAnimationController(iface);
-
     FIXME("iface %p, track %u, desc %p stub.\n", iface, track, desc);
 
-    if (track > animation->max_tracks || !desc)
-        return D3DERR_INVALIDCALL;
-
-    *desc = animation->tracks[track].desc;
-    return D3D_OK;
+    return E_NOTIMPL;
 }
 
 static HRESULT WINAPI d3dx9_animation_controller_SetPriorityBlend(ID3DXAnimationController *iface,
@@ -517,7 +445,6 @@ HRESULT WINAPI D3DXCreateAnimationController(UINT max_outputs, UINT max_sets,
         UINT max_tracks, UINT max_events, ID3DXAnimationController **controller)
 {
     struct d3dx9_animation_controller *object;
-    unsigned int i;
 
     TRACE("max_outputs %u, max_sets %u, max_tracks %u, max_events %u, controller %p.\n",
             max_outputs, max_sets, max_tracks, max_events, controller);
@@ -532,24 +459,7 @@ HRESULT WINAPI D3DXCreateAnimationController(UINT max_outputs, UINT max_sets,
     object->ID3DXAnimationController_iface.lpVtbl = &d3dx9_animation_controller_vtbl;
     object->ref = 1;
     object->max_outputs = max_outputs;
-
-    object->animation_sets = calloc(max_sets, sizeof(*object->animation_sets));
-    if (!object->animation_sets)
-    {
-        free(object);
-        return E_OUTOFMEMORY;
-    }
     object->max_sets    = max_sets;
-
-    object->tracks = calloc(max_tracks, sizeof(*object->tracks));
-    if (!object->tracks)
-    {
-        free(object->animation_sets);
-        free(object);
-        return E_OUTOFMEMORY;
-    }
-    for (i = 0; i < max_tracks; ++i)
-        object->tracks[i].set_idx = -1;
     object->max_tracks  = max_tracks;
     object->max_events  = max_events;
 
