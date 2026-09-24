@@ -40,5 +40,5 @@ SOURCES = \
 	tooltips.c \
 	trackbar.c \
 	treeview.c \
-	updown.c \
-	version.rc
+	updown.c
+

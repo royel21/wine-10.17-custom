@@ -1,6 +1,5 @@
 /*
- * Copyright 2001 Dmitry Timoshkov
- * Copyright 2004 Ivan Leo Puoti
+ * Copyright 2025 Yuxuan Shui for CodeWeavers
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,36 +16,40 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#if 0
-#pragma makedep header
-#endif
+#include <corecrt_startup.h>
 
-#ifdef WINE_FILEVERSION
-#define VER_PRODUCTVERSION WINE_FILEVERSION
-#endif
+extern _PIFV __xi_a[];
+extern _PIFV __xi_z[];
+extern _PVFV __xc_a[];
+extern _PVFV __xc_z[];
+extern _PVFV __xt_a[];
+extern _PVFV __xt_z[];
 
-#ifdef WINE_FILEDESCRIPTION_STR
-#define VER_FILEDESCRIPTION_STR WINE_FILEDESCRIPTION_STR
+static inline int fallback_initterm_e(_PIFV *table, _PIFV *end)
+{
+#if _MSVCR_VER < 80
+    int res;
+    for (res = 0; !res && table < end; table++)
+        if (*table) res = (*table)();
+    return res;
 #else
-#define VER_FILEDESCRIPTION_STR "Wine core dll"
+    return _initterm_e(table, end);
 #endif
+}
 
-#ifdef WINE_FILENAME
-#define VER_INTERNALNAME_STR WINE_FILENAME
+static __cdecl void do_global_dtors(void)
+{
+    _initterm(__xt_a, __xt_z);
+}
+
+static void do_global_ctors(void)
+{
+    if (fallback_initterm_e(__xi_a, __xi_z) != 0) return;
+    _initterm(__xc_a, __xc_z);
+
+#ifdef _UCRT
+    _crt_atexit(do_global_dtors);
 #else
-#define VER_INTERNALNAME_STR ""
+    _onexit((_onexit_t)do_global_dtors);
 #endif
-
-#ifdef WINE_FILENAME_STR
-#define VER_ORIGINALFILENAME_STR WINE_FILENAME_STR
-#endif
-
-#ifdef WINE_FILETYPE
-#define VER_FILETYPE WINE_FILETYPE
-#endif
-
-#ifdef WINE_EXTRAVALUES
-#define VER_OLESELFREGISTER
-#endif
-
-#include "common.ver"
+}
