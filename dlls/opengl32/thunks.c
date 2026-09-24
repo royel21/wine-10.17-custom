@@ -3552,6 +3552,14 @@ static void WINAPI glBitmapxOES( GLsizei width, GLsizei height, GLfixed xorig, G
     if ((status = UNIX_CALL( glBitmapxOES, &args ))) WARN( "glBitmapxOES returned %#lx\n", status );
 }
 
+static void WINAPI glBlendBarrier(void)
+{
+    struct glBlendBarrier_params args = { .teb = NtCurrentTeb() };
+    NTSTATUS status;
+    TRACE( "\n" );
+    if ((status = UNIX_CALL( glBlendBarrier, &args ))) WARN( "glBlendBarrier returned %#lx\n", status );
+}
+
 static void WINAPI glBlendBarrierKHR(void)
 {
     struct glBlendBarrierKHR_params args = { .teb = NtCurrentTeb() };
@@ -7287,6 +7295,14 @@ static void WINAPI glFramebufferSamplePositionsfvAMD( GLenum target, GLuint nums
     if ((status = UNIX_CALL( glFramebufferSamplePositionsfvAMD, &args ))) WARN( "glFramebufferSamplePositionsfvAMD returned %#lx\n", status );
 }
 
+static void WINAPI glFramebufferShadingRateEXT( GLenum target, GLenum attachment, GLuint texture, GLint baseLayer, GLsizei numLayers, GLsizei texelWidth, GLsizei texelHeight )
+{
+    struct glFramebufferShadingRateEXT_params args = { .teb = NtCurrentTeb(), .target = target, .attachment = attachment, .texture = texture, .baseLayer = baseLayer, .numLayers = numLayers, .texelWidth = texelWidth, .texelHeight = texelHeight };
+    NTSTATUS status;
+    TRACE( "target %d, attachment %d, texture %d, baseLayer %d, numLayers %d, texelWidth %d, texelHeight %d\n", target, attachment, texture, baseLayer, numLayers, texelWidth, texelHeight );
+    if ((status = UNIX_CALL( glFramebufferShadingRateEXT, &args ))) WARN( "glFramebufferShadingRateEXT returned %#lx\n", status );
+}
+
 static void WINAPI glFramebufferTexture( GLenum target, GLenum attachment, GLuint texture, GLint level )
 {
     struct glFramebufferTexture_params args = { .teb = NtCurrentTeb(), .target = target, .attachment = attachment, .texture = texture, .level = level };
@@ -8419,6 +8435,14 @@ static void WINAPI glGetFragmentMaterialivSGIX( GLenum face, GLenum pname, GLint
     NTSTATUS status;
     TRACE( "face %d, pname %d, params %p\n", face, pname, params );
     if ((status = UNIX_CALL( glGetFragmentMaterialivSGIX, &args ))) WARN( "glGetFragmentMaterialivSGIX returned %#lx\n", status );
+}
+
+static void WINAPI glGetFragmentShadingRatesEXT( GLsizei samples, GLsizei maxCount, GLsizei *count, GLenum *shadingRates )
+{
+    struct glGetFragmentShadingRatesEXT_params args = { .teb = NtCurrentTeb(), .samples = samples, .maxCount = maxCount, .count = count, .shadingRates = shadingRates };
+    NTSTATUS status;
+    TRACE( "samples %d, maxCount %d, count %p, shadingRates %p\n", samples, maxCount, count, shadingRates );
+    if ((status = UNIX_CALL( glGetFragmentShadingRatesEXT, &args ))) WARN( "glGetFragmentShadingRatesEXT returned %#lx\n", status );
 }
 
 static void WINAPI glGetFramebufferAttachmentParameteriv( GLenum target, GLenum attachment, GLenum pname, GLint *params )
@@ -11350,14 +11374,6 @@ static void WINAPI glImageTransformParameterivHP( GLenum target, GLenum pname, c
     if ((status = UNIX_CALL( glImageTransformParameterivHP, &args ))) WARN( "glImageTransformParameterivHP returned %#lx\n", status );
 }
 
-static void WINAPI glImportMemoryFdEXT( GLuint memory, GLuint64 size, GLenum handleType, GLint fd )
-{
-    struct glImportMemoryFdEXT_params args = { .teb = NtCurrentTeb(), .memory = memory, .size = size, .handleType = handleType, .fd = fd };
-    NTSTATUS status;
-    TRACE( "memory %d, size %s, handleType %d, fd %d\n", memory, wine_dbgstr_longlong(size), handleType, fd );
-    if ((status = UNIX_CALL( glImportMemoryFdEXT, &args ))) WARN( "glImportMemoryFdEXT returned %#lx\n", status );
-}
-
 static void WINAPI glImportMemoryWin32HandleEXT( GLuint memory, GLuint64 size, GLenum handleType, void *handle )
 {
     struct glImportMemoryWin32HandleEXT_params args = { .teb = NtCurrentTeb(), .memory = memory, .size = size, .handleType = handleType, .handle = handle };
@@ -11372,14 +11388,6 @@ static void WINAPI glImportMemoryWin32NameEXT( GLuint memory, GLuint64 size, GLe
     NTSTATUS status;
     TRACE( "memory %d, size %s, handleType %d, name %p\n", memory, wine_dbgstr_longlong(size), handleType, name );
     if ((status = UNIX_CALL( glImportMemoryWin32NameEXT, &args ))) WARN( "glImportMemoryWin32NameEXT returned %#lx\n", status );
-}
-
-static void WINAPI glImportSemaphoreFdEXT( GLuint semaphore, GLenum handleType, GLint fd )
-{
-    struct glImportSemaphoreFdEXT_params args = { .teb = NtCurrentTeb(), .semaphore = semaphore, .handleType = handleType, .fd = fd };
-    NTSTATUS status;
-    TRACE( "semaphore %d, handleType %d, fd %d\n", semaphore, handleType, fd );
-    if ((status = UNIX_CALL( glImportSemaphoreFdEXT, &args ))) WARN( "glImportSemaphoreFdEXT returned %#lx\n", status );
 }
 
 static void WINAPI glImportSemaphoreWin32HandleEXT( GLuint semaphore, GLenum handleType, void *handle )
@@ -15694,6 +15702,14 @@ static void WINAPI glPresentFrameKeyedNV( GLuint video_slot, GLuint64EXT minPres
     if ((status = UNIX_CALL( glPresentFrameKeyedNV, &args ))) WARN( "glPresentFrameKeyedNV returned %#lx\n", status );
 }
 
+static void WINAPI glPrimitiveBoundingBox( GLfloat minX, GLfloat minY, GLfloat minZ, GLfloat minW, GLfloat maxX, GLfloat maxY, GLfloat maxZ, GLfloat maxW )
+{
+    struct glPrimitiveBoundingBox_params args = { .teb = NtCurrentTeb(), .minX = minX, .minY = minY, .minZ = minZ, .minW = minW, .maxX = maxX, .maxY = maxY, .maxZ = maxZ, .maxW = maxW };
+    NTSTATUS status;
+    TRACE( "minX %f, minY %f, minZ %f, minW %f, maxX %f, maxY %f, maxZ %f, maxW %f\n", minX, minY, minZ, minW, maxX, maxY, maxZ, maxW );
+    if ((status = UNIX_CALL( glPrimitiveBoundingBox, &args ))) WARN( "glPrimitiveBoundingBox returned %#lx\n", status );
+}
+
 static void WINAPI glPrimitiveBoundingBoxARB( GLfloat minX, GLfloat minY, GLfloat minZ, GLfloat minW, GLfloat maxX, GLfloat maxY, GLfloat maxZ, GLfloat maxW )
 {
     struct glPrimitiveBoundingBoxARB_params args = { .teb = NtCurrentTeb(), .minX = minX, .minY = minY, .minZ = minZ, .minW = minW, .maxX = maxX, .maxY = maxY, .maxZ = maxZ, .maxW = maxW };
@@ -18399,6 +18415,22 @@ static void WINAPI glShaderStorageBlockBinding( GLuint program, GLuint storageBl
     NTSTATUS status;
     TRACE( "program %d, storageBlockIndex %d, storageBlockBinding %d\n", program, storageBlockIndex, storageBlockBinding );
     if ((status = UNIX_CALL( glShaderStorageBlockBinding, &args ))) WARN( "glShaderStorageBlockBinding returned %#lx\n", status );
+}
+
+static void WINAPI glShadingRateCombinerOpsEXT( GLenum combinerOp0, GLenum combinerOp1 )
+{
+    struct glShadingRateCombinerOpsEXT_params args = { .teb = NtCurrentTeb(), .combinerOp0 = combinerOp0, .combinerOp1 = combinerOp1 };
+    NTSTATUS status;
+    TRACE( "combinerOp0 %d, combinerOp1 %d\n", combinerOp0, combinerOp1 );
+    if ((status = UNIX_CALL( glShadingRateCombinerOpsEXT, &args ))) WARN( "glShadingRateCombinerOpsEXT returned %#lx\n", status );
+}
+
+static void WINAPI glShadingRateEXT( GLenum rate )
+{
+    struct glShadingRateEXT_params args = { .teb = NtCurrentTeb(), .rate = rate };
+    NTSTATUS status;
+    TRACE( "rate %d\n", rate );
+    if ((status = UNIX_CALL( glShadingRateEXT, &args ))) WARN( "glShadingRateEXT returned %#lx\n", status );
 }
 
 static void WINAPI glShadingRateImageBarrierNV( GLboolean synchronize )
@@ -24912,6 +24944,7 @@ const void *extension_procs[] =
     glBinormal3svEXT,
     glBinormalPointerEXT,
     glBitmapxOES,
+    glBlendBarrier,
     glBlendBarrierKHR,
     glBlendBarrierNV,
     glBlendColor,
@@ -25380,6 +25413,7 @@ const void *extension_procs[] =
     glFramebufferSampleLocationsfvARB,
     glFramebufferSampleLocationsfvNV,
     glFramebufferSamplePositionsfvAMD,
+    glFramebufferShadingRateEXT,
     glFramebufferTexture,
     glFramebufferTexture1D,
     glFramebufferTexture1DEXT,
@@ -25520,6 +25554,7 @@ const void *extension_procs[] =
     glGetFragmentLightivSGIX,
     glGetFragmentMaterialfvSGIX,
     glGetFragmentMaterialivSGIX,
+    glGetFragmentShadingRatesEXT,
     glGetFramebufferAttachmentParameteriv,
     glGetFramebufferAttachmentParameterivEXT,
     glGetFramebufferParameterfvAMD,
@@ -25884,10 +25919,8 @@ const void *extension_procs[] =
     glImageTransformParameterfvHP,
     glImageTransformParameteriHP,
     glImageTransformParameterivHP,
-    glImportMemoryFdEXT,
     glImportMemoryWin32HandleEXT,
     glImportMemoryWin32NameEXT,
-    glImportSemaphoreFdEXT,
     glImportSemaphoreWin32HandleEXT,
     glImportSemaphoreWin32NameEXT,
     glImportSyncEXT,
@@ -26420,6 +26453,7 @@ const void *extension_procs[] =
     glPopGroupMarkerEXT,
     glPresentFrameDualFillNV,
     glPresentFrameKeyedNV,
+    glPrimitiveBoundingBox,
     glPrimitiveBoundingBoxARB,
     glPrimitiveRestartIndex,
     glPrimitiveRestartIndexNV,
@@ -26758,6 +26792,8 @@ const void *extension_procs[] =
     glShaderSource,
     glShaderSourceARB,
     glShaderStorageBlockBinding,
+    glShadingRateCombinerOpsEXT,
+    glShadingRateEXT,
     glShadingRateImageBarrierNV,
     glShadingRateImagePaletteNV,
     glShadingRateSampleOrderCustomNV,
