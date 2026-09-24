@@ -1,5 +1,6 @@
-/*
- * Copyright (C) 2025 Paul Gofman for CodeWeavers
+/* WinRT Windows.UI.Core.CoreWindow Implementation
+ *
+ * Copyright 2025 Zhiyi Zhang for CodeWeavers
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,45 +18,42 @@
  */
 
 #include "private.h"
+
 #include "wine/debug.h"
 
-#include "private.h"
-#include "wine/debug.h"
+WINE_DEFAULT_DEBUG_CHANNEL(ui);
 
-WINE_DEFAULT_DEBUG_CHANNEL(perception);
-
-struct exporter
+struct corewindow_statics
 {
     IActivationFactory IActivationFactory_iface;
-    ISpatialAnchorExporterStatics ISpatialAnchorExporterStatics_iface;
+    ICoreWindowStatic ICoreWindowStatic_iface;
     LONG ref;
 };
 
-static inline struct exporter *impl_from_IActivationFactory( IActivationFactory *iface )
+static inline struct corewindow_statics *impl_from_IActivationFactory( IActivationFactory *iface )
 {
-    return CONTAINING_RECORD( iface, struct exporter, IActivationFactory_iface );
+    return CONTAINING_RECORD( iface, struct corewindow_statics, IActivationFactory_iface );
 }
 
 static HRESULT WINAPI factory_QueryInterface( IActivationFactory *iface, REFIID iid, void **out )
 {
-    struct exporter *impl = impl_from_IActivationFactory( iface );
+    struct corewindow_statics *impl = impl_from_IActivationFactory( iface );
 
     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
 
     if (IsEqualGUID( iid, &IID_IUnknown ) ||
-        IsEqualGUID( iid, &IID_IInspectable ) ||
         IsEqualGUID( iid, &IID_IAgileObject ) ||
+        IsEqualGUID( iid, &IID_IInspectable ) ||
         IsEqualGUID( iid, &IID_IActivationFactory ))
     {
         *out = &impl->IActivationFactory_iface;
-        IInspectable_AddRef( *out );
+        IActivationFactory_AddRef( &impl->IActivationFactory_iface );
         return S_OK;
     }
-
-    if (IsEqualGUID( iid, &IID_ISpatialAnchorExporterStatics ))
+    else if (IsEqualGUID( iid, &IID_ICoreWindowStatic ))
     {
-        *out = &impl->ISpatialAnchorExporterStatics_iface;
-        IInspectable_AddRef( *out );
+        *out = &impl->ICoreWindowStatic_iface;
+        ICoreWindowStatic_AddRef( &impl->ICoreWindowStatic_iface );
         return S_OK;
     }
 
@@ -66,17 +64,17 @@ static HRESULT WINAPI factory_QueryInterface( IActivationFactory *iface, REFIID 
 
 static ULONG WINAPI factory_AddRef( IActivationFactory *iface )
 {
-    struct exporter *impl = impl_from_IActivationFactory( iface );
+    struct corewindow_statics *impl = impl_from_IActivationFactory( iface );
     ULONG ref = InterlockedIncrement( &impl->ref );
-    TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
+    TRACE( "iface %p, ref %lu.\n", iface, ref );
     return ref;
 }
 
 static ULONG WINAPI factory_Release( IActivationFactory *iface )
 {
-    struct exporter *impl = impl_from_IActivationFactory( iface );
+    struct corewindow_statics *impl = impl_from_IActivationFactory( iface );
     ULONG ref = InterlockedDecrement( &impl->ref );
-    TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
+    TRACE( "iface %p, ref %lu.\n", iface, ref );
     return ref;
 }
 
@@ -100,7 +98,7 @@ static HRESULT WINAPI factory_GetTrustLevel( IActivationFactory *iface, TrustLev
 
 static HRESULT WINAPI factory_ActivateInstance( IActivationFactory *iface, IInspectable **instance )
 {
-    FIXME( "iface %p, instance %p stub!\n", iface, instance );
+    FIXME( "iface %p, instance %p.\n", iface, instance );
     return E_NOTIMPL;
 }
 
@@ -117,46 +115,34 @@ static const struct IActivationFactoryVtbl factory_vtbl =
     factory_ActivateInstance,
 };
 
-DEFINE_IINSPECTABLE( exporter_statics, ISpatialAnchorExporterStatics, struct exporter, IActivationFactory_iface )
+DEFINE_IINSPECTABLE( corewindow_static, ICoreWindowStatic, struct corewindow_statics, IActivationFactory_iface )
 
-static HRESULT request_access_async( IUnknown *invoker, IUnknown *param, PROPVARIANT *result, BOOL called_async )
+static HRESULT STDMETHODCALLTYPE corewindow_static_GetForCurrentThread( ICoreWindowStatic *iface, ICoreWindow **windows )
 {
-    result->vt = VT_UI4;
-    result->ulVal = SpatialPerceptionAccessStatus_DeniedBySystem;
+    FIXME( "iface %p, windows %p stub!\n", iface, windows );
+
+    *windows = NULL;
     return S_OK;
 }
 
-static HRESULT WINAPI exporter_statics_GetDefault( ISpatialAnchorExporterStatics *iface, ISpatialAnchorExporter **value )
+static const struct ICoreWindowStaticVtbl corewindow_static_vtbl =
 {
-    FIXME( "iface %p, value %p stub.\n", iface, value );
-    return E_NOTIMPL;
-}
-
-static HRESULT WINAPI exporter_statics_RequestAccessAsync( ISpatialAnchorExporterStatics *iface, IAsyncOperation_SpatialPerceptionAccessStatus **result )
-{
-    TRACE( "iface %p, result %p stub.\n", iface, result );
-    return async_operation_request_access_create( (IUnknown *)iface, NULL, request_access_async, result );
-}
-
-static const struct ISpatialAnchorExporterStaticsVtbl exporter_statics_vtbl =
-{
-    exporter_statics_QueryInterface,
-    exporter_statics_AddRef,
-    exporter_statics_Release,
+    corewindow_static_QueryInterface,
+    corewindow_static_AddRef,
+    corewindow_static_Release,
     /* IInspectable methods */
-    exporter_statics_GetIids,
-    exporter_statics_GetRuntimeClassName,
-    exporter_statics_GetTrustLevel,
-    /* ISpatialAnchorExporterStatics methods */
-    exporter_statics_GetDefault,
-    exporter_statics_RequestAccessAsync,
+    corewindow_static_GetIids,
+    corewindow_static_GetRuntimeClassName,
+    corewindow_static_GetTrustLevel,
+    /* ICoreWindowStatic methods */
+    corewindow_static_GetForCurrentThread
 };
 
-static struct exporter exporter_statics =
+static struct corewindow_statics corewindow_statics =
 {
     {&factory_vtbl},
-    {&exporter_statics_vtbl},
+    {&corewindow_static_vtbl},
     1,
 };
 
-IActivationFactory *anchor_exporter_factory = &exporter_statics.IActivationFactory_iface;
+IActivationFactory *corewindow_factory = &corewindow_statics.IActivationFactory_iface;
