@@ -247,22 +247,6 @@ static HKEY open_config_key(void)
     return res == ERROR_SUCCESS ? ret : NULL;
 }
 
-
-static BOOL get_default_url(WCHAR* url, DWORD size)
-{
-    HKEY hkey;
-    DWORD res;
-    LONG returned_size = size;
-
-    res = RegOpenKeyW(HKEY_CURRENT_USER, L"Software\\Wine\\AddonsURL", &hkey);
-    if(res != ERROR_SUCCESS)
-        return FALSE;
-
-    RegQueryValueW(hkey, NULL, url, &returned_size);
-    RegCloseKey(hkey);
-    return TRUE;
-}
-
 static enum install_res install_from_registered_dir(void)
 {
     static const WCHAR unix_prefix[8] = L"\\\\?\\unix";
@@ -339,7 +323,7 @@ static WCHAR *get_cache_file_name(BOOL ensure_exists)
     WCHAR *cache_dir=NULL, *ret;
     size_t len, size;
 
-    xdg_dir = _wgetenv( L"UNIX_XDG_CACHE_HOME" );
+    xdg_dir = _wgetenv( L"WINE_HOST_XDG_CACHE_HOME" );
     if (xdg_dir && *xdg_dir)
     {
         if (!(cache_dir = HeapAlloc( GetProcessHeap(), 0, wcslen(xdg_dir) * sizeof(WCHAR) + sizeof(L"\\\\?\\unix") ))) return NULL;
@@ -623,25 +607,19 @@ static IInternetBindInfo InstallCallbackBindInfo = { &InstallCallbackBindInfoVtb
 
 static void append_url_params( WCHAR *url )
 {
+    DWORD size = INTERNET_MAX_URL_LENGTH * sizeof(WCHAR);
     DWORD len = lstrlenW(url);
 
-    if (wcsncmp(&url[len-1], L"/", 1) != 0)
-    {
-        DWORD size = INTERNET_MAX_URL_LENGTH * sizeof(WCHAR);
-
-        lstrcpyW(url+len, L"?arch=");
-        len += lstrlenW(L"?arch=");
-        len += MultiByteToWideChar(CP_ACP, 0, GECKO_ARCH, sizeof(GECKO_ARCH),
-                                   url+len, size/sizeof(WCHAR)-len)-1;
-        lstrcpyW(url+len, L"&v=");
-        len += lstrlenW(L"&v=");
-        len += MultiByteToWideChar(CP_ACP, 0, addon->version, -1, url+len, size/sizeof(WCHAR)-len)-1;
-        lstrcpyW(url+len, L"&winev=");
-        len += lstrlenW(L"&winev=");
-        MultiByteToWideChar(CP_ACP, 0, p_wine_get_version ? p_wine_get_version() : 0, -1, url+len, size/sizeof(WCHAR)-len);
-    }
-    else
-        lstrcpyW(url+len, addon->file_name);
+    lstrcpyW(url+len, L"?arch=");
+    len += lstrlenW(L"?arch=");
+    len += MultiByteToWideChar(CP_ACP, 0, GECKO_ARCH, sizeof(GECKO_ARCH),
+                               url+len, size/sizeof(WCHAR)-len)-1;
+    lstrcpyW(url+len, L"&v=");
+    len += lstrlenW(L"&v=");
+    len += MultiByteToWideChar(CP_ACP, 0, addon->version, -1, url+len, size/sizeof(WCHAR)-len)-1;
+    lstrcpyW(url+len, L"&winev=");
+    len += lstrlenW(L"&winev=");
+    MultiByteToWideChar(CP_ACP, 0, p_wine_get_version ? p_wine_get_version() : 0, -1, url+len, size/sizeof(WCHAR)-len);
 }
 
 static LPWSTR get_url(void)
@@ -655,7 +633,6 @@ static LPWSTR get_url(void)
     static const WCHAR httpW[] = {'h','t','t','p'};
 
     url = malloc(size);
-    memset(url, 0, size);
     returned_size = size;
 
     hkey = open_config_key();
@@ -666,8 +643,7 @@ static LPWSTR get_url(void)
         if(res == ERROR_SUCCESS && type == REG_SZ) goto found;
     }
 
-    if (!get_default_url(url, size))
-        MultiByteToWideChar( CP_ACP, 0, addon->url_default, -1, url, size / sizeof(WCHAR) );
+    MultiByteToWideChar( CP_ACP, 0, addon->url_default, -1, url, size / sizeof(WCHAR) );
 
 found:
     if (returned_size > sizeof(httpW) && !memcmp(url, httpW, sizeof(httpW))) append_url_params( url );
