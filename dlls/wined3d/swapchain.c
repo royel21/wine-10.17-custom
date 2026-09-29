@@ -544,9 +544,8 @@ static void wined3d_swapchain_gl_rotate(struct wined3d_swapchain *swapchain, str
     unsigned int i;
     static const DWORD supported_locations = WINED3D_LOCATION_TEXTURE_RGB | WINED3D_LOCATION_RB_MULTISAMPLE;
 
-    if (swapchain->state.desc.swap_effect == WINED3D_SWAP_EFFECT_DISCARD
-            || swapchain->state.desc.backbuffer_count < 2)
-         return;
+    if (swapchain->state.desc.backbuffer_count < 2)
+        return;
 
     texture_prev = wined3d_texture_gl(swapchain->back_buffers[0]);
 
@@ -1209,8 +1208,7 @@ static void wined3d_swapchain_vk_rotate(struct wined3d_swapchain *swapchain, str
 
     static const DWORD supported_locations = WINED3D_LOCATION_TEXTURE_RGB | WINED3D_LOCATION_RB_MULTISAMPLE;
 
-    if (swapchain->state.desc.swap_effect == WINED3D_SWAP_EFFECT_DISCARD
-            || swapchain->state.desc.backbuffer_count < 2)
+    if (swapchain->state.desc.backbuffer_count < 2)
         return;
 
     texture_prev = wined3d_texture_vk(swapchain->back_buffers[0]);
@@ -1765,10 +1763,7 @@ HRESULT wined3d_swapchain_vk_init(struct wined3d_swapchain_vk *swapchain_vk, str
     }
 
     if (FAILED(hr = wined3d_swapchain_vk_create_vulkan_swapchain(swapchain_vk)))
-    {
         WARN("Failed to create a Vulkan swapchain, hr %#lx.\n", hr);
-        return hr;
-    }
 
     return WINED3D_OK;
 }
@@ -2137,22 +2132,6 @@ HRESULT CDECL wined3d_swapchain_state_resize_target(struct wined3d_swapchain_sta
     }
     else
     {
-        if (FAILED(hr = wined3d_output_get_desc(state->desc.output, &output_desc)))
-        {
-            ERR("Failed to get output description, hr %#lx.\n", hr);
-            wined3d_mutex_unlock();
-            return hr;
-        }
-        width = output_desc.desktop_rect.right - output_desc.desktop_rect.left;
-        height = output_desc.desktop_rect.bottom - output_desc.desktop_rect.top;
-
-        GetWindowRect(window, &window_rect);
-        if (width != window_rect.right - window_rect.left || height != window_rect.bottom - window_rect.top)
-        {
-            TRACE("Update saved window state.\n");
-            state->original_window_rect = window_rect;
-        }
-
         if (state->desc.flags & WINED3D_SWAPCHAIN_ALLOW_MODE_SWITCH)
         {
             actual_mode = *mode;
@@ -2163,18 +2142,19 @@ HRESULT CDECL wined3d_swapchain_state_resize_target(struct wined3d_swapchain_sta
                 wined3d_mutex_unlock();
                 return hr;
             }
-            if (FAILED(hr = wined3d_output_get_desc(state->desc.output, &output_desc)))
-            {
-                ERR("Failed to get output description, hr %#lx.\n", hr);
-                wined3d_mutex_unlock();
-                return hr;
-            }
-
-            width = output_desc.desktop_rect.right - output_desc.desktop_rect.left;
-            height = output_desc.desktop_rect.bottom - output_desc.desktop_rect.top;
         }
+
+        if (FAILED(hr = wined3d_output_get_desc(state->desc.output, &output_desc)))
+        {
+            ERR("Failed to get output description, hr %#lx.\n", hr);
+            wined3d_mutex_unlock();
+            return hr;
+        }
+
         x = output_desc.desktop_rect.left;
         y = output_desc.desktop_rect.top;
+        width = output_desc.desktop_rect.right - output_desc.desktop_rect.left;
+        height = output_desc.desktop_rect.bottom - output_desc.desktop_rect.top;
     }
 
     wined3d_mutex_unlock();
