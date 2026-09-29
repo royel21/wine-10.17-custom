@@ -1234,18 +1234,18 @@ static void bus_options_cleanup(void)
     list_init(&options.devices);
 }
 
-static NTSTATUS sdl_driver_init(void)
-{
-    struct bus_main_params bus =
-    {
-        .name = L"SDL",
-        .init_args = &options,
-        .init_code = sdl_init,
-        .wait_code = sdl_wait,
-    };
-    if (options.disable_sdl) return STATUS_NOT_SUPPORTED;
-    return bus_main_thread_start(&bus);
-}
+// static NTSTATUS sdl_driver_init(void)
+// {
+//     struct bus_main_params bus =
+//     {
+//         .name = L"SDL",
+//         .init_args = &options,
+//         .init_code = sdl_init,
+//         .wait_code = sdl_wait,
+//     };
+//     if (options.disable_sdl) return STATUS_NOT_SUPPORTED;
+//     return bus_main_thread_start(&bus);
+// }
 
 static NTSTATUS udev_driver_init(void)
 {
@@ -1301,7 +1301,7 @@ static NTSTATUS fdo_pnp_dispatch(DEVICE_OBJECT *device, IRP *irp)
         mouse_device_create();
         keyboard_device_create();
 
-        if (!sdl_driver_init()) options.disable_input = TRUE;
+        // if (!sdl_driver_init()) options.disable_input = TRUE;
         udev_driver_init();
         iohid_driver_init();
         winlator_driver_init();
