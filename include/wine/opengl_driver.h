@@ -99,7 +99,7 @@ struct __GLsync
 
 struct opengl_drawable;
 
-struct wgl_context
+struct opengl_context
 {
     HGLRC                       client_context;     /* client side context pointer */
     void                       *driver_private;     /* driver context / private data */
@@ -109,10 +109,10 @@ struct wgl_context
     struct opengl_drawable     *read;               /* currently bound read surface */
 };
 
-static inline struct wgl_context *opengl_context_from_handle( HGLRC client_context )
+static inline struct opengl_context *opengl_context_from_handle( HGLRC client_context )
 {
     struct opengl_client_context *client = opengl_client_context_from_client( client_context );
-    return client_context ? (struct wgl_context *)(UINT_PTR)client->unix_handle : NULL;
+    return client_context ? (struct opengl_context *)(UINT_PTR)client->unix_handle : NULL;
 }
 
 /* interface between opengl32 and win32u */
@@ -128,8 +128,8 @@ struct opengl_funcs
 #undef USE_GL_FUNC
     void (*p_get_pixel_formats)( struct wgl_pixel_format *formats, UINT max_formats, UINT *num_formats, UINT *num_onscreen_formats );
     BOOL (*p_query_renderer)( UINT attribute, void *value );
-    BOOL (*p_wgl_context_flush)( struct wgl_context *context, void (*flush)(void), UINT flags );
-    BOOL (*p_wgl_context_reset)( struct wgl_context *context, HDC hdc, struct wgl_context *share, const int *attribs );
+    BOOL (*p_context_flush)( struct opengl_context *context, void (*flush)(void), UINT flags );
+    BOOL (*p_context_reset)( struct opengl_context *context, HDC hdc, struct opengl_context *share, const int *attribs );
 
     void *egl_handle;
 };
