@@ -16,10 +16,10 @@ done
 # ==============================================================================
 # CONFIGURATION & PATHS
 # ==============================================================================
+WINEVER="11.1"
 WINE_SRC_DIR="$(cd "./" && pwd)"
 BUILD_DIR="${WINE_SRC_DIR}/wine"
-INSTALL_PREFIX="/tmp/wine_build"
-WINEVER="11.1"
+INSTALL_PREFIX="/tmp/wine_build-${WINEVER}"
 OUTPUT_WCP="/mnt/d/winlator/wine-${WINEVER}-custom.wcp"
 
 echo "================================================================="
