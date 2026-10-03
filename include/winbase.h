@@ -25,22 +25,7 @@
 extern "C" {
 #endif
 
-#ifndef WINBASEAPI
-#ifdef _KERNEL32_
-#define WINBASEAPI
-#else
-#define WINBASEAPI DECLSPEC_IMPORT
-#endif
-#endif
-
-#ifndef WINADVAPI
-#ifdef _ADVAPI32_
-#define WINADVAPI
-#else
-#define WINADVAPI DECLSPEC_IMPORT
-#endif
-#endif
-
+#include <apisetcconv.h>
 #include <minwinbase.h>
 #include <libloaderapi.h>
 #include <processthreadsapi.h>

@@ -10373,7 +10373,6 @@ static void test_media_session_scrubbing(void)
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
 
     hr = WaitForSingleObject(media_sink->preroll_event, 100);
-    todo_wine
     ok(hr == WAIT_TIMEOUT, "Unexpected hr %#lx.\n", hr);
 
     todo_wine

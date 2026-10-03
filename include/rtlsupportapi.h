@@ -21,6 +21,8 @@
 #ifndef _APISETRTLSUPPORT_
 #define _APISETRTLSUPPORT_
 
+#include <apisetcconv.h>
+
 NTSYSAPI void   WINAPI RtlCaptureContext(CONTEXT*);
 NTSYSAPI void   WINAPI RtlCaptureContext2(CONTEXT*);
 NTSYSAPI USHORT WINAPI RtlCaptureStackBackTrace(ULONG,ULONG,void**,ULONG*);

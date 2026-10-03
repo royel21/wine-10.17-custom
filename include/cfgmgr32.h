@@ -33,6 +33,7 @@
 # define DECL_WINELIB_CFGMGR32_TYPE_AW(type)  typedef WINELIB_NAME_AW(type##_) type;
 #endif
 
+#undef CMAPI /* FIXME */
 #define CMAPI
 typedef DWORD CONFIGRET;
 
