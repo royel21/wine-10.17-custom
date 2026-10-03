@@ -19,7 +19,7 @@ done
 WINEVER="11.1"
 WINE_SRC_DIR="$(cd "./" && pwd)"
 BUILD_DIR="${WINE_SRC_DIR}/wine"
-INSTALL_PREFIX="/tmp/wine_build-${WINEVER}"
+INSTALL_PREFIX="/tmp/wine_build-current"
 OUTPUT_WCP="/mnt/d/winlator/wine-${WINEVER}-custom.wcp"
 
 echo "================================================================="
