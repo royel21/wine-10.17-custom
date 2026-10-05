@@ -1471,6 +1471,25 @@ static void free_stream_buffers(struct wm_reader *reader)
     }
 }
 
+static void free_streams(struct wm_reader *reader)
+{
+    unsigned int i;
+
+    for (i = 0; i < reader->stream_count; ++i)
+    {
+        struct wm_stream *stream = &reader->streams[i];
+
+        if (stream->output_allocator)
+            IWMReaderAllocatorEx_Release(stream->output_allocator);
+        stream->output_allocator = NULL;
+        if (stream->stream_allocator)
+            IWMReaderAllocatorEx_Release(stream->stream_allocator);
+        stream->stream_allocator = NULL;
+
+        free(stream);
+    }
+}
+
 static void release_stream_allocators(struct wm_reader *reader)
 {
     unsigned int i;
@@ -1601,6 +1620,7 @@ out_destroy_parser:
     if (reader->read_sem)
     {
         CloseHandle(reader->read_sem);
+        free_streams(reader);
         reader->read_sem = NULL;
     }
     wg_parser_destroy(reader->wg_parser);
@@ -1981,6 +2001,7 @@ static HRESULT WINAPI reader_Close(IWMSyncReader2 *iface)
     ReleaseSemaphore(reader->read_sem, 1, NULL);
 
     free_stream_buffers(reader);
+    free_streams(reader);
     release_stream_allocators(reader);
 
     wg_parser_disconnect(reader->wg_parser);

@@ -1676,6 +1676,7 @@ enable_musl
 enable_png
 enable_strmbase
 enable_strmiids
+enable_strsafe
 enable_tiff
 enable_tomcrypt
 enable_uuid
@@ -22319,6 +22320,7 @@ wine_fn_config_makefile libs/musl enable_musl
 wine_fn_config_makefile libs/png enable_png
 wine_fn_config_makefile libs/strmbase enable_strmbase
 wine_fn_config_makefile libs/strmiids enable_strmiids
+wine_fn_config_makefile libs/strsafe enable_strsafe
 wine_fn_config_makefile libs/tiff enable_tiff
 wine_fn_config_makefile libs/tomcrypt enable_tomcrypt
 wine_fn_config_makefile libs/uuid enable_uuid

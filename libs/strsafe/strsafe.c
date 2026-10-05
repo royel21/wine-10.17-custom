@@ -1,7 +1,7 @@
 /*
- * Implementation of the AclEdit Interface
+ * Strsafe implementation
  *
- * Copyright 2006 Eric Pouech
+ * Copyright (C) 2026 Alexandre Julliard
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,25 +18,5 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#include <stdarg.h>
-
-#include "windef.h"
-#include "winbase.h"
-#include "winuser.h"
-#include "wfext.h"
-
-#include "wine/debug.h"
-
-WINE_DEFAULT_DEBUG_CHANNEL(acledit);
-
-/***********************************************************************
- *  FMExtensionProcW (acledit.@)
- *
- */
-
-LONG WINAPI FMExtensionProcW(HWND hWnd, WPARAM wEvent, LPARAM lParam)
-{
-    FIXME("(%p, %Iu, 0x%Ix) stub\n", hWnd, wEvent, lParam);
-    return 0;
-
-}
+#define STRSAFE_LIB_IMPL
+#include "strsafe.h"
