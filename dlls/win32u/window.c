@@ -326,10 +326,7 @@ void *client_surface_create( UINT size, const struct client_surface_funcs *funcs
     surface->funcs = funcs;
     surface->ref = 1;
     surface->hwnd = hwnd;
-
-    pthread_mutex_lock( &surfaces_lock );
-    list_add_tail( &client_surfaces, &surface->entry );
-    pthread_mutex_unlock( &surfaces_lock );
+    list_init( &surface->entry );
 
     TRACE( "created %s\n", debugstr_client_surface( surface ) );
     return surface;
@@ -373,6 +370,17 @@ void client_surface_present( struct client_surface *surface )
         surface->funcs->present( surface, hdc );
         if (hdc) NtUserReleaseDC( hwnd, hdc );
     }
+    pthread_mutex_unlock( &surfaces_lock );
+}
+
+void add_window_client_surface( HWND hwnd, struct client_surface *surface )
+{
+    pthread_mutex_lock( &surfaces_lock );
+
+    surface->hwnd = hwnd;
+    list_add_tail( &client_surfaces, &surface->entry );
+    surface->funcs->update( surface );
+
     pthread_mutex_unlock( &surfaces_lock );
 }
 

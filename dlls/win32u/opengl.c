@@ -1416,7 +1416,11 @@ static struct opengl_drawable *get_window_unused_drawable( HWND hwnd, int format
      * window, each drawing to the same back/front buffers. We cannot do that because host
      * OpenGL usually doesn't allow multiple contexts to use the same surface at the same time.
      */
-    if (!drawable) driver_funcs->p_surface_create( hwnd, format, &drawable );
+    if (!drawable)
+    {
+        driver_funcs->p_surface_create( hwnd, format, &drawable );
+        if (drawable && drawable->client) add_window_client_surface( hwnd, drawable->client );
+    }
 
     TRACE( "hwnd %p, drawable %s\n", hwnd, debugstr_opengl_drawable( drawable ) );
     return drawable;

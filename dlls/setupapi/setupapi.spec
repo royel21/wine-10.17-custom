@@ -38,8 +38,8 @@
 @ stub CM_Dup_Range_List
 @ stub CM_Enable_DevNode
 @ stub CM_Enable_DevNode_Ex
-@ stdcall CM_Enumerate_Classes(long ptr long)
-@ stub CM_Enumerate_Classes_Ex
+@ stdcall CM_Enumerate_Classes(long ptr long) cfgmgr32.CM_Enumerate_Classes
+@ stdcall CM_Enumerate_Classes_Ex(long ptr long ptr) cfgmgr32.CM_Enumerate_Classes_Ex
 @ stub CM_Enumerate_EnumeratorsA
 @ stub CM_Enumerate_EnumeratorsW
 @ stub CM_Enumerate_Enumerators_ExA
@@ -55,10 +55,10 @@
 @ stub CM_Free_Res_Des_Handle
 @ stdcall CM_Get_Child(ptr long long)
 @ stdcall CM_Get_Child_Ex(ptr long long ptr)
-@ stub CM_Get_Class_Key_NameA
-@ stub CM_Get_Class_Key_NameW
-@ stub CM_Get_Class_Key_Name_ExA
-@ stub CM_Get_Class_Key_Name_ExW
+@ stdcall CM_Get_Class_Key_NameA(ptr ptr ptr long) cfgmgr32.CM_Get_Class_Key_NameA
+@ stdcall CM_Get_Class_Key_NameW(ptr ptr ptr long) cfgmgr32.CM_Get_Class_Key_NameW
+@ stdcall CM_Get_Class_Key_Name_ExA(ptr ptr ptr long ptr) cfgmgr32.CM_Get_Class_Key_Name_ExA
+@ stdcall CM_Get_Class_Key_Name_ExW(ptr ptr ptr long ptr) cfgmgr32.CM_Get_Class_Key_Name_ExW
 @ stub CM_Get_Class_NameA
 @ stub CM_Get_Class_NameW
 @ stub CM_Get_Class_Name_ExA
@@ -142,10 +142,10 @@
 @ stub CM_Move_DevNode
 @ stub CM_Move_DevNode_Ex
 @ stub CM_Next_Range
-@ stub CM_Open_Class_KeyA
-@ stub CM_Open_Class_KeyW
-@ stub CM_Open_Class_Key_ExA
-@ stub CM_Open_Class_Key_ExW
+@ stdcall CM_Open_Class_KeyA(ptr str long long ptr long) cfgmgr32.CM_Open_Class_KeyA
+@ stdcall CM_Open_Class_KeyW(ptr wstr long long ptr long) cfgmgr32.CM_Open_Class_KeyW
+@ stdcall CM_Open_Class_Key_ExA(ptr str long long ptr long ptr) cfgmgr32.CM_Open_Class_Key_ExA
+@ stdcall CM_Open_Class_Key_ExW(ptr wstr long long ptr long ptr) cfgmgr32.CM_Open_Class_Key_ExW
 @ stdcall CM_Open_DevNode_Key(long long long long ptr long)
 @ stub CM_Open_DevNode_Key_Ex
 @ stub CM_Query_And_Remove_SubTreeA

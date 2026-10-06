@@ -2399,6 +2399,13 @@ typedef void (CALLBACK *PTERMINATION_HANDLER)(BOOLEAN,DWORD64);
 #define EXCEPTION_COLLIDED_UNWIND    0x40
 #define EXCEPTION_SOFTWARE_ORIGINATE 0x80
 
+#define EXCEPTION_UNWIND (EXCEPTION_UNWINDING |EXCEPTION_EXIT_UNWIND \
+                          | EXCEPTION_TARGET_UNWIND | EXCEPTION_COLLIDED_UNWIND)
+
+#define IS_UNWINDING(flags)     ((flags & EXCEPTION_UNWIND) != 0)
+#define IS_DISPATCHING(flags)   ((flags & EXCEPTION_UNWIND) == 0)
+#define IS_TARGET_UNWIND(flags) (flags & EXCEPTION_TARGET_UNWIND)
+
 /*
  * The exception record used by Win32 to give additional information
  * about exception to exception handlers.
