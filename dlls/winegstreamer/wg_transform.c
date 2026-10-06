@@ -104,7 +104,7 @@ static struct wg_transform *get_transform(wg_transform_t trans)
     return (struct wg_transform *)(ULONG_PTR)trans;
 }
 
-static void align_video_info_planes(MFVideoInfo *video_info, gsize plane_align, gint stride,
+static void align_video_info_planes(MFVideoInfo *video_info, gsize plane_align, INT64 signed_stride,
         GstVideoInfo *info, GstVideoAlignment *align)
 {
     bool fix_nv12 = !plane_align && info->finfo->format == GST_VIDEO_FORMAT_NV12 && (info->width & 3) && (info->width & 3) != 3;
@@ -124,10 +124,11 @@ static void align_video_info_planes(MFVideoInfo *video_info, gsize plane_align, 
         align->padding_left = aperture->OffsetY.value;
     }
 
-    if (stride)
+    if (signed_stride)
     {
         /* The MF sample has a 2D buffer. Set padding_right to match its stride. */
         guint width = align->padding_left + info->width + align->padding_right;
+        guint stride = signed_stride < 0 ? -signed_stride : signed_stride;
         const GstVideoFormatInfo *finfo = info->finfo;
         gint comp[GST_VIDEO_MAX_COMPONENTS];
         gint pixel_stride;
@@ -135,9 +136,7 @@ static void align_video_info_planes(MFVideoInfo *video_info, gsize plane_align, 
         gst_video_format_info_component(finfo, 0, comp);
         pixel_stride = finfo->pixel_stride[comp[0]];
 
-        bottom_up = stride < 0;
-        if (bottom_up)
-            stride = -stride;
+        bottom_up = signed_stride < 0;
 
         if (stride % pixel_stride)
             GST_ERROR("Stride %u not aligned to pixel size", stride);
@@ -244,7 +243,7 @@ static void wg_video_buffer_pool_class_init(WgVideoBufferPoolClass *klass)
 }
 
 static WgVideoBufferPool *wg_video_buffer_pool_create(GstCaps *caps, gsize plane_align, gsize output_plane_stride,
-        GstAllocator *allocator, MFVideoInfo *video_info, GstVideoAlignment *align)
+         GstAllocator *allocator, MFVideoInfo *video_info, GstVideoAlignment *align)
 {
     WgVideoBufferPool *pool;
     GstStructure *config;

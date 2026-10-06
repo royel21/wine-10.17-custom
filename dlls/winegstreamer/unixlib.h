@@ -344,7 +344,7 @@ struct wg_parser_stream_seek_params
 struct wg_transform_attrs
 {
     UINT32 output_plane_align;
-    INT32 output_plane_stride;
+    UINT32 output_plane_stride;
     UINT32 input_queue_length;
     BOOL allow_format_change;
     BOOL low_latency;
