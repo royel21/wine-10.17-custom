@@ -331,6 +331,7 @@ sub update_makefiles(@)
         elsif (defined($make{"STATICLIB"}))
         {
             die "invalid STATICLIB name" unless $make{"STATICLIB"} =~ /\.a$/;
+            die "STATICLIB should not be defined in $file" unless $file =~ /^libs\//;
         }
         elsif (defined($make{"MODULE"}))  # dll or program
         {

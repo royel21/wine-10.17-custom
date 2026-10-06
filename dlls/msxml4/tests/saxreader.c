@@ -745,7 +745,7 @@ static const char test3_cdata_xml[] =
 "<?xml version=\"1.0\" ?><a><![CDATA[Some text data]]></a>";
 
 static const char test_pi_xml[] =
-"<?xml version=\"1.0\" ?><a><?t some text ?></a>";
+"<?xml version=\"1.0\" ?><a><?t some t\rex\r\nt ?></a>";
 
 static const char test_chardata_xml[] =
 "<?xml version=\"1.0\" ?><a>\nabc<b>de\nf</b>gh\n</a>";
@@ -933,14 +933,14 @@ static struct call_entry attribute_norm_alt[] = {
     { CH_ENDTEST }
 };
 
-static struct call_entry pi_test_v4[] =
+static struct call_entry pi_test[] =
 {
     { CH_PUTDOCUMENTLOCATOR, 1, 0, S_OK },
     { CH_STARTDOCUMENT, 1, 22, S_OK },
     { CH_STARTELEMENT, 1, 25, S_OK, L"", L"a", L"a" },
-    { CH_PROCESSINGINSTRUCTION, 1, 41, S_OK, L"t", L"some text " },
-    { CH_ENDELEMENT, 1, 45, S_OK, L"", L"a", L"a" },
-    { CH_ENDDOCUMENT, 1, 45, S_OK },
+    { CH_PROCESSINGINSTRUCTION, 3, 4, S_OK, L"t", L"some t\nex\nt " },
+    { CH_ENDELEMENT, 3, 8, S_OK, L"", L"a", L"a" },
+    { CH_ENDDOCUMENT, 3, 8, S_OK },
     { CH_ENDTEST }
 };
 
@@ -2311,7 +2311,7 @@ static void test_saxreader(void)
     set_expected_seq(test_seq);
     hr = ISAXXMLReader_parse(reader, var);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok_sequence(sequences, CONTENT_HANDLER_INDEX, test_seq, "attribute value normalization", TRUE);
+    ok_sequence(sequences, CONTENT_HANDLER_INDEX, test_seq, "attribute value normalization", FALSE);
     IStream_Release(stream);
 
     resolver = (void*)0xdeadbeef;
@@ -2398,7 +2398,6 @@ static void test_saxreader_cdata(void)
 
 static void test_saxreader_pi(void)
 {
-    struct call_entry *test_seq;
     ISAXXMLReader *reader;
     VARIANT var;
     HRESULT hr;
@@ -2417,11 +2416,10 @@ static void test_saxreader_pi(void)
     V_VT(&var) = VT_UNKNOWN;
     V_UNKNOWN(&var) = (IUnknown *)create_test_stream(test_pi_xml, -1);
 
-    test_seq = pi_test_v4;
-    set_expected_seq(test_seq);
+    set_expected_seq(pi_test);
     hr = ISAXXMLReader_parse(reader, var);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    ok_sequence(sequences, CONTENT_HANDLER_INDEX, test_seq, "pi test", FALSE);
+    ok_sequence(sequences, CONTENT_HANDLER_INDEX, pi_test, "pi test", FALSE);
     VariantClear(&var);
 
     ISAXXMLReader_Release(reader);
@@ -2873,17 +2871,38 @@ static void test_saxreader_normalize_line_breaks(void)
 
     v = 123;
     hr = ISAXXMLReader_getFeature(reader, L"normalize-line-breaks", &v);
-    todo_wine
     ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
     ok(v == 123, "Unexpected value %d.\n", v);
 
     hr = ISAXXMLReader_putFeature(reader, L"normalize-line-breaks", VARIANT_FALSE);
-    todo_wine
     ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
 
     hr = ISAXXMLReader_putFeature(reader, L"normalize-line-breaks", VARIANT_TRUE);
-    todo_wine
     ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
+
+    ISAXXMLReader_Release(reader);
+}
+
+static void test_saxreader_exhaustive_errors(void)
+{
+    ISAXXMLReader *reader;
+    VARIANT_BOOL v;
+    HRESULT hr;
+
+    hr = CoCreateInstance(&CLSID_SAXXMLReader40, NULL, CLSCTX_INPROC_SERVER, &IID_ISAXXMLReader, (void **)&reader);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    v = VARIANT_TRUE;
+    hr = ISAXXMLReader_getFeature(reader, L"exhaustive-errors", &v);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(v == VARIANT_FALSE, "Unexpected value %d.\n", v);
+
+    hr = ISAXXMLReader_putFeature(reader, L"exhaustive-errors", VARIANT_TRUE);
+    todo_wine
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    hr = ISAXXMLReader_putFeature(reader, L"exhaustive-errors", VARIANT_FALSE);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
 
     ISAXXMLReader_Release(reader);
 }
@@ -5759,6 +5778,7 @@ START_TEST(saxreader)
         test_saxreader_properties();
         test_saxreader_max_xml_size();
         test_saxreader_normalize_line_breaks();
+        test_saxreader_exhaustive_errors();
         test_saxreader_features();
         test_saxreader_encoding();
         test_saxreader_dispex();

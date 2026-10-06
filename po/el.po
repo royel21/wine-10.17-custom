@@ -8947,6 +8947,193 @@ msgstr ""
 msgid "Wine Video 1 video codec"
 msgstr ""
 
+#: dlls/msxml3/msxml.mc:31
+#, fuzzy
+msgid "Undefined reference\n"
+msgstr "&Περιεχόμενα"
+
+#: dlls/msxml3/msxml.mc:38
+msgid "Found self-referential entity\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:45
+msgid "Unparsed entity reference\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:52
+msgid "Name text contains colon ':'\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:59
+msgid "Namespace prefix hasn't been declared\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:66
+msgid "Expected '=' character\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:73
+msgid "Expected a quote character\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:80
+msgid "Malformed comment\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:87
+#, fuzzy
+msgid "Invalid name start character\n"
+msgstr "Μη έγγυρος(οι) χαρακτήρας(ες) στο μονοπάτι.\n"
+
+#: dlls/msxml3/msxml.mc:94
+#, fuzzy
+msgid "Invalid name character\n"
+msgstr "Μη έγγυρος(οι) χαρακτήρας(ες) στο μονοπάτι.\n"
+
+#: dlls/msxml3/msxml.mc:101
+msgid "The '<' character found in attribute value\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:108
+msgid "Expected whitespace character\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:115
+msgid "Expected end tag character '>'\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:122
+#, fuzzy
+#| msgid "Invalid character(s) in path"
+msgid "Invalid character in DTD content\n"
+msgstr "Μη έγγυρος(οι) χαρακτήρας(ες) στο μονοπάτι"
+
+#: dlls/msxml3/msxml.mc:129
+msgid "Expected ';' character\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:136
+#, fuzzy
+#| msgid "Invalid character(s) in path"
+msgid "Invalid character in entity reference\n"
+msgstr "Μη έγγυρος(οι) χαρακτήρας(ες) στο μονοπάτι"
+
+#: dlls/msxml3/msxml.mc:143
+#, fuzzy
+#| msgid "Invalid character(s) in path"
+msgid "Invalid character in mixed DTD content\n"
+msgstr "Μη έγγυρος(οι) χαρακτήρας(ες) στο μονοπάτι"
+
+#: dlls/msxml3/msxml.mc:150
+msgid "Expected '*' character\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:157
+msgid "Expected parenthesis character\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:164
+#, fuzzy
+#| msgid "Invalid character(s) in path"
+msgid "Invalid character in DTD enumeration\n"
+msgstr "Μη έγγυρος(οι) χαρακτήρας(ες) στο μονοπάτι"
+
+#: dlls/msxml3/msxml.mc:171
+#, fuzzy
+msgid "Invalid PI syntax\n"
+msgstr "Μη έγγυρος(οι) χαρακτήρας(ες) στο μονοπάτι.\n"
+
+#: dlls/msxml3/msxml.mc:178
+msgid "Expected closing quote character\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:185
+msgid "Multiple colon character found\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:192
+#, fuzzy
+msgid "Invalid Unicode character\n"
+msgstr "Μη έγγυρος(οι) χαρακτήρας(ες) στο μονοπάτι.\n"
+
+#: dlls/msxml3/msxml.mc:199
+msgid "Expected whitespace or '?' character\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:206
+msgid "Unexpected end tag '>' character\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:213
+msgid "Found duplicate attribute\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:220
+msgid "Document root is invalid\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:227
+#, fuzzy
+msgid "Invalid xml declaration\n"
+msgstr "Μη έγγυρος(οι) χαρακτήρας(ες) στο μονοπάτι.\n"
+
+#: dlls/msxml3/msxml.mc:234
+msgid "Document root is missing\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:241
+msgid "Unexpected end of input data stream\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:248
+msgid "Found unexpected CDATA closing markup ']]>'\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:255
+msgid "Found unterminated PI declaration\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:262
+msgid "Found unterminated end tag\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:269
+msgid "Found unterminated CDATA block\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:276
+msgid "Use namespace prefix is reserved\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:283
+msgid "End tag does not match\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:290
+#, fuzzy
+msgid "Invalid encoding name\n"
+msgstr "Μη έγγυρος(οι) χαρακτήρας(ες) στο μονοπάτι.\n"
+
+#: dlls/msxml3/msxml.mc:297
+#, fuzzy
+msgid "Invalid model in DTD contentspec\n"
+msgstr "Μη έγγυρος(οι) χαρακτήρας(ες) στο μονοπάτι.\n"
+
+#: dlls/msxml3/msxml.mc:304
+#, fuzzy
+msgid "Invalid DTD attribute type\n"
+msgstr "Μη έγγυρος(οι) χαρακτήρας(ες) στο μονοπάτι.\n"
+
+#: dlls/msxml3/msxml.mc:311
+#, fuzzy
+msgid "Invalid standalone declaration\n"
+msgstr "Μη έγγυρος(οι) χαρακτήρας(ες) στο μονοπάτι.\n"
+
+#: dlls/msxml3/msxml.mc:318
+#, fuzzy
+msgid "Invalid xml version\n"
+msgstr "Μη έγγυρος(οι) χαρακτήρας(ες) στο μονοπάτι.\n"
+
 #: dlls/oleacc/oleacc.rc:31
 msgid "unknown object"
 msgstr ""

@@ -1,12 +1,14 @@
 STATICLIB = libcompiler-rt.a
 
 SOURCES = \
+	lib/builtins/aarch64/chkstk.S \
 	lib/builtins/arm/aeabi_idivmod.S \
 	lib/builtins/arm/aeabi_ldivmod.S \
 	lib/builtins/arm/aeabi_uidivmod.S \
 	lib/builtins/arm/aeabi_uldivmod.S \
 	lib/builtins/arm/divmodsi4.S \
 	lib/builtins/arm/udivmodsi4.S \
+	lib/builtins/ctzdi2.c \
 	lib/builtins/divdi3.c \
 	lib/builtins/divmoddi4.c \
 	lib/builtins/divmodsi4.c \

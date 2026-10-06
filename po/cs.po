@@ -9164,6 +9164,228 @@ msgstr "Úplné snímky (nekomprimované)"
 msgid "Wine Video 1 video codec"
 msgstr "Videokodek Wine Video 1"
 
+#: dlls/msxml3/msxml.mc:31
+#, fuzzy
+#| msgid "Undefined external error."
+msgid "Undefined reference\n"
+msgstr "Nedefinovaná vnější chyba."
+
+#: dlls/msxml3/msxml.mc:38
+msgid "Found self-referential entity\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:45
+msgid "Unparsed entity reference\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:52
+msgid "Name text contains colon ':'\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:59
+msgid "Namespace prefix hasn't been declared\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:66
+#, fuzzy
+#| msgid "Expected '='"
+msgid "Expected '=' character\n"
+msgstr "Očekáváno „=“"
+
+#: dlls/msxml3/msxml.mc:73
+#, fuzzy
+#| msgid "Expected an operator.\n"
+msgid "Expected a quote character\n"
+msgstr "Očekáván operátor.\n"
+
+#: dlls/msxml3/msxml.mc:80
+msgid "Malformed comment\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:87
+#, fuzzy
+#| msgid "Invalid character"
+msgid "Invalid name start character\n"
+msgstr "Chybný znak"
+
+#: dlls/msxml3/msxml.mc:94
+#, fuzzy
+#| msgid "Invalid character"
+msgid "Invalid name character\n"
+msgstr "Chybný znak"
+
+#: dlls/msxml3/msxml.mc:101
+msgid "The '<' character found in attribute value\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:108
+#, fuzzy
+#| msgid "Expected an operator.\n"
+msgid "Expected whitespace character\n"
+msgstr "Očekáván operátor.\n"
+
+#: dlls/msxml3/msxml.mc:115
+#, fuzzy
+#| msgid "Expected an operator.\n"
+msgid "Expected end tag character '>'\n"
+msgstr "Očekáván operátor.\n"
+
+#: dlls/msxml3/msxml.mc:122
+#, fuzzy
+#| msgid "Invalid character(s) in path"
+msgid "Invalid character in DTD content\n"
+msgstr "Nedovolený(é) znak(y) v cestě k souboru"
+
+#: dlls/msxml3/msxml.mc:129
+#, fuzzy
+#| msgid "Expected ';'"
+msgid "Expected ';' character\n"
+msgstr "Očekáváno „;“"
+
+#: dlls/msxml3/msxml.mc:136
+#, fuzzy
+#| msgid "Invalid character(s) in path"
+msgid "Invalid character in entity reference\n"
+msgstr "Nedovolený(é) znak(y) v cestě k souboru"
+
+#: dlls/msxml3/msxml.mc:143
+#, fuzzy
+#| msgid "Invalid character(s) in path"
+msgid "Invalid character in mixed DTD content\n"
+msgstr "Nedovolený(é) znak(y) v cestě k souboru"
+
+#: dlls/msxml3/msxml.mc:150
+#, fuzzy
+#| msgid "Expected an operator.\n"
+msgid "Expected '*' character\n"
+msgstr "Očekáván operátor.\n"
+
+#: dlls/msxml3/msxml.mc:157
+#, fuzzy
+#| msgid "Expected an operator.\n"
+msgid "Expected parenthesis character\n"
+msgstr "Očekáván operátor.\n"
+
+#: dlls/msxml3/msxml.mc:164
+#, fuzzy
+#| msgid "Invalid character(s) in path"
+msgid "Invalid character in DTD enumeration\n"
+msgstr "Nedovolený(é) znak(y) v cestě k souboru"
+
+#: dlls/msxml3/msxml.mc:171
+#, fuzzy
+#| msgid "Invalid name syntax.\n"
+msgid "Invalid PI syntax\n"
+msgstr "Chybná syntaxe názvu.\n"
+
+#: dlls/msxml3/msxml.mc:178
+#, fuzzy
+#| msgid "Expected an operator.\n"
+msgid "Expected closing quote character\n"
+msgstr "Očekáván operátor.\n"
+
+#: dlls/msxml3/msxml.mc:185
+msgid "Multiple colon character found\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:192
+#, fuzzy
+#| msgid "Invalid character"
+msgid "Invalid Unicode character\n"
+msgstr "Chybný znak"
+
+#: dlls/msxml3/msxml.mc:199
+msgid "Expected whitespace or '?' character\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:206
+msgid "Unexpected end tag '>' character\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:213
+#, fuzzy
+#| msgid "Invalid group attributes.\n"
+msgid "Found duplicate attribute\n"
+msgstr "Nesprávné vlastnosti skupiny.\n"
+
+#: dlls/msxml3/msxml.mc:220
+#, fuzzy
+#| msgid "Path is invalid.\n"
+msgid "Document root is invalid\n"
+msgstr "Neplatné zadání cesty.\n"
+
+#: dlls/msxml3/msxml.mc:227
+#, fuzzy
+#| msgid "Invalid message destination.\n"
+msgid "Invalid xml declaration\n"
+msgstr "Neplatný cíl zprávy.\n"
+
+#: dlls/msxml3/msxml.mc:234
+#, fuzzy
+#| msgid "Index is missing.\n"
+msgid "Document root is missing\n"
+msgstr "Index chybí.\n"
+
+#: dlls/msxml3/msxml.mc:241
+msgid "Unexpected end of input data stream\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:248
+msgid "Found unexpected CDATA closing markup ']]>'\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:255
+msgid "Found unterminated PI declaration\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:262
+msgid "Found unterminated end tag\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:269
+msgid "Found unterminated CDATA block\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:276
+msgid "Use namespace prefix is reserved\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:283
+#, fuzzy
+#| msgid "The passwords do not match."
+msgid "End tag does not match\n"
+msgstr "Hesla se neshodují."
+
+#: dlls/msxml3/msxml.mc:290
+#, fuzzy
+#| msgid "Invalid domain name.\n"
+msgid "Invalid encoding name\n"
+msgstr "Neplatné doménové jméno.\n"
+
+#: dlls/msxml3/msxml.mc:297
+#, fuzzy
+#| msgid "Invalid data type.\n"
+msgid "Invalid model in DTD contentspec\n"
+msgstr "Neplatný datový typ.\n"
+
+#: dlls/msxml3/msxml.mc:304
+#, fuzzy
+#| msgid "Invalid group attributes.\n"
+msgid "Invalid DTD attribute type\n"
+msgstr "Nesprávné vlastnosti skupiny.\n"
+
+#: dlls/msxml3/msxml.mc:311
+#, fuzzy
+#| msgid "Invalid message destination.\n"
+msgid "Invalid standalone declaration\n"
+msgstr "Neplatný cíl zprávy.\n"
+
+#: dlls/msxml3/msxml.mc:318
+#, fuzzy
+#| msgid "Invalid version option.\n"
+msgid "Invalid xml version\n"
+msgstr "Neplatná volba verze.\n"
+
 #: dlls/oleacc/oleacc.rc:31
 msgid "unknown object"
 msgstr "neznámý objekt"

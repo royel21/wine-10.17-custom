@@ -619,6 +619,11 @@ static void test_CM_Get_Device_Interface_Property_Keys(void)
     guid = GUID_DEVINTERFACE_HID;
     ret = CM_Get_Device_Interface_List_SizeW( &size, &guid, NULL, CM_GET_DEVICE_INTERFACE_LIST_PRESENT );
     ok_x4( ret, ==, CR_SUCCESS );
+    if (broken( size == 1 ))
+    {
+        skip( "No HID device present, skipping tests\n" );
+        return;
+    }
     iface = malloc( size * sizeof(*iface) );
     ok_ptr( iface, !=, NULL );
     ret = CM_Get_Device_Interface_ListW( &guid, NULL, iface, size, CM_GET_DEVICE_INTERFACE_LIST_PRESENT );
@@ -696,6 +701,11 @@ static void test_CM_Get_Device_Interface_PropertyW(void)
     guid = GUID_DEVINTERFACE_HID;
     ret = CM_Get_Device_Interface_List_SizeW( &len, &guid, NULL, CM_GET_DEVICE_INTERFACE_LIST_PRESENT );
     ok_x4( ret, ==, CR_SUCCESS );
+    if (broken( len == 1 ))
+    {
+        skip( "No HID device present, skipping tests\n" );
+        return;
+    }
     iface = malloc( len * sizeof(*iface) );
     ok_ptr( iface, !=, NULL );
     ret = CM_Get_Device_Interface_ListW( &guid, NULL, iface, len, CM_GET_DEVICE_INTERFACE_LIST_PRESENT );
@@ -2280,20 +2290,26 @@ static void test_CM_Open_Class_Key(void)
     ret = CM_Open_Class_KeyW( &guid, NULL, KEY_QUERY_VALUE, RegDisposition_OpenExisting, &hkey, CM_OPEN_CLASS_KEY_INSTALLER );
     ok_x4( ret, ==, CR_NO_SUCH_REGISTRY_KEY );
     ret = CM_Open_Class_KeyW( &guid, NULL, KEY_QUERY_VALUE, RegDisposition_OpenAlways, &hkey, CM_OPEN_CLASS_KEY_INSTALLER );
-    ok_x4( ret, ==, CR_SUCCESS );
-    check_object_name( hkey, L"\\REGISTRY\\MACHINE\\SYSTEM\\ControlSet001\\Control\\Class\\{cdcdcdcd-cdcd-cdcd-cdcd-cdcdcdcdcdcd}" );
-    RegCloseKey( hkey );
-    ret = RegDeleteKeyW( HKEY_LOCAL_MACHINE, L"SYSTEM\\ControlSet001\\Control\\Class\\{cdcdcdcd-cdcd-cdcd-cdcd-cdcdcdcdcdcd}" );
-    ok_x4( ret, ==, ERROR_SUCCESS );
+    if (ret != CR_ACCESS_DENIED)
+    {
+        ok_x4( ret, ==, CR_SUCCESS );
+        check_object_name( hkey, L"\\REGISTRY\\MACHINE\\SYSTEM\\ControlSet001\\Control\\Class\\{cdcdcdcd-cdcd-cdcd-cdcd-cdcdcdcdcdcd}" );
+        RegCloseKey( hkey );
+        ret = RegDeleteKeyW( HKEY_LOCAL_MACHINE, L"SYSTEM\\ControlSet001\\Control\\Class\\{cdcdcdcd-cdcd-cdcd-cdcd-cdcdcdcdcdcd}" );
+        ok_x4( ret, ==, ERROR_SUCCESS );
+    }
 
     ret = CM_Open_Class_KeyW( &guid, NULL, KEY_QUERY_VALUE, RegDisposition_OpenExisting, &hkey, CM_OPEN_CLASS_KEY_INTERFACE );
     ok_x4( ret, ==, CR_NO_SUCH_REGISTRY_KEY );
     ret = CM_Open_Class_KeyW( &guid, NULL, KEY_QUERY_VALUE, RegDisposition_OpenAlways, &hkey, CM_OPEN_CLASS_KEY_INTERFACE );
-    ok_x4( ret, ==, CR_SUCCESS );
-    check_object_name( hkey, L"\\REGISTRY\\MACHINE\\SYSTEM\\ControlSet001\\Control\\DeviceClasses\\{cdcdcdcd-cdcd-cdcd-cdcd-cdcdcdcdcdcd}" );
-    RegCloseKey( hkey );
-    ret = RegDeleteKeyW( HKEY_LOCAL_MACHINE, L"SYSTEM\\ControlSet001\\Control\\DeviceClasses\\{cdcdcdcd-cdcd-cdcd-cdcd-cdcdcdcdcdcd}" );
-    ok_x4( ret, ==, ERROR_SUCCESS );
+    if (ret != CR_ACCESS_DENIED)
+    {
+        ok_x4( ret, ==, CR_SUCCESS );
+        check_object_name( hkey, L"\\REGISTRY\\MACHINE\\SYSTEM\\ControlSet001\\Control\\DeviceClasses\\{cdcdcdcd-cdcd-cdcd-cdcd-cdcdcdcdcdcd}" );
+        RegCloseKey( hkey );
+        ret = RegDeleteKeyW( HKEY_LOCAL_MACHINE, L"SYSTEM\\ControlSet001\\Control\\DeviceClasses\\{cdcdcdcd-cdcd-cdcd-cdcd-cdcdcdcdcdcd}" );
+        ok_x4( ret, ==, ERROR_SUCCESS );
+    }
 }
 
 static void test_CM_Get_Class_Registry_Property(void)
@@ -2439,10 +2455,13 @@ static void test_CM_Get_Class_Registry_Property(void)
 
 static void test_CM_Get_Class_Property(void)
 {
+    BOOL localized = LOWORD( GetKeyboardLayout( 0 ) ) != 0x0409;
     GUID guid = GUID_DEVCLASS_DISPLAY;
     BYTE buffer[1024];
     DWORD type, len;
     CONFIGRET ret;
+
+    if (localized) skip( "skipping some localized names tests\n" );
 
     ret = CM_Get_Class_Property_ExW( &guid, &DEVPKEY_DeviceClass_Name, NULL, NULL, NULL, 0, NULL );
     ok_x4( ret, ==, CR_INVALID_POINTER );
@@ -2461,11 +2480,11 @@ static void test_CM_Get_Class_Property(void)
     len = 0;
     ret = CM_Get_Class_Property_ExW( &guid, &DEVPKEY_DeviceClass_Name, &type, NULL, &len, 0, NULL );
     ok_x4( ret, ==, CR_BUFFER_SMALL );
-    ok_x4( len, ==, 0x22 );
+    if (!localized) ok_x4( len, ==, 0x22 );
     len = 1;
     ret = CM_Get_Class_Property_ExW( &guid, &DEVPKEY_DeviceClass_Name, &type, buffer, &len, 0, NULL );
     ok_x4( ret, ==, CR_BUFFER_SMALL );
-    ok_x4( len, ==, 0x22 );
+    if (!localized) ok_x4( len, ==, 0x22 );
 
     len = sizeof(buffer);
     memset( &guid, 0xcd, sizeof(guid) );
@@ -2485,8 +2504,11 @@ static void test_CM_Get_Class_Property(void)
     ret = CM_Get_Class_Property_ExW( &guid, &DEVPKEY_DeviceClass_Name, &type, buffer, &len, 0, NULL );
     ok_x4( ret, ==, CR_SUCCESS );
     ok_x4( type, ==, DEVPROP_TYPE_STRING );
-    ok_x4( len, ==, 0x22 );
-    ok_wcs( L"Display adapters", (WCHAR *)buffer );
+    if (!localized)
+    {
+        ok_x4( len, ==, 0x22 );
+        ok_wcs( L"Display adapters", (WCHAR *)buffer );
+    }
 
     type = 0xdeadbeef;
     len = sizeof(buffer);
@@ -2494,8 +2516,11 @@ static void test_CM_Get_Class_Property(void)
     ret = CM_Get_Class_Property_ExW( &guid, &DEVPKEY_NAME, &type, buffer, &len, 0, NULL );
     ok_x4( ret, ==, CR_SUCCESS );
     ok_x4( type, ==, DEVPROP_TYPE_STRING );
-    ok_x4( len, ==, 0x22 );
-    ok_wcs( L"Display adapters", (WCHAR *)buffer );
+    if (!localized)
+    {
+        ok_x4( len, ==, 0x22 );
+        ok_wcs( L"Display adapters", (WCHAR *)buffer );
+    }
 
     type = 0xdeadbeef;
     len = sizeof(buffer);
@@ -2503,8 +2528,11 @@ static void test_CM_Get_Class_Property(void)
     ret = CM_Get_Class_Property_ExW( &guid, &DEVPKEY_DeviceClass_ClassName, &type, buffer, &len, 0, NULL );
     ok_x4( ret, ==, CR_SUCCESS );
     ok_x4( type, ==, DEVPROP_TYPE_STRING );
-    ok_x4( len, ==, 0x10 );
-    ok_wcs( L"Display", (WCHAR *)buffer );
+    if (!localized)
+    {
+        ok_x4( len, ==, 0x10 );
+        ok_wcs( L"Display", (WCHAR *)buffer );
+    }
 
     len = sizeof(buffer);
     ret = CM_Get_Class_Property_ExW( &guid, &DEVPKEY_DeviceClass_UpperFilters, &type, buffer, &len, 0, NULL );
@@ -2566,8 +2594,11 @@ static void test_CM_Get_Class_Property(void)
     ret = CM_Get_Class_Property_ExW( &guid, &DEVPKEY_DeviceClass_Name, &type, buffer, &len, 0, NULL );
     ok_x4( ret, ==, CR_SUCCESS );
     ok_x4( type, ==, DEVPROP_TYPE_STRING );
-    ok_x4( len, ==, 0x30 );
-    ok_wcs( L"Human Interface Devices", (WCHAR *)buffer );
+    if (!localized)
+    {
+        ok_x4( len, ==, 0x30 );
+        ok_wcs( L"Human Interface Devices", (WCHAR *)buffer );
+    }
 
     type = 0xdeadbeef;
     len = sizeof(buffer);
@@ -2575,8 +2606,11 @@ static void test_CM_Get_Class_Property(void)
     ret = CM_Get_Class_Property_ExW( &guid, &DEVPKEY_NAME, &type, buffer, &len, 0, NULL );
     ok_x4( ret, ==, CR_SUCCESS );
     ok_x4( type, ==, DEVPROP_TYPE_STRING );
-    ok_x4( len, ==, 0x30 );
-    ok_wcs( L"Human Interface Devices", (WCHAR *)buffer );
+    if (!localized)
+    {
+        ok_x4( len, ==, 0x30 );
+        ok_wcs( L"Human Interface Devices", (WCHAR *)buffer );
+    }
 
     type = 0xdeadbeef;
     len = sizeof(buffer);
@@ -2695,6 +2729,11 @@ static void test_CM_Get_Device_Interface_List(void)
 
     ret = CM_Get_Device_Interface_ListW( &guid, NULL, buffer, size, CM_GET_DEVICE_INTERFACE_LIST_PRESENT );
     ok_x4( ret, ==, CR_SUCCESS );
+    if (broken( !*buffer ))
+    {
+        skip( "No HID device present, skipping tests\n" );
+        goto skip_tests;
+    }
     ok( !wcsncmp( buffer, L"\\\\?\\HID#", 8 ), "got %s\n", debugstr_wn( buffer, size ) );
     for (tmp = buffer; *tmp; tmp = tmp + wcslen( tmp ) + 1)
     {
@@ -2753,6 +2792,7 @@ static void test_CM_Get_Device_Interface_List(void)
     free( buffer );
 
 
+skip_tests:
     guid = GUID_DEVINTERFACE_DISPLAY_ADAPTER;
 
     size = 0;
@@ -2799,6 +2839,11 @@ static void test_CM_Open_Device_Interface_Key(void)
 
     guid = GUID_DEVINTERFACE_HID;
     ret = CM_Get_Device_Interface_ListW( &guid, NULL, iface, ARRAY_SIZE(iface), CM_GET_DEVICE_INTERFACE_LIST_PRESENT );
+    if (broken( !*iface ))
+    {
+        skip( "No HID device present, skipping tests\n" );
+        return;
+    }
     ok_x4( ret, ==, CR_SUCCESS );
 
     wcscpy( name, iface + 4 );
@@ -2812,14 +2857,17 @@ static void test_CM_Open_Device_Interface_Key(void)
     ret = CM_Open_Device_Interface_KeyW( L"DISPLAY_ADAPTER", KEY_QUERY_VALUE, RegDisposition_OpenExisting, &hkey, 0 );
     ok_x4( ret, ==, CR_INVALID_DATA );
     ret = CM_Open_Device_Interface_KeyW( L"\\\\?\\WINETEST#WINETEST#0123456#{5b45201d-f2f2-4f3b-85bb-30ff1f953599}", KEY_QUERY_VALUE, RegDisposition_OpenAlways, &hkey, 0 );
-    ok_x4( ret, ==, CR_NO_SUCH_DEVICE_INTERFACE );
+    if (ret != CR_ACCESS_DENIED) ok_x4( ret, ==, CR_NO_SUCH_DEVICE_INTERFACE );
 
     ret = CM_Open_Device_Interface_KeyW( iface, KEY_QUERY_VALUE, RegDisposition_OpenExisting, &hkey, 0 );
     if (ret == CR_NO_SUCH_REGISTRY_KEY) ret = CM_Open_Device_Interface_KeyW( iface, KEY_QUERY_VALUE, RegDisposition_OpenAlways, &hkey, 0 );
-    ok_x4( ret, ==, CR_SUCCESS );
-    check_object_name( hkey, expect );
-    RegCloseKey( hkey );
-    if (ret == CR_NO_SUCH_REGISTRY_KEY) RegDeleteKeyW( HKEY_LOCAL_MACHINE, expect + wcslen( L"\\REGISTRY\\MACHINE\\" ) );
+    if (ret != CR_ACCESS_DENIED)
+    {
+        ok_x4( ret, ==, CR_SUCCESS );
+        check_object_name( hkey, expect );
+        RegCloseKey( hkey );
+        if (ret == CR_NO_SUCH_REGISTRY_KEY) RegDeleteKeyW( HKEY_LOCAL_MACHINE, expect + wcslen( L"\\REGISTRY\\MACHINE\\" ) );
+    }
 
     for (UINT flag = 1; flag; flag <<= 1)
     {

@@ -516,14 +516,22 @@ static WAVEFORMATEXTENSIBLE *push_wave_format_with_context(const WAVEFORMATEXTEN
 {
     if (wave_format_count == wave_format_capacity)
     {
+        /* Variable base_fmt may point inside wave_formats memory,
+         * therefore use a temporary during reallocation. */
+        WAVEFORMATEXTENSIBLE tmp_fmt;
+        tmp_fmt = *base_fmt;
+
         wave_format_capacity = max(1, 2 * wave_format_capacity);
 
         wave_formats = realloc(wave_formats,
                 sizeof(*wave_formats) * wave_format_capacity);
         assert(wave_formats);
-    }
 
-    wave_formats[wave_format_count].format = *base_fmt;
+        wave_formats[wave_format_count].format = tmp_fmt;
+    }
+    else
+        wave_formats[wave_format_count].format = *base_fmt;
+
     wave_formats[wave_format_count].additional_context = additional_context;
 
     return &wave_formats[wave_format_count++].format;

@@ -524,6 +524,7 @@ SOURCES = \
 	msvcrt/corecrt.h \
 	msvcrt/corecrt_io.h \
 	msvcrt/corecrt_malloc.h \
+	msvcrt/corecrt_math_defines.h \
 	msvcrt/corecrt_startup.h \
 	msvcrt/corecrt_stdio_config.h \
 	msvcrt/corecrt_wctype.h \

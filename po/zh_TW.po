@@ -8859,6 +8859,228 @@ msgstr "完整影格 (未壓縮)"
 msgid "Wine Video 1 video codec"
 msgstr "Wine 視訊 1 視訊編碼解碼器"
 
+#: dlls/msxml3/msxml.mc:31
+#, fuzzy
+#| msgid "Undefined external error."
+msgid "Undefined reference\n"
+msgstr "未定義的外部錯誤。"
+
+#: dlls/msxml3/msxml.mc:38
+msgid "Found self-referential entity\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:45
+msgid "Unparsed entity reference\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:52
+msgid "Name text contains colon ':'\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:59
+msgid "Namespace prefix hasn't been declared\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:66
+#, fuzzy
+#| msgid "Expected '='"
+msgid "Expected '=' character\n"
+msgstr "預期為 '='"
+
+#: dlls/msxml3/msxml.mc:73
+#, fuzzy
+#| msgid "Expected an operator.\n"
+msgid "Expected a quote character\n"
+msgstr "預期為一個運算子。\n"
+
+#: dlls/msxml3/msxml.mc:80
+msgid "Malformed comment\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:87
+#, fuzzy
+#| msgid "Invalid character"
+msgid "Invalid name start character\n"
+msgstr "無效的字元"
+
+#: dlls/msxml3/msxml.mc:94
+#, fuzzy
+#| msgid "Invalid character"
+msgid "Invalid name character\n"
+msgstr "無效的字元"
+
+#: dlls/msxml3/msxml.mc:101
+msgid "The '<' character found in attribute value\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:108
+#, fuzzy
+#| msgid "Expected an operator.\n"
+msgid "Expected whitespace character\n"
+msgstr "預期為一個運算子。\n"
+
+#: dlls/msxml3/msxml.mc:115
+#, fuzzy
+#| msgid "Expected an operator.\n"
+msgid "Expected end tag character '>'\n"
+msgstr "預期為一個運算子。\n"
+
+#: dlls/msxml3/msxml.mc:122
+#, fuzzy
+#| msgid "Invalid character(s) in path"
+msgid "Invalid character in DTD content\n"
+msgstr "路徑中存在無效的字元"
+
+#: dlls/msxml3/msxml.mc:129
+#, fuzzy
+#| msgid "Expected ';'"
+msgid "Expected ';' character\n"
+msgstr "預期為 ';'"
+
+#: dlls/msxml3/msxml.mc:136
+#, fuzzy
+#| msgid "Invalid character(s) in path"
+msgid "Invalid character in entity reference\n"
+msgstr "路徑中存在無效的字元"
+
+#: dlls/msxml3/msxml.mc:143
+#, fuzzy
+#| msgid "Invalid character(s) in path"
+msgid "Invalid character in mixed DTD content\n"
+msgstr "路徑中存在無效的字元"
+
+#: dlls/msxml3/msxml.mc:150
+#, fuzzy
+#| msgid "Expected an operator.\n"
+msgid "Expected '*' character\n"
+msgstr "預期為一個運算子。\n"
+
+#: dlls/msxml3/msxml.mc:157
+#, fuzzy
+#| msgid "Expected an operator.\n"
+msgid "Expected parenthesis character\n"
+msgstr "預期為一個運算子。\n"
+
+#: dlls/msxml3/msxml.mc:164
+#, fuzzy
+#| msgid "Invalid character(s) in path"
+msgid "Invalid character in DTD enumeration\n"
+msgstr "路徑中存在無效的字元"
+
+#: dlls/msxml3/msxml.mc:171
+#, fuzzy
+#| msgid "Invalid name syntax.\n"
+msgid "Invalid PI syntax\n"
+msgstr "無效的名稱語法。\n"
+
+#: dlls/msxml3/msxml.mc:178
+#, fuzzy
+#| msgid "Expected an operator.\n"
+msgid "Expected closing quote character\n"
+msgstr "預期為一個運算子。\n"
+
+#: dlls/msxml3/msxml.mc:185
+msgid "Multiple colon character found\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:192
+#, fuzzy
+#| msgid "Invalid character"
+msgid "Invalid Unicode character\n"
+msgstr "無效的字元"
+
+#: dlls/msxml3/msxml.mc:199
+msgid "Expected whitespace or '?' character\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:206
+msgid "Unexpected end tag '>' character\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:213
+#, fuzzy
+#| msgid "Invalid group attributes.\n"
+msgid "Found duplicate attribute\n"
+msgstr "無效的群組屬性。\n"
+
+#: dlls/msxml3/msxml.mc:220
+#, fuzzy
+#| msgid "Key is invalid.\n"
+msgid "Document root is invalid\n"
+msgstr "無效的鍵值。\n"
+
+#: dlls/msxml3/msxml.mc:227
+#, fuzzy
+#| msgid "Invalid handle operation.\n"
+msgid "Invalid xml declaration\n"
+msgstr "無效的控制代碼作業。\n"
+
+#: dlls/msxml3/msxml.mc:234
+#, fuzzy
+#| msgid "Source is missing.\n"
+msgid "Document root is missing\n"
+msgstr "找不到來源。\n"
+
+#: dlls/msxml3/msxml.mc:241
+msgid "Unexpected end of input data stream\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:248
+msgid "Found unexpected CDATA closing markup ']]>'\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:255
+msgid "Found unterminated PI declaration\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:262
+msgid "Found unterminated end tag\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:269
+msgid "Found unterminated CDATA block\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:276
+msgid "Use namespace prefix is reserved\n"
+msgstr ""
+
+#: dlls/msxml3/msxml.mc:283
+#, fuzzy
+#| msgid "The passwords do not match."
+msgid "End tag does not match\n"
+msgstr "密碼不相符。"
+
+#: dlls/msxml3/msxml.mc:290
+#, fuzzy
+#| msgid "Invalid domain name.\n"
+msgid "Invalid encoding name\n"
+msgstr "無效的網域名稱。\n"
+
+#: dlls/msxml3/msxml.mc:297
+#, fuzzy
+#| msgid "Invalid media type.\n"
+msgid "Invalid model in DTD contentspec\n"
+msgstr "無效的媒體類型。\n"
+
+#: dlls/msxml3/msxml.mc:304
+#, fuzzy
+#| msgid "Invalid group attributes.\n"
+msgid "Invalid DTD attribute type\n"
+msgstr "無效的群組屬性。\n"
+
+#: dlls/msxml3/msxml.mc:311
+#, fuzzy
+#| msgid "Invalid handle operation.\n"
+msgid "Invalid standalone declaration\n"
+msgstr "無效的控制代碼作業。\n"
+
+#: dlls/msxml3/msxml.mc:318
+#, fuzzy
+#| msgid "Invalid version option.\n"
+msgid "Invalid xml version\n"
+msgstr "無效的版本選項。\n"
+
 #: dlls/oleacc/oleacc.rc:31
 msgid "unknown object"
 msgstr "不明物件"

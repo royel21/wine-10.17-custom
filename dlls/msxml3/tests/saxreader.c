@@ -762,7 +762,7 @@ static const char test3_cdata_xml[] =
 "<?xml version=\"1.0\" ?><a><![CDATA[Some text data]]></a>";
 
 static const char test_pi_xml[] =
-"<?xml version=\"1.0\" ?><a><?t some text ?></a>";
+"<?xml version=\"1.0\" ?><a><?t some t\rex\r\nt ?></a>";
 
 static const char test_chardata_xml[] =
 "<?xml version=\"1.0\" ?><a>\nabc<b>de\nf</b>gh\n</a>";
@@ -962,8 +962,8 @@ static struct call_entry pi_test[] =
     { CH_PUTDOCUMENTLOCATOR, 0, 0, S_OK },
     { CH_STARTDOCUMENT, 0, 0, S_OK },
     { CH_STARTELEMENT, 1, 26, S_OK, L"", L"a", L"a" },
-    { CH_PROCESSINGINSTRUCTION, 1, 30, S_OK, L"t", L"some text " },
-    { CH_ENDELEMENT, 1, 44, S_OK, L"", L"a", L"a" },
+    { CH_PROCESSINGINSTRUCTION, 1, 30, S_OK, L"t", L"some t\nex\nt " },
+    { CH_ENDELEMENT, 3, 7, S_OK, L"", L"a", L"a" },
     { CH_ENDDOCUMENT, 0, 0, S_OK },
     { CH_ENDTEST }
 };
@@ -2969,7 +2969,7 @@ static struct call_entry normalize_line_breaks_off_text_seq[] =
 
 static struct attribute_entry normalize_line_breaks_attrs[] =
 {
-    { L"", L"attr", L"attr", L"a b" },
+    { L"", L"attr", L"attr", L"a b c d" },
     { NULL }
 };
 
@@ -2977,8 +2977,8 @@ static struct call_entry normalize_line_breaks_attr_seq[] =
 {
     { CH_PUTDOCUMENTLOCATOR, 0, 0, S_OK },
     { CH_STARTDOCUMENT, 0, 0, S_OK },
-    { CH_STARTELEMENT, 2, 5, S_OK, L"", L"e", L"e", normalize_line_breaks_attrs },
-    { CH_ENDELEMENT, 2, 7, S_OK, L"", L"e", L"e" },
+    { CH_STARTELEMENT, 3, 5, S_OK, L"", L"e", L"e", normalize_line_breaks_attrs },
+    { CH_ENDELEMENT, 3, 7, S_OK, L"", L"e", L"e" },
     { CH_ENDDOCUMENT, 0, 0, S_OK },
     { CH_ENDTEST }
 };
@@ -3049,8 +3049,8 @@ static struct call_entry normalize_line_breaks_off_pi_seq[] =
     { CH_PUTDOCUMENTLOCATOR, 0, 0, S_OK },
     { CH_STARTDOCUMENT, 0, 0, S_OK },
     { CH_STARTELEMENT, 1, 4, S_OK, L"", L"e", L"e" },
-    { CH_PROCESSINGINSTRUCTION, 1, 9, S_OK, L"pi", L"ab\rc " },
-    { CH_ENDELEMENT, 2, 7, S_OK, L"", L"e", L"e" },
+    { CH_PROCESSINGINSTRUCTION, 1, 9, S_OK, L"pi", L"ab\rc \r\nd " },
+    { CH_ENDELEMENT, 3, 7, S_OK, L"", L"e", L"e" },
     { CH_ENDDOCUMENT, 0, 0, S_OK },
     { CH_ENDTEST }
 };
@@ -3085,9 +3085,7 @@ static void test_saxreader_normalize_line_breaks(void)
 
         v = VARIANT_FALSE;
         hr = ISAXXMLReader_getFeature(reader, L"normalize-line-breaks", &v);
-        todo_wine
         ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-        todo_wine
         ok(v == VARIANT_TRUE, "Unexpected value %d.\n", v);
 
         hr = ISAXXMLReader_putContentHandler(reader, &contentHandler);
@@ -3109,7 +3107,7 @@ static void test_saxreader_normalize_line_breaks(void)
 
         /* Attribute values */
         V_VT(&var) = VT_BSTR;
-        V_BSTR(&var) = _bstr_("<e attr=\"a\rb\" ></e>");
+        V_BSTR(&var) = _bstr_("<e attr=\"a\rb\nc\r\nd\" ></e>");
         set_expected_seq(normalize_line_breaks_attr_seq);
         hr = ISAXXMLReader_parse(reader, var);
         ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
@@ -3137,11 +3135,10 @@ static void test_saxreader_normalize_line_breaks(void)
         set_expected_seq(normalize_line_breaks_pi_seq);
         hr = ISAXXMLReader_parse(reader, var);
         ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-        ok_sequence(sequences, CONTENT_HANDLER_INDEX, normalize_line_breaks_pi_seq, "Normalize line breaks: PI", TRUE);
+        ok_sequence(sequences, CONTENT_HANDLER_INDEX, normalize_line_breaks_pi_seq, "Normalize line breaks: PI", FALSE);
 
         /* Disable normalization */
         hr = ISAXXMLReader_putFeature(reader, L"normalize-line-breaks", VARIANT_FALSE);
-        todo_wine
         ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
 
         /* Text content */
@@ -3150,11 +3147,11 @@ static void test_saxreader_normalize_line_breaks(void)
         set_expected_seq(normalize_line_breaks_off_text_seq);
         hr = ISAXXMLReader_parse(reader, var);
         ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-        ok_sequence(sequences, CONTENT_HANDLER_INDEX, normalize_line_breaks_off_text_seq, "Normalize line breaks (off): text", TRUE);
+        ok_sequence(sequences, CONTENT_HANDLER_INDEX, normalize_line_breaks_off_text_seq, "Normalize line breaks (off): text", FALSE);
 
         /* Attribute values */
         V_VT(&var) = VT_BSTR;
-        V_BSTR(&var) = _bstr_("<e attr=\"a\rb\" ></e>");
+        V_BSTR(&var) = _bstr_("<e attr=\"a\rb\nc\r\nd\" ></e>");
         set_expected_seq(normalize_line_breaks_attr_seq);
         hr = ISAXXMLReader_parse(reader, var);
         ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
@@ -3174,11 +3171,11 @@ static void test_saxreader_normalize_line_breaks(void)
         set_expected_seq(normalize_line_breaks_off_cdata_seq);
         hr = ISAXXMLReader_parse(reader, var);
         ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-        ok_sequence(sequences, CONTENT_HANDLER_INDEX, normalize_line_breaks_off_cdata_seq, "Normalize line breaks (off): cdata", TRUE);
+        ok_sequence(sequences, CONTENT_HANDLER_INDEX, normalize_line_breaks_off_cdata_seq, "Normalize line breaks (off): cdata", FALSE);
 
         /* PI */
         V_VT(&var) = VT_BSTR;
-        V_BSTR(&var) = _bstr_("<e><?pi ab\rc ?></e>");
+        V_BSTR(&var) = _bstr_("<e><?pi ab\rc \r\nd ?></e>");
         set_expected_seq(normalize_line_breaks_off_pi_seq);
         hr = ISAXXMLReader_parse(reader, var);
         ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
@@ -3191,6 +3188,35 @@ static void test_saxreader_normalize_line_breaks(void)
     }
 
     free_bstrs();
+}
+
+static void test_saxreader_exhaustive_errors(void)
+{
+    static const GUID *classes[] = { &CLSID_SAXXMLReader, &CLSID_SAXXMLReader30 };
+    ISAXXMLReader *reader;
+    VARIANT_BOOL v;
+    HRESULT hr;
+
+    for (int i = 0; i < ARRAYSIZE(classes); ++i)
+    {
+        hr = CoCreateInstance(classes[i], NULL, CLSCTX_INPROC_SERVER, &IID_ISAXXMLReader, (void **)&reader);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+        v = 123;
+        hr = ISAXXMLReader_getFeature(reader, L"exhaustive-errors", &v);
+        ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
+        ok(v == 123, "Unexpected value %d.\n", v);
+
+        hr = ISAXXMLReader_putFeature(reader, L"exhaustive-errors", VARIANT_TRUE);
+        todo_wine
+        ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
+
+        hr = ISAXXMLReader_putFeature(reader, L"exhaustive-errors", VARIANT_FALSE);
+        todo_wine
+        ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
+
+        ISAXXMLReader_Release(reader);
+    }
 }
 
 struct feature_ns_entry_t {
@@ -3231,11 +3257,6 @@ static void test_saxreader_features(void)
             entry++;
             continue;
         }
-
-        value = 123;
-        hr = ISAXXMLReader_getFeature(reader, L"exhaustive-errors", &value);
-        ok(hr == E_INVALIDARG, "Failed to get feature value, hr %#lx.\n", hr);
-        ok(value == 123, "Unexpected value %d.\n", value);
 
         value = 123;
         hr = ISAXXMLReader_getFeature(reader, L"schema-validation", &value);
@@ -6407,6 +6428,7 @@ START_TEST(saxreader)
     test_saxreader_properties();
     test_saxreader_max_xml_size();
     test_saxreader_normalize_line_breaks();
+    test_saxreader_exhaustive_errors();
     test_saxreader_features();
     test_saxreader_encoding();
     test_saxreader_dispex();

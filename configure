@@ -1552,7 +1552,6 @@ enable_wineandroid_drv
 enable_winebth_sys
 enable_winebus_sys
 enable_winecoreaudio_drv
-enable_winecrt0
 enable_wined3d
 enable_winedmo
 enable_winegstreamer
@@ -1683,6 +1682,7 @@ enable_tomcrypt
 enable_uuid
 enable_vkd3d
 enable_wbemuuid
+enable_winecrt0
 enable_wmcodecdspuuid
 enable_xml2
 enable_xslt
@@ -22325,7 +22325,6 @@ wine_fn_config_makefile dlls/wineandroid.drv enable_wineandroid_drv
 wine_fn_config_makefile dlls/winebth.sys enable_winebth_sys
 wine_fn_config_makefile dlls/winebus.sys enable_winebus_sys
 wine_fn_config_makefile dlls/winecoreaudio.drv enable_winecoreaudio_drv
-wine_fn_config_makefile dlls/winecrt0 enable_winecrt0
 wine_fn_config_makefile dlls/wined3d enable_wined3d
 wine_fn_config_makefile dlls/winedmo enable_winedmo
 wine_fn_config_makefile dlls/winegstreamer enable_winegstreamer
@@ -22488,6 +22487,7 @@ wine_fn_config_makefile libs/tomcrypt enable_tomcrypt
 wine_fn_config_makefile libs/uuid enable_uuid
 wine_fn_config_makefile libs/vkd3d enable_vkd3d
 wine_fn_config_makefile libs/wbemuuid enable_wbemuuid
+wine_fn_config_makefile libs/winecrt0 enable_winecrt0
 wine_fn_config_makefile libs/wmcodecdspuuid enable_wmcodecdspuuid
 wine_fn_config_makefile libs/xml2 enable_xml2
 wine_fn_config_makefile libs/xslt enable_xslt

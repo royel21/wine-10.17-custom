@@ -313,6 +313,7 @@ enum saxreader_feature
     UseInlineSchema              = 0x00001000,
     UseSchemaLocation            = 0x00002000,
     LexicalHandlerParEntities    = 0x00004000,
+    NormalizeLineBreaks          = 0x00008000,
     FeatureForceDWord            = 0xffffffff,
 };
 
@@ -329,6 +330,7 @@ static const struct saxreader_feature_pair saxreader_feature_map[] = {
     { LexicalHandlerParEntities, L"http://xml.org/sax/features/lexical-handler/parameter-entities" },
     { NamespacePrefixes, L"http://xml.org/sax/features/namespace-prefixes" },
     { Namespaces, L"http://xml.org/sax/features/namespaces" },
+    { NormalizeLineBreaks, L"normalize-line-breaks" },
     { ProhibitDTD, L"prohibit-dtd" },
     { SchemaValidation, L"schema-validation" },
 };
@@ -2147,10 +2149,10 @@ static void saxreader_fatal_error(struct saxlocator *locator)
     {
         WCHAR msg[1024];
 
-        if (!FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM, NULL, locator->status, 0, msg, ARRAY_SIZE(msg), NULL))
+        if (!FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_FROM_HMODULE, MSXML_hInstance, locator->status, 0,
+                msg, ARRAY_SIZE(msg), NULL))
         {
-            FIXME("MSXML errors not yet supported.\n");
-            msg[0] = '\0';
+            *msg = 0;
         }
 
         if (locator->vbInterface)
@@ -3728,9 +3730,19 @@ static BSTR saxreader_parse_attvalue(struct saxlocator *locator)
         }
         else
         {
-            ch = *saxreader_get_ptr_noread(locator);
-            saxreader_string_append(locator, &buffer, &ch, 1);
-            saxreader_skip(locator, 1);
+            if (saxreader_cmp(locator, L"\r\n")
+                    || saxreader_cmp(locator, L"\r")
+                    || saxreader_cmp(locator, L"\n")
+                    || saxreader_cmp(locator, L"\t"))
+            {
+                saxreader_string_append(locator, &buffer, L" ", 1);
+            }
+            else
+            {
+                ch = *saxreader_get_ptr_noread(locator);
+                saxreader_string_append(locator, &buffer, &ch, 1);
+                saxreader_skip(locator, 1);
+            }
         }
     }
 
@@ -3947,8 +3959,16 @@ static void saxreader_parse_pi(struct saxlocator *locator)
             return;
         }
 
-        saxreader_string_append(locator, &buffer, &ch, 1);
-        saxreader_skip(locator, 1);
+        if (locator->saxreader->features & NormalizeLineBreaks
+                && (saxreader_cmp(locator, L"\r\n") || saxreader_cmp(locator, L"\r")))
+        {
+            saxreader_string_append(locator, &buffer, L"\n", 1);
+        }
+        else
+        {
+            saxreader_string_append(locator, &buffer, &ch, 1);
+            saxreader_skip(locator, 1);
+        }
         ch = *saxreader_get_ptr_noread(locator);
     }
 
@@ -3985,10 +4005,18 @@ static void saxreader_parse_comment(struct saxlocator *locator)
         }
         else
         {
-            saxreader_string_append(locator, &buffer, &ch, 1);
+            if (locator->saxreader->features & NormalizeLineBreaks
+                    && (saxreader_cmp(locator, L"\r\n") || saxreader_cmp(locator, L"\r")))
+            {
+                saxreader_string_append(locator, &buffer, L"\n", 1);
+            }
+            else
+            {
+                saxreader_string_append(locator, &buffer, &ch, 1);
+                saxreader_skip(locator, 1);
+            }
         }
 
-        saxreader_skip(locator, 1);
         ch = *saxreader_get_ptr_noread(locator);
     }
 
@@ -4239,10 +4267,19 @@ static void saxreader_parse_chardata(struct saxlocator *locator)
             return;
         }
 
-        if (locator->saxreader->version >= MSXML4)
-            saxreader_parse_characters_newparser(locator, &context);
+        if (locator->saxreader->features & NormalizeLineBreaks)
+        {
+            if (locator->saxreader->version >= MSXML4)
+                saxreader_parse_characters_newparser(locator, &context);
+            else
+                saxreader_parse_characters(locator, &context);
+        }
         else
-            saxreader_parse_characters(locator, &context);
+        {
+            saxreader_string_append(locator, &context.buffer, &context.ch, 1);
+            saxreader_skip(locator, 1);
+            context.ch = *saxreader_get_ptr(locator);
+        }
     }
 
     free(context.buffer.data);
@@ -4285,10 +4322,19 @@ static void saxreader_parse_cdata(struct saxlocator *locator)
             return saxlocator_end_cdata(locator, &context.position);
         }
 
-        if (locator->saxreader->version >= MSXML4)
-            saxreader_parse_characters_newparser(locator, &context);
+        if (locator->saxreader->features & NormalizeLineBreaks)
+        {
+            if (locator->saxreader->version >= MSXML4)
+                saxreader_parse_characters_newparser(locator, &context);
+            else
+                saxreader_parse_characters(locator, &context);
+        }
         else
-            saxreader_parse_characters(locator, &context);
+        {
+            saxreader_string_append(locator, &context.buffer, &context.ch, 1);
+            saxreader_skip(locator, 1);
+            context.ch = *saxreader_get_ptr(locator);
+        }
     }
 
     free(context.buffer.data);
@@ -5976,11 +6022,14 @@ static HRESULT WINAPI isaxxmlreader_getFeature(ISAXXMLReader *iface, const WCHAR
 
     if (reader->version < MSXML4 && (feature == ExhaustiveErrors || feature == SchemaValidation))
         return E_INVALIDARG;
+    if (feature == NormalizeLineBreaks && reader->version >= MSXML4)
+        return E_INVALIDARG;
 
     if (feature == Namespaces ||
             feature == NamespacePrefixes ||
             feature == ExhaustiveErrors ||
-            feature == SchemaValidation)
+            feature == SchemaValidation ||
+            feature == NormalizeLineBreaks)
         return get_feature_value(reader, feature, value);
 
     FIXME("%p, %s, %p stub\n", iface, debugstr_w(name), value);
@@ -5996,11 +6045,15 @@ static HRESULT WINAPI isaxxmlreader_putFeature(ISAXXMLReader *iface, const WCHAR
 
     feature = get_saxreader_feature(name);
 
+    if (feature == NormalizeLineBreaks && reader->version >= MSXML4)
+        return E_INVALIDARG;
+
     /* accepted cases */
     if ((feature == ExhaustiveErrors && value == VARIANT_FALSE) ||
         (feature == SchemaValidation && value == VARIANT_FALSE) ||
          feature == Namespaces ||
-         feature == NamespacePrefixes)
+         feature == NamespacePrefixes ||
+         feature == NormalizeLineBreaks)
     {
         return set_feature_value(reader, feature, value);
     }
@@ -6175,7 +6228,7 @@ HRESULT SAXXMLReader_create(MSXML_VERSION version, void **obj)
     reader->IVBSAXXMLReader_iface.lpVtbl = &vbsaxxmlreadervtbl;
     reader->ISAXXMLReader_iface.lpVtbl = &saxxmlreadervtbl;
     reader->refcount = 1;
-    reader->features = Namespaces | NamespacePrefixes;
+    reader->features = Namespaces | NamespacePrefixes | NormalizeLineBreaks;
     reader->version = version;
     reader->empty_bstr = SysAllocString(L"");
 
