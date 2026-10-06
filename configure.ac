@@ -540,9 +540,7 @@ This is an error since --enable-archs=$wine_arch was requested.])])
 
     AS_VAR_IF([wine_arch],[$extra_arch],[],[AS_VAR_APPEND([PE_ARCHS],[" $wine_arch"])])
 
-    case "$target" in
-      *-windows) wine_compiler_rt_libs="compiler-rt" ;;
-    esac
+    wine_compiler_rt_libs="compiler-rt"
 
     WINE_TRY_PE_CFLAGS([-fno-strict-aliasing])
     dnl clang needs to be told to fail on unknown options
@@ -581,10 +579,12 @@ This is an error since --enable-archs=$wine_arch was requested.])])
     case $wine_arch in
       i386) WINE_TRY_PE_CFLAGS([-fno-omit-frame-pointer])
             WINE_TRY_PE_CFLAGS([-mpreferred-stack-boundary=2])
+            WINE_TRY_PE_CFLAGS([-mlong-double-64])
             WINE_TRY_PE_CFLAGS([-Wl,--disable-stdcall-fixup],
                                [AS_VAR_APPEND([${wine_arch}_LDFLAGS],[" -Wl,--disable-stdcall-fixup"])]) ;;
       x86_64) WINE_TRY_PE_CFLAGS([-Wformat-overflow])
               WINE_TRY_PE_CFLAGS([-Wnonnull])
+              WINE_TRY_PE_CFLAGS([-mlong-double-64])
               WINE_TRY_PE_CFLAGS([-mcx16])
               WINE_TRY_PE_CFLAGS([-mcmodel=small]) ;;
     esac
@@ -2018,6 +2018,7 @@ then
     mingw32*)  dnl Check for delayload linker support
        WINE_TRY_CFLAGS([-Wl,-delayload,autoconftest.dll],[AC_SUBST(DELAYLOADFLAG,["-Wl,-delayload,"])]) ;;
     *) MSVCRTFLAGS="-D_WIN32"
+       WINE_TRY_CFLAGS([-mlong-double-64],[MSVCRTFLAGS="$MSVCRTFLAGS -mlong-double-64"])
        WINE_TRY_CFLAGS([-fno-builtin],[MSVCRTFLAGS="$MSVCRTFLAGS -fno-builtin"])
        WINE_TRY_CFLAGS([-fshort-wchar],[MSVCRTFLAGS="$MSVCRTFLAGS -fshort-wchar"])
        WINE_TRY_CFLAGS([-Wno-format],[MSVCRTFLAGS="$MSVCRTFLAGS -Wno-format"]) ;;

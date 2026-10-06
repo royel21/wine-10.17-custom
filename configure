@@ -3235,6 +3235,63 @@ printf "%s\n" "$ac_res" >&6; }
   eval $as_lineno_stack; ${as_lineno_stack:+:} unset as_lineno
 
 } # ac_fn_c_check_member
+
+# ac_fn_c_check_type LINENO TYPE VAR INCLUDES
+# -------------------------------------------
+# Tests whether TYPE exists after having included INCLUDES, setting cache
+# variable VAR accordingly.
+ac_fn_c_check_type ()
+{
+  as_lineno=${as_lineno-"$1"} as_lineno_stack=as_lineno_stack=$as_lineno_stack
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for $2" >&5
+printf %s "checking for $2... " >&6; }
+if eval test \${$3+y}
+then :
+  printf %s "(cached) " >&6
+else $as_nop
+  eval "$3=no"
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+$4
+int
+main (void)
+{
+if (sizeof ($2))
+	 return 0;
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+$4
+int
+main (void)
+{
+if (sizeof (($2)))
+	    return 0;
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+
+else $as_nop
+  eval "$3=yes"
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+fi
+eval ac_res=\$$3
+	       { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
+printf "%s\n" "$ac_res" >&6; }
+  eval $as_lineno_stack; ${as_lineno_stack:+:} unset as_lineno
+
+} # ac_fn_c_check_type
 ac_configure_args_raw=
 for ac_arg
 do
@@ -7853,9 +7910,7 @@ else $as_nop
   as_fn_append PE_ARCHS " $wine_arch"
 fi
 
-    case "$target" in
-      *-windows) wine_compiler_rt_libs="compiler-rt" ;;
-    esac
+    wine_compiler_rt_libs="compiler-rt"
 
     { as_ac_var=`printf "%s\n" "ac_cv_${wine_arch}_cflags_-fno-strict-aliasing" | $as_tr_sh`
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether $CC supports -fno-strict-aliasing" >&5
@@ -8965,6 +9020,44 @@ if eval test \"x\$"$as_ac_var"\" = x"yes"
 then :
   as_fn_append ${wine_arch}_EXTRACFLAGS " -mpreferred-stack-boundary=2"
 fi }
+            { as_ac_var=`printf "%s\n" "ac_cv_${wine_arch}_cflags_-mlong-double-64" | $as_tr_sh`
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether $CC supports -mlong-double-64" >&5
+printf %s "checking whether $CC supports -mlong-double-64... " >&6; }
+if eval test \${$as_ac_var+y}
+then :
+  printf %s "(cached) " >&6
+else $as_nop
+  ac_wine_try_cflags_saved=$CFLAGS
+ac_wine_try_cflags_saved_exeext=$ac_exeext
+CFLAGS="$CFLAGS -nostdlib -nodefaultlibs -mlong-double-64"
+ac_exeext=".exe"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+void *__os_arm64x_dispatch_ret = 0;
+const unsigned int _load_config_used[0x50] = { sizeof(_load_config_used) };
+#if defined(__clang_major__) && defined(MIN_CLANG_VERSION) && __clang_major__ < MIN_CLANG_VERSION
+#error Too old clang version
+#endif
+int __cdecl mainCRTStartup(void) { return 0; }
+_ACEOF
+if ac_fn_c_try_link "$LINENO"
+then :
+  eval "$as_ac_var=yes"
+else $as_nop
+  eval "$as_ac_var=no"
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam \
+    conftest$ac_exeext conftest.$ac_ext
+CFLAGS=$ac_wine_try_cflags_saved
+ac_exeext=$ac_wine_try_cflags_saved_exeext
+fi
+eval ac_res=\$$as_ac_var
+	       { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
+printf "%s\n" "$ac_res" >&6; }
+if eval test \"x\$"$as_ac_var"\" = x"yes"
+then :
+  as_fn_append ${wine_arch}_EXTRACFLAGS " -mlong-double-64"
+fi }
             { as_ac_var=`printf "%s\n" "ac_cv_${wine_arch}_cflags_-Wl,--disable-stdcall-fixup" | $as_tr_sh`
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether $CC supports -Wl,--disable-stdcall-fixup" >&5
 printf %s "checking whether $CC supports -Wl,--disable-stdcall-fixup... " >&6; }
@@ -9078,6 +9171,44 @@ printf "%s\n" "$ac_res" >&6; }
 if eval test \"x\$"$as_ac_var"\" = x"yes"
 then :
   as_fn_append ${wine_arch}_EXTRACFLAGS " -Wnonnull"
+fi }
+              { as_ac_var=`printf "%s\n" "ac_cv_${wine_arch}_cflags_-mlong-double-64" | $as_tr_sh`
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether $CC supports -mlong-double-64" >&5
+printf %s "checking whether $CC supports -mlong-double-64... " >&6; }
+if eval test \${$as_ac_var+y}
+then :
+  printf %s "(cached) " >&6
+else $as_nop
+  ac_wine_try_cflags_saved=$CFLAGS
+ac_wine_try_cflags_saved_exeext=$ac_exeext
+CFLAGS="$CFLAGS -nostdlib -nodefaultlibs -mlong-double-64"
+ac_exeext=".exe"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+void *__os_arm64x_dispatch_ret = 0;
+const unsigned int _load_config_used[0x50] = { sizeof(_load_config_used) };
+#if defined(__clang_major__) && defined(MIN_CLANG_VERSION) && __clang_major__ < MIN_CLANG_VERSION
+#error Too old clang version
+#endif
+int __cdecl mainCRTStartup(void) { return 0; }
+_ACEOF
+if ac_fn_c_try_link "$LINENO"
+then :
+  eval "$as_ac_var=yes"
+else $as_nop
+  eval "$as_ac_var=no"
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam \
+    conftest$ac_exeext conftest.$ac_ext
+CFLAGS=$ac_wine_try_cflags_saved
+ac_exeext=$ac_wine_try_cflags_saved_exeext
+fi
+eval ac_res=\$$as_ac_var
+	       { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
+printf "%s\n" "$ac_res" >&6; }
+if eval test \"x\$"$as_ac_var"\" = x"yes"
+then :
+  as_fn_append ${wine_arch}_EXTRACFLAGS " -mlong-double-64"
 fi }
               { as_ac_var=`printf "%s\n" "ac_cv_${wine_arch}_cflags_-mcx16" | $as_tr_sh`
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether $CC supports -mcx16" >&5
@@ -17074,6 +17205,7 @@ printf "%s\n" "$ac_cv_lib_soname_freetype" >&6; }
 
 printf "%s\n" "#define SONAME_LIBFREETYPE \"$ac_cv_lib_soname_freetype\"" >>confdefs.h
 
+
 fi
         else
             FREETYPE_CFLAGS=""
@@ -19684,6 +19816,34 @@ then :
 
 fi ;;
     *) MSVCRTFLAGS="-D_WIN32"
+       { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether the compiler supports -mlong-double-64" >&5
+printf %s "checking whether the compiler supports -mlong-double-64... " >&6; }
+if test ${ac_cv_cflags__mlong_double_64+y}
+then :
+  printf %s "(cached) " >&6
+else $as_nop
+  ac_wine_try_cflags_saved=$CFLAGS
+CFLAGS="$CFLAGS -mlong-double-64"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+int main(int argc, char **argv) { return 0; }
+_ACEOF
+if ac_fn_c_try_link "$LINENO"
+then :
+  ac_cv_cflags__mlong_double_64=yes
+else $as_nop
+  ac_cv_cflags__mlong_double_64=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam \
+    conftest$ac_exeext conftest.$ac_ext
+CFLAGS=$ac_wine_try_cflags_saved
+fi
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_cflags__mlong_double_64" >&5
+printf "%s\n" "$ac_cv_cflags__mlong_double_64" >&6; }
+if test "x$ac_cv_cflags__mlong_double_64" = xyes
+then :
+  MSVCRTFLAGS="$MSVCRTFLAGS -mlong-double-64"
+fi
        { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether the compiler supports -fno-builtin" >&5
 printf %s "checking whether the compiler supports -fno-builtin... " >&6; }
 if test ${ac_cv_cflags__fno_builtin+y}

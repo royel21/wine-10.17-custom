@@ -111,6 +111,7 @@ static inline char* ctime(const time_t *t) { return _ctime64(t); }
 static inline errno_t ctime_s(char *res, size_t len, const __time64_t *t) { return _ctime64_s(res, len, t); }
 static inline double difftime(time_t t1, time_t t2) { return _difftime64(t1, t2); }
 static inline struct tm* gmtime(const time_t *t) { return _gmtime64(t); }
+static inline int gmtime_s(struct tm* res, const time_t *t) { return _gmtime64_s(res, t); }
 static inline struct tm* localtime(const time_t *t) { return _localtime64(t); }
 static inline errno_t localtime_s(struct tm *res, const time_t *t) { return _localtime64_s(res, t); }
 static inline time_t mktime(struct tm *tm) { return _mktime64(tm); }
@@ -120,6 +121,7 @@ static inline char* ctime(const time_t *t) { return _ctime32(t); }
 static inline errno_t ctime_s(char *res, size_t len, const __time32_t *t) { return _ctime32_s(res, len, t); }
 static inline double difftime(time_t t1, time_t t2) { return _difftime32(t1, t2); }
 static inline struct tm* gmtime(const time_t *t) { return _gmtime32(t); }
+static inline int gmtime_s(struct tm* res, const time_t *t) { return _gmtime32_s(res, t); }
 static inline struct tm* localtime(const time_t *t) { return _localtime32(t); }
 static inline errno_t localtime_s(struct tm *res, const time_t *t) { return _localtime32_s(res, t); }
 static inline time_t mktime(struct tm *tm) { return _mktime32(tm); }
