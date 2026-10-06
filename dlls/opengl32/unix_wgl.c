@@ -122,7 +122,6 @@ struct context
 {
     struct opengl_context base;
 
-    HDC hdc;                       /* context creation DC */
     HGLRC client;                  /* client-side context handle */
     HGLRC share;                   /* context to be shared with */
     int *attribs;                  /* creation attributes */
@@ -415,7 +414,7 @@ static struct context *update_context( TEB *teb, HGLRC client_context, struct co
     if (ctx->share == (HGLRC)-1) return ctx; /* not re-shared */
 
     share = ctx->share ? get_updated_context( teb, ctx->share ) : NULL;
-    if (!funcs->p_context_reset( &ctx->base, ctx->hdc, share ? &share->base : NULL, ctx->attribs ))
+    if (!funcs->p_context_reset( &ctx->base, share ? &share->base : NULL, ctx->attribs ))
     {
         WARN( "Failed to re-create context for wglShareLists\n" );
         return ctx;
@@ -668,7 +667,7 @@ static char *append_extension( char *ptr, const char *name )
 static GLubyte *filter_extensions( struct context *ctx, const char *extensions, const struct opengl_funcs *funcs )
 {
     const char *end, **extra;
-    size_t size, len;
+    size_t size;
     char *p, *str;
 
     size = strlen( extensions ) + 2;
@@ -683,13 +682,15 @@ static GLubyte *filter_extensions( struct context *ctx, const char *extensions, 
     {
         while (*extensions == ' ') extensions++;
         if (!*extensions) break;
-        len = (end = strchr( extensions, ' ' )) ? end - extensions : strlen( extensions );
-        memcpy( p, extensions, len );
-        p[len] = 0;
+
+        if (!(end = strchr( extensions, ' ' ))) end = extensions + strlen( extensions );
+        memcpy( p, extensions, end - extensions );
+        p[end - extensions] = 0;
+
         if (is_extension_supported( ctx, p ))
         {
             TRACE( "++ %s\n", p );
-            p += len;
+            p += end - extensions;
             *p++ = ' ';
         }
         else
@@ -702,7 +703,6 @@ static GLubyte *filter_extensions( struct context *ctx, const char *extensions, 
     if (funcs->p_glImportMemoryWin32HandleEXT) p = append_extension( p, "GL_EXT_memory_object_win32" );
     if (funcs->p_glImportSemaphoreWin32HandleEXT) p = append_extension( p, "GL_EXT_semaphore_win32" );
     for (extra = legacy_extensions; *extra; extra++) p = append_extension( p, *extra );
-
 
     if (p != str) --p;
     *p = 0;
@@ -1244,7 +1244,7 @@ static void make_context_current( TEB *teb, const struct opengl_funcs *funcs, HD
 
     if (is_win64 && ctx->buffers && !initialize_vk_device( teb, ctx )
         && !(ctx->use_pinned_memory = is_extension_supported( ctx, "GL_AMD_pinned_memory" )))
-     {
+    {
         if (ctx->major_version > 4 || (ctx->major_version == 4 && ctx->minor_version > 3))
         {
             FIXME( "GL version %d.%d is not supported on wow64, using 4.3\n", ctx->major_version, ctx->minor_version );
@@ -1322,7 +1322,7 @@ BOOL wrap_wglDeleteContext( TEB *teb, HGLRC client_context )
         return FALSE;
     }
 
-    funcs->p_context_reset( &ctx->base, NULL, NULL, NULL );
+    funcs->p_context_destroy( &ctx->base );
     free_context( ctx );
     return TRUE;
 }
@@ -1376,7 +1376,7 @@ static void flush_context( TEB *teb, void (*flush)(void) )
 {
     struct opengl_drawable *read, *draw;
     struct context *ctx = get_current_context( teb, &read, &draw );
-     const struct opengl_funcs *funcs = teb->glTable;
+    const struct opengl_funcs *funcs = teb->glTable;
     UINT flags = 0;
 
     if (flush && ctx && !ctx->draw_fbo && context_draws_front( ctx ) && draw->client) flags |= GL_FLUSH_PRESENT;
@@ -1485,14 +1485,13 @@ HGLRC wrap_wglCreateContextAttribsARB( TEB *teb, HDC hdc, HGLRC client_shared, c
     const struct opengl_funcs *funcs = get_dc_funcs( hdc );
     struct context *context, *shared = get_updated_context( teb, client_shared );
 
-    if (!funcs->p_context_reset) return 0;
+    if (!funcs->p_context_create) return 0;
     if (!(context = calloc( 1, sizeof(*context) )))
     {
         RtlSetLastWin32Error( ERROR_OUTOFMEMORY );
         return 0;
     }
     context->base.client_context = client_context;
-    context->hdc = hdc;
     context->share = (HGLRC)-1; /* initial shared context */
     context->attribs = memdup_attribs( attribs );
 
@@ -1516,7 +1515,7 @@ HGLRC wrap_wglCreateContextAttribsARB( TEB *teb, HDC hdc, HGLRC client_shared, c
         }
     }
 
-    if (!(funcs->p_context_reset( &context->base, hdc, shared ? &shared->base : NULL, attribs )))
+    if (!(funcs->p_context_create( &context->base, hdc, shared ? &shared->base : NULL, attribs )))
     {
         free_context( context );
         return 0;
@@ -1529,7 +1528,13 @@ HGLRC wrap_wglCreateContextAttribsARB( TEB *teb, HDC hdc, HGLRC client_shared, c
 
 HGLRC wrap_wglCreateContext( TEB *teb, HDC hdc, HGLRC client_context )
 {
-    return wrap_wglCreateContextAttribsARB( teb, hdc, NULL, NULL, client_context );
+    static const int attribs[] =
+    {
+        WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
+        0, 0,
+    };
+
+    return wrap_wglCreateContextAttribsARB( teb, hdc, NULL, attribs, client_context );
 }
 
 BOOL wrap_wglMakeContextCurrentARB( TEB *teb, HDC draw_hdc, HDC read_hdc, HGLRC client_context )
@@ -1675,8 +1680,8 @@ void pop_default_fbo( TEB *teb )
     RECT rect;
 
     if (!(ctx = get_current_context( teb, &draw, &read ))) return;
-    if (!ctx->draw_fbo && draw->draw_fbo) funcs->p_glBindFramebuffer( GL_DRAW_FRAMEBUFFER, draw->draw_fbo );
-    if (!ctx->read_fbo && read->read_fbo) funcs->p_glBindFramebuffer( GL_READ_FRAMEBUFFER, read->read_fbo );
+    if (!ctx->draw_fbo) funcs->p_glBindFramebuffer( GL_DRAW_FRAMEBUFFER, draw->draw_fbo );
+    if (!ctx->read_fbo) funcs->p_glBindFramebuffer( GL_READ_FRAMEBUFFER, read->read_fbo );
     if (!ctx->has_viewport && draw->draw_fbo && draw->client)
     {
         NtUserGetClientRect( draw->client->hwnd, &rect, NtUserGetDpiForWindow( draw->client->hwnd ) );
@@ -2244,6 +2249,17 @@ static void flush_buffer( TEB *teb, struct buffer *buffer, size_t offset, size_t
     if (vr) ERR( "vkFlushMappedMemoryRanges failed: %x\n", vr );
 }
 
+static int find_vk_memory_type( struct vk_device *vk_device, uint32_t flags, uint32_t mask )
+{
+    uint32_t i;
+    flags &= mask;
+    for (i = 0; i < vk_device->memory_properties.memoryTypeCount; i++)
+    {
+        if ((vk_device->memory_properties.memoryTypes[i].propertyFlags & mask) == flags) return i;
+    }
+    return -1;
+}
+
 static struct buffer *create_buffer_storage( TEB *teb, GLenum target, GLuint name, size_t size, const void *data, GLbitfield flags )
 {
     VkExportMemoryAllocateInfo export_alloc =
@@ -2264,11 +2280,12 @@ static struct buffer *create_buffer_storage( TEB *teb, GLenum target, GLuint nam
     };
     struct opengl_funcs *funcs = teb->glTable;
     GLuint buffer_name = name ? name : get_target_name( teb, target );
+    uint32_t type_mask = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    uint32_t desired_type = type_mask;
     struct context *ctx = get_current_context( teb, NULL, NULL );
     struct vk_device *vk_device;
     struct buffer *buffer;
-    uint32_t i;
-    int fd;
+    int fd, memory_type;
     VkResult vr;
 
     if (!(flags & (GL_MAP_READ_BIT | GL_MAP_WRITE_BIT))) return NULL;
@@ -2297,19 +2314,17 @@ static struct buffer *create_buffer_storage( TEB *teb, GLenum target, GLuint nam
         return buffer;
     }
 
-    /* FIXME: For now, just use any host-visible coherent memory type. We can do better and take into account GL flags. */
-    for (i = 0; i < vk_device->memory_properties.memoryTypeCount; i++)
-    {
-        static const uint32_t mask = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-        if ((vk_device->memory_properties.memoryTypes[i].propertyFlags & mask) == mask) break;
-    }
-    if (i == vk_device->memory_properties.memoryTypeCount)
+    if (flags & GL_CLIENT_STORAGE_BIT) desired_type &= ~VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    memory_type = find_vk_memory_type( vk_device, desired_type, type_mask );
+    if (memory_type == -1) /* if we can’t find a matching type, try ignoring GL_CLIENT_STORAGE_BIT */
+        memory_type = find_vk_memory_type( vk_device, desired_type, type_mask & ~VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT );
+    if (memory_type == -1)
     {
         WARN( "Could not find memory type\n" );
         free_buffer( funcs, buffer );
         return NULL;
     }
-    alloc_info.memoryTypeIndex = i;
+    alloc_info.memoryTypeIndex = memory_type;
 
     vr = vk_device->p_vkAllocateMemory( vk_device->vk_device, &alloc_info, NULL, &buffer->vk_memory );
     if (vr)

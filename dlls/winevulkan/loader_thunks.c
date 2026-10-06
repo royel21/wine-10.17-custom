@@ -7130,25 +7130,21 @@ VkResult WINAPI vkWaitForFences(VkDevice device, uint32_t fenceCount, const VkFe
 VkResult WINAPI vkWaitForPresent2KHR(VkDevice device, VkSwapchainKHR swapchain, const VkPresentWait2InfoKHR *pPresentWait2Info)
 {
     struct vkWaitForPresent2KHR_params params;
-    NTSTATUS status;
     params.device = device;
     params.swapchain = swapchain;
     params.pPresentWait2Info = pPresentWait2Info;
-    status = UNIX_CALL(vkWaitForPresent2KHR, &params);
-    assert(!status && "vkWaitForPresent2KHR");
+    UNIX_CALL(vkWaitForPresent2KHR, &params);
     return params.result;
 }
 
 VkResult WINAPI vkWaitForPresentKHR(VkDevice device, VkSwapchainKHR swapchain, uint64_t presentId, uint64_t timeout)
 {
     struct vkWaitForPresentKHR_params params;
-    NTSTATUS status;
     params.device = device;
     params.swapchain = swapchain;
     params.presentId = presentId;
     params.timeout = timeout;
-    status = UNIX_CALL(vkWaitForPresentKHR, &params);
-    assert(!status && "vkWaitForPresentKHR");
+    UNIX_CALL(vkWaitForPresentKHR, &params);
     return params.result;
 }
 
