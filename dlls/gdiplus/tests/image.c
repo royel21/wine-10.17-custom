@@ -2839,6 +2839,10 @@ static void test_colormatrix(void)
         TRUE, &colormatrix, &graymatrix, 3);
     expect(InvalidParameter, stat);
 
+    stat = GdipSetImageAttributesColorMatrix(imageattr, ColorAdjustTypeDefault,
+        TRUE, &colormatrix, &graymatrix, (ColorMatrixFlags)-1);
+    expect(InvalidParameter, stat);
+
     stat = GdipSetImageAttributesColorMatrix(imageattr, ColorAdjustTypeCount,
         TRUE, &colormatrix, &graymatrix, ColorMatrixFlagsDefault);
     expect(InvalidParameter, stat);

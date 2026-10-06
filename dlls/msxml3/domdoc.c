@@ -2008,13 +2008,40 @@ static HRESULT WINAPI domdoc_getElementsByTagName(
     return hr;
 }
 
-static HRESULT get_node_type(VARIANT Type, DOMNodeType * type)
+static bool get_node_type_from_typestring(const WCHAR *name, DOMNodeType *type)
+{
+    if (!wcsicmp(name, L"attribute")) *type = NODE_ATTRIBUTE;
+    else if (!wcsicmp(name, L"cdatasection")) *type = NODE_CDATA_SECTION;
+    else if (!wcsicmp(name, L"comment")) *type = NODE_COMMENT;
+    else if (!wcsicmp(name, L"document")) *type = NODE_DOCUMENT;
+    else if (!wcsicmp(name, L"documentfragment")) *type = NODE_DOCUMENT_FRAGMENT;
+    else if (!wcsicmp(name, L"documentype")) *type = NODE_DOCUMENT_TYPE;
+    else if (!wcsicmp(name, L"element")) *type = NODE_ELEMENT;
+    else if (!wcsicmp(name, L"entity")) *type = NODE_ENTITY;
+    else if (!wcsicmp(name, L"entityreference")) *type = NODE_ENTITY_REFERENCE;
+    else if (!wcsicmp(name, L"notation")) *type = NODE_NOTATION;
+    else if (!wcsicmp(name, L"processinginstruction")) *type = NODE_PROCESSING_INSTRUCTION;
+    else if (!wcsicmp(name, L"text")) *type = NODE_TEXT;
+    else return false;
+
+    return true;
+}
+
+static HRESULT get_node_type(const VARIANT *v, DOMNodeType * type)
 {
     VARIANT tmp;
     HRESULT hr;
 
+    /* Check for type strings first, still allowing BSTR -> I4 conversion. */
+
+    if (V_VT(v) == VT_BSTR)
+    {
+        if (get_node_type_from_typestring(V_BSTR(v), type))
+            return S_OK;
+    }
+
     VariantInit(&tmp);
-    hr = VariantChangeType(&tmp, &Type, 0, VT_I4);
+    hr = VariantChangeType(&tmp, v, 0, VT_I4);
     if(FAILED(hr))
         return E_INVALIDARG;
 
@@ -2040,7 +2067,7 @@ static HRESULT WINAPI domdoc_createNode(
 
     if(!node) return E_INVALIDARG;
 
-    hr = get_node_type(Type, &node_type);
+    hr = get_node_type(&Type, &node_type);
     if(FAILED(hr)) return hr;
 
     TRACE("node_type %d\n", node_type);
@@ -2746,7 +2773,7 @@ static HRESULT WINAPI domdoc_put_preserveWhiteSpace(
 {
     domdoc *This = impl_from_IXMLDOMDocument3( iface );
     TRACE("(%p)->(%d)\n", This, isPreserving);
-    This->properties->preserving = isPreserving == VARIANT_TRUE ? VARIANT_TRUE : VARIANT_FALSE;
+    This->properties->preserving = isPreserving;
     return S_OK;
 }
 
@@ -3184,7 +3211,8 @@ static HRESULT WINAPI domdoc_setProperty(
              wcsicmp(p, L"AllowXsltScript") == 0 ||
              wcsicmp(p, L"NormalizeAttributeValues") == 0 ||
              wcsicmp(p, L"AllowDocumentFunction") == 0 ||
-             wcsicmp(p, L"MaxElementDepth") == 0)
+             wcsicmp(p, L"MaxElementDepth") == 0 ||
+             wcsicmp(p, L"UseInlineSchema") == 0)
     {
         /* Ignore */
         FIXME("Ignoring property %s, value %s\n", debugstr_w(p), debugstr_variant(&value));
@@ -3792,14 +3820,19 @@ HRESULT dom_document_create(MSXML_VERSION version, void **ppObj)
     return hr;
 }
 
-IUnknown* create_domdoc( xmlNodePtr document )
+IUnknown* create_domdoc( xmlNodePtr node )
 {
+    xmlDocPtr doc = (xmlDocPtr)node;
     IUnknown *obj = NULL;
     HRESULT hr;
 
-    TRACE("(%p)\n", document);
+    TRACE("(%p)\n", node);
 
-    hr = get_domdoc_from_xmldoc((xmlDocPtr)document, (IXMLDOMDocument3**)&obj);
+    if (!doc->_private)
+        xmldoc_init(doc, MSXML6);
+    xmldoc_add_ref(doc);
+
+    hr = get_domdoc_from_xmldoc(doc, (IXMLDOMDocument3**)&obj);
     if (FAILED(hr))
         return NULL;
 

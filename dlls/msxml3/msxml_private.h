@@ -21,6 +21,8 @@
 #ifndef __MSXML_PRIVATE__
 #define __MSXML_PRIVATE__
 
+#include <stdbool.h>
+
 #include "dispex.h"
 
 #include "wine/list.h"
