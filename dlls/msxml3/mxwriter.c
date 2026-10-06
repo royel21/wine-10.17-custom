@@ -489,9 +489,9 @@ static void close_output_buffer(mxwriter *writer)
 
 */
 
-static void write_crlf(mxwriter *writer)
+static void write_crlf(mxwriter *writer, escape_mode mode)
 {
-    bool use_charref_lf = writer->class_version == MSXML6;
+    bool use_charref_lf = writer->class_version >= MSXML4 && mode == EscapeValue;
 
     if (use_charref_lf)
         write_output_buffer(writer, L"&#xA;", 5);
@@ -514,19 +514,19 @@ static void write_escaped_string(mxwriter *writer, const WCHAR *str, int len, es
         else if (*p == '"' && mode == EscapeValue)
             write_output_buffer(writer, L"&quot;", 6);
         else if (*p == '\n')
-            write_crlf(writer);
+            write_crlf(writer, mode);
         else if (*p == '\r')
         {
             if (len > 0 && p[1] == '\n')
             {
-                write_crlf(writer);
+                write_crlf(writer, mode);
 
                 ++p;
                 --len;
             }
             else
             {
-                write_crlf(writer);
+                write_crlf(writer, mode);
             }
         }
         else
@@ -543,19 +543,19 @@ static void write_string_with_crlf(mxwriter *writer, const WCHAR *str, int len)
     while (len-- > 0)
     {
         if (*p == '\n')
-            write_crlf(writer);
+            write_crlf(writer, EscapeText);
         else if (*p == '\r')
         {
             if (len > 0 && p[1] == '\n')
             {
-                write_crlf(writer);
+                write_crlf(writer, EscapeText);
 
                 ++p;
                 --len;
             }
             else
             {
-                write_crlf(writer);
+                write_crlf(writer, EscapeText);
             }
         }
         else

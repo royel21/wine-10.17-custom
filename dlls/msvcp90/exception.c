@@ -1302,10 +1302,7 @@ void __cdecl __ExceptionPtrAssign(exception_ptr *ep, const exception_ptr *assign
 {
     TRACE("(%p %p)\n", ep, assign);
 
-    /* don't destroy object stored in ep */
-    if (ep->ref)
-        InterlockedDecrement(ep->ref);
-
+    __ExceptionPtrDestroy(ep);
     *ep = *assign;
     if (ep->ref)
         InterlockedIncrement(ep->ref);
@@ -1368,6 +1365,17 @@ void __cdecl __ExceptionPtrCurrentException(exception_ptr *ep)
 bool __cdecl __ExceptionPtrToBool(exception_ptr *ep)
 {
     return !!ep->rec;
+}
+
+/*********************************************************************
+ * ?__ExceptionPtrSwap@@YAXPAX0@Z
+ * ?__ExceptionPtrSwap@@YAXPEAX0@Z
+ */
+void __cdecl __ExceptionPtrSwap(exception_ptr *a, exception_ptr *b)
+{
+    exception_ptr tmp = *a;
+    *a = *b;
+    *b = tmp;
 }
 
 /*********************************************************************

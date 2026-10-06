@@ -865,6 +865,14 @@ EXIT:
     free(frags);
 }
 
+static void CALLBACK no_message_callback_func(HWAVEOUT hwo, UINT uMsg,
+                                              DWORD_PTR dwInstance,
+                                              DWORD_PTR dwParam1,
+                                              DWORD_PTR dwParam2)
+{
+    ok(FALSE, "Received message %x when none is expected\n", uMsg);
+}
+
 static void wave_out_test_device(UINT_PTR device)
 {
     WAVEOUTCAPSA capsA;
@@ -1440,6 +1448,15 @@ static void wave_out_test_device(UINT_PTR device)
               dev_name(device));
 
     /* Test invalid parameters */
+    rc = waveOutOpen(&wout, device, NULL, (DWORD_PTR)no_message_callback_func, 0,
+                     CALLBACK_FUNCTION);
+    ok(rc == MMSYSERR_INVALPARAM,
+       "waveOutOpen(%s): returned %s\n",dev_name(device),wave_out_error(rc));
+
+    rc = waveOutOpen(&wout, device, NULL, (DWORD_PTR)no_message_callback_func, 0,
+                     CALLBACK_FUNCTION | WAVE_FORMAT_QUERY);
+    ok(rc == MMSYSERR_INVALPARAM,
+       "waveOutOpen(%s): returned %s\n",dev_name(device),wave_out_error(rc));
 
     format.wFormatTag = WAVE_FORMAT_PCM;
     format.nChannels = 1;
