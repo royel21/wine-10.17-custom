@@ -651,6 +651,7 @@ ac_header_c_list=
 ac_subst_vars='LTLIBOBJS
 LIBOBJS
 TAGSFLAGS
+EXTERNAL_SUBDIRS
 RT_LIBS
 WINELOADER_PROGRAMS
 DELAYLOADFLAG
@@ -22706,6 +22707,8 @@ dlls/wineandroid.drv/wine-debug.apk: dlls/wineandroid.drv/build.gradle ${wine_sr
 	mv dlls/wineandroid.drv/build/outputs/apk/wine-debug.apk \$@"
 
 
+EXTERNAL_SUBDIRS="libs/capstone libs/compiler-rt libs/faudio libs/fluidsynth libs/gsm libs/jpeg libs/jxr libs/lcms2 libs/ldap libs/mpg123 libs/musl libs/png libs/tiff libs/tomcrypt libs/vkd3d libs/xml2 libs/xslt libs/zlib"
+
 TAGSFLAGS="--langmap='c:+.idl.l.rh,make:(Make*.in)'"
 
 as_fn_append wine_rules "
@@ -23676,6 +23679,7 @@ MSVCRTFLAGS = $MSVCRTFLAGS
 DELAYLOADFLAG = $DELAYLOADFLAG
 WINELOADER_PROGRAMS = $WINELOADER_PROGRAMS
 RT_LIBS = $RT_LIBS
+EXTERNAL_SUBDIRS = $EXTERNAL_SUBDIRS
 TAGSFLAGS = $TAGSFLAGS
 LIBOBJS = $LIBOBJS
 LTLIBOBJS = $LTLIBOBJS

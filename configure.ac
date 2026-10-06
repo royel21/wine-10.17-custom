@@ -921,6 +921,7 @@ case $host_os in
   cygwin*|mingw32*)
     LIBEXT="dll"
     DLLEXT=""
+    WINE_TRY_CFLAGS([-Wl,-delayload,autoconftest.dll],[AC_SUBST(DELAYLOADFLAG,["-Wl,-delayload,"])])
     ;;
 
   darwin*)
@@ -2013,40 +2014,31 @@ then
     WINE_TRY_CFLAGS([-gdwarf-4])
   fi
 
-  dnl Disable gcc builtins except for Mingw
-  AC_SUBST(MSVCRTFLAGS,"")
-  case $host_os in
-    mingw32*)  dnl Check for delayload linker support
-       WINE_TRY_CFLAGS([-Wl,-delayload,autoconftest.dll],[AC_SUBST(DELAYLOADFLAG,["-Wl,-delayload,"])]) ;;
-    *) MSVCRTFLAGS="-D_WIN32"
-       WINE_TRY_CFLAGS([-mlong-double-64],[MSVCRTFLAGS="$MSVCRTFLAGS -mlong-double-64"])
-       WINE_TRY_CFLAGS([-fno-builtin],[MSVCRTFLAGS="$MSVCRTFLAGS -fno-builtin"])
-       WINE_TRY_CFLAGS([-fshort-wchar],[MSVCRTFLAGS="$MSVCRTFLAGS -fshort-wchar"])
-       WINE_TRY_CFLAGS([-Wno-format],[MSVCRTFLAGS="$MSVCRTFLAGS -Wno-format"]) ;;
-  esac
-
-  case $HOST_ARCH in
-    dnl gcc-4.6+ omits frame pointers by default, breaking some copy protections
-    i386) WINE_TRY_CFLAGS([-fno-omit-frame-pointer],[MSVCRTFLAGS="$MSVCRTFLAGS -fno-omit-frame-pointer"]) ;;
-    x86_64)
-      case $host_os in
-        dnl Mingw uses Windows 64-bit types, not Unix ones
-        cygwin*|mingw32*) WINE_TRY_CFLAGS([-Wno-format]) ;;
-        dnl Default to ms_abi on 64-bit
-        *) AC_CACHE_CHECK([for working -mabi=ms], ac_cv_mabi_ms,
-               [CFLAGS="$CFLAGS -mabi=ms"
-                AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <stdarg.h>
+  if test -n "$DLLEXT"
+  then
+    AC_SUBST(MSVCRTFLAGS,"-D_WIN32")
+    WINE_TRY_CFLAGS([-mlong-double-64],[MSVCRTFLAGS="$MSVCRTFLAGS -mlong-double-64"])
+    WINE_TRY_CFLAGS([-fno-builtin],[MSVCRTFLAGS="$MSVCRTFLAGS -fno-builtin"])
+    WINE_TRY_CFLAGS([-fshort-wchar],[MSVCRTFLAGS="$MSVCRTFLAGS -fshort-wchar"])
+    WINE_TRY_CFLAGS([-Wno-format],[MSVCRTFLAGS="$MSVCRTFLAGS -Wno-format"])
+    if test "$HOST_ARCH" = i386
+    then
+      dnl gcc-4.6+ omits frame pointers by default, breaking some copy protections
+      WINE_TRY_CFLAGS([-fno-omit-frame-pointer],[MSVCRTFLAGS="$MSVCRTFLAGS -fno-omit-frame-pointer"])
+    else
+      dnl Default to ms_abi on 64-bit
+      AC_CACHE_CHECK([for working -mabi=ms], ac_cv_mabi_ms,
+             [CFLAGS="$CFLAGS -mabi=ms"
+              AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <stdarg.h>
 void a(int b, ...) { __builtin_ms_va_list list; __builtin_ms_va_start(list,b); }]])],
-                   [ac_cv_mabi_ms=yes],[ac_cv_mabi_ms=no])
-                CFLAGS=$saved_CFLAGS])
-           AS_VAR_IF([ac_cv_mabi_ms],[yes],
-                     [MSVCRTFLAGS="$MSVCRTFLAGS -mabi=ms"],
-                     [test -n "$PE_ARCHS" || AC_MSG_ERROR([The compiler doesn't support -mabi=ms. Use gcc instead of clang, or install mingw-w64.])
-                      DLLEXT=""]) ;;
-      esac ;;
-    arm)
-      WINE_TRY_CFLAGS([-Wincompatible-function-pointer-types],[EXTRACFLAGS="$EXTRACFLAGS -Wno-error=incompatible-function-pointer-types"]) ;;
-  esac
+                 [ac_cv_mabi_ms=yes],[ac_cv_mabi_ms=no])
+              CFLAGS=$saved_CFLAGS])
+      AS_VAR_IF([ac_cv_mabi_ms],[yes],
+                [MSVCRTFLAGS="$MSVCRTFLAGS -mabi=ms"],
+                [test -n "$PE_ARCHS" || AC_MSG_ERROR([The compiler doesn't support -mabi=ms. Use gcc instead of clang, or install mingw-w64.])
+                 DLLEXT=""])
+    fi
+  fi
 
   CFLAGS=$saved_CFLAGS
 
@@ -3791,6 +3783,7 @@ dlls/wineandroid.drv/wine-debug.apk: dlls/wineandroid.drv/build.gradle ${wine_sr
 
 dnl Misc rules
 
+AC_SUBST([EXTERNAL_SUBDIRS],["_AC_EXTERNAL_SUBDIRS"])
 AC_SUBST(TAGSFLAGS,["--langmap='c:+.idl.l.rh,make:(Make*.in)'"])
 WINE_APPEND_RULE(
 [TAGS etags:
