@@ -38,18 +38,18 @@ typedef int          LONG;
 typedef unsigned int ULONG;
 #endif
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__MINGW32__) || !defined(__GNUC__)
 typedef signed __int64   INT64;
 typedef unsigned __int64 UINT64;
 typedef signed __int64   LONG64;
 typedef unsigned __int64 ULONG64;
 typedef unsigned __int64 DWORD64;
 #else
-typedef signed __int64   DECLSPEC_ALIGN(8) INT64;
-typedef unsigned __int64 DECLSPEC_ALIGN(8) UINT64;
-typedef signed __int64   DECLSPEC_ALIGN(8) LONG64;
-typedef unsigned __int64 DECLSPEC_ALIGN(8) ULONG64;
-typedef unsigned __int64 DECLSPEC_ALIGN(8) DWORD64;
+typedef signed __int64   __attribute__((aligned(8))) INT64;
+typedef unsigned __int64 __attribute__((aligned(8))) UINT64;
+typedef signed __int64   __attribute__((aligned(8))) LONG64;
+typedef unsigned __int64 __attribute__((aligned(8))) ULONG64;
+typedef unsigned __int64 __attribute__((aligned(8))) DWORD64;
 #endif
 
 #if defined(__midl) || defined(__WIDL__)

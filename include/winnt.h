@@ -495,7 +495,7 @@ typedef ULONG           UCSCHAR;
 /* 'Extended/Wide' numerical types */
 #ifndef _ULONGLONG_
 # define _ULONGLONG_
-# ifdef _MSC_VER
+# if defined(_MSC_VER) || defined(__MINGW32__)
 typedef signed __int64   LONGLONG;
 typedef unsigned __int64 ULONGLONG;
 # else

@@ -214,6 +214,10 @@ _ACRTIMP int           __cdecl atoi(const char*);
 _ACRTIMP int           __cdecl _atoi_l(const char*,_locale_t);
 _ACRTIMP __msvcrt_long __cdecl atol(const char*);
 _ACRTIMP __int64       __cdecl atoll(const char*);
+#if !defined(__i386__) || defined(_MSC_VER) || defined(__MINGW32__)
+_ACRTIMP div_t         __cdecl div(int,int);
+_ACRTIMP ldiv_t        __cdecl ldiv(__msvcrt_long,__msvcrt_long);
+#endif
 _ACRTIMP lldiv_t       __cdecl lldiv(__int64,__int64);
 _ACRTIMP DECLSPEC_NORETURN void __cdecl exit(int);
 _ACRTIMP char*         __cdecl getenv(const char*);
@@ -296,10 +300,7 @@ static inline unsigned __int64 __cdecl strtoull(const char *ptr, char **endptr, 
 static inline void swab(char* src, char* dst, int len) { _swab(src, dst, len); }
 static inline char* ultoa(__msvcrt_ulong value, char* str, int radix) { return _ultoa(value, str, radix); }
 
-#if !defined(__i386__) || defined(_MSC_VER) || defined(__MINGW32__)
-_ACRTIMP div_t  __cdecl div(int,int);
-_ACRTIMP ldiv_t __cdecl ldiv(__msvcrt_long,__msvcrt_long);
-#else
+#if defined(__i386__) && !defined(_MSC_VER) && !defined(__MINGW32__)
 static inline div_t __wine_msvcrt_div(int num, int denom)
 {
     extern unsigned __int64 div(int,int);

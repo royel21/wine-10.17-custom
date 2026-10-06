@@ -6399,16 +6399,6 @@ else
 fi
 
 
-case $host in
-  *-darwin*)
-    with_fontconfig=${with_fontconfig:-no}
-    ;;
-  *-mingw32*|*-cygwin*)
-    enable_win16=${enable_win16:-no}
-    with_mingw=${with_mingw:-no}
-    ;;
-esac
-
 
 case $host in
   x86_64*|amd64*)
@@ -6555,6 +6545,23 @@ case "$host_cpu" in
   x86_64)          HOST_ARCH=x86_64 ;;
 esac
 
+
+case $host_os in
+  darwin*)
+    with_fontconfig=${with_fontconfig:-no}
+    ;;
+  mingw32*|cygwin*)
+    enable_archs=${enable_archs:-$HOST_ARCH}
+    eval "${HOST_ARCH}_CC=\$CC"
+        enable_loader=${enable_loader:-no}
+    enable_server=${enable_server:-no}
+    enable_wine=${enable_wine:-no}
+    enable_win16=${enable_win16:-no}
+        with_x=${with_x:-no}
+    with_pthread=${with_pthread:-no}
+    with_mingw=${with_mingw:-no}
+    ;;
+esac
 
 toolsdir=$with_wine_tools
 
@@ -11336,12 +11343,6 @@ case $host_os in
   cygwin*|mingw32*)
     LIBEXT="dll"
     DLLEXT=""
-    EXTRACFLAGS="-D__WINE_PE_BUILD"
-        enable_loader=${enable_loader:-no}
-    enable_server=${enable_server:-no}
-    enable_wine=${enable_wine:-no}
-        with_x=${with_x:-no}
-    with_pthread=${with_pthread:-no}
     ;;
 
   darwin*)

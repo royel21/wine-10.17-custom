@@ -27,10 +27,37 @@
 
 #include "wine/list.h"
 
+#include <libxml/xpath.h>
+
 #include "msxml_dispex.h"
 
 extern const CLSID * DOMDocument_version(MSXML_VERSION v);
 
+static inline bool array_reserve(void **elements, size_t *capacity, size_t count, size_t size)
+{
+    size_t new_capacity, max_capacity;
+    void *new_elements;
+
+    if (count <= *capacity)
+        return true;
+
+    max_capacity = ~(SIZE_T)0 / size;
+    if (count > max_capacity)
+        return false;
+
+    new_capacity = max(4, *capacity);
+    while (new_capacity < count && new_capacity <= max_capacity / 2)
+        new_capacity *= 2;
+    if (new_capacity < count)
+        new_capacity = max_capacity;
+
+    if (!(new_elements = realloc(*elements, new_capacity * size)))
+        return false;
+
+    *elements = new_elements;
+    *capacity = new_capacity;
+    return true;
+}
 
 /* The XDR datatypes (urn:schemas-microsoft-com:datatypes)
  * These are actually valid for XSD schemas as well
@@ -141,6 +168,7 @@ extern IUnknown         *create_doc_fragment( xmlNodePtr );
 extern IUnknown         *create_doc_entity_ref( xmlNodePtr );
 extern IUnknown         *create_doc_type( xmlNodePtr );
 extern HRESULT           create_selection( xmlNodePtr, xmlChar*, IXMLDOMNodeList** );
+extern HRESULT           create_selection_from_nodeset( xmlXPathObjectPtr, IXMLDOMNodeList ** );
 extern HRESULT           create_enumvariant( IUnknown*, BOOL, const struct enumvariant_funcs*, IEnumVARIANT**);
 extern HRESULT           create_dom_implementation(IXMLDOMImplementation **obj);
 
@@ -343,7 +371,6 @@ extern HRESULT XMLDocument_create(void**);
 extern HRESULT SAXXMLReader_create(MSXML_VERSION, void**);
 extern HRESULT SAXAttributes_create(MSXML_VERSION, void**);
 extern HRESULT XMLHTTPRequest_create(void **);
-extern HRESULT XMLHTTPRequest2_create(void **);
 extern HRESULT ServerXMLHTTP_create(void **);
 extern HRESULT XSLTemplate_create(void**);
 extern HRESULT MXWriter_create(MSXML_VERSION, void**);

@@ -168,7 +168,6 @@ typedef struct
     BSTR element;
 
     IStream *dest;
-    IXMLDOMDocument *dest_doc;
 
     output_buffer buffer;
 } mxwriter;
@@ -830,7 +829,6 @@ static ULONG WINAPI mxwriter_Release(IMXWriter *iface)
         free_output_buffer(&This->buffer);
 
         if (This->dest) IStream_Release(This->dest);
-        if (This->dest_doc) IXMLDOMDocument_Release(This->dest_doc);
         SysFreeString(This->version);
         SysFreeString(This->encoding);
 
@@ -895,8 +893,6 @@ static HRESULT WINAPI mxwriter_put_output(IMXWriter *iface, VARIANT dest)
     {
         if (This->dest) IStream_Release(This->dest);
         This->dest = NULL;
-        if (This->dest_doc) IXMLDOMDocument_Release(This->dest_doc);
-        This->dest_doc = NULL;
         close_output_buffer(This);
         break;
     }
@@ -912,31 +908,10 @@ static HRESULT WINAPI mxwriter_put_output(IMXWriter *iface, VARIANT dest)
 
             if (This->dest) IStream_Release(This->dest);
             This->dest = stream;
-            if (This->dest_doc) IXMLDOMDocument_Release(This->dest_doc);
-            This->dest_doc = NULL;
             break;
         }
 
         FIXME("unhandled interface type for VT_UNKNOWN destination\n");
-        return E_NOTIMPL;
-    }
-    case VT_DISPATCH:
-    {
-        IXMLDOMDocument *doc;
-
-        hr = IDispatch_QueryInterface(V_DISPATCH(&dest), &IID_IXMLDOMDocument, (void**)&doc);
-        if (hr == S_OK)
-        {
-            close_output_buffer(This);
-
-            if (This->dest) IStream_Release(This->dest);
-            This->dest = NULL;
-            if (This->dest_doc) IXMLDOMDocument_Release(This->dest_doc);
-            This->dest_doc = doc;
-            break;
-        }
-
-        FIXME("unhandled interface type for VT_DISPATCH destination\n");
         return E_NOTIMPL;
     }
     default:
@@ -1205,7 +1180,7 @@ static HRESULT WINAPI SAXContentHandler_putDocumentLocator(
 {
     mxwriter *This = impl_from_ISAXContentHandler( iface );
     FIXME("(%p)->(%p)\n", This, locator);
-    return S_OK;
+    return E_NOTIMPL;
 }
 
 static HRESULT WINAPI SAXContentHandler_startDocument(ISAXContentHandler *iface)
@@ -1243,21 +1218,10 @@ static HRESULT WINAPI SAXContentHandler_startDocument(ISAXContentHandler *iface)
 
 static HRESULT WINAPI SAXContentHandler_endDocument(ISAXContentHandler *iface)
 {
-    HRESULT hr;
-    VARIANT dest;
-    VARIANT_BOOL success;
     mxwriter *This = impl_from_ISAXContentHandler( iface );
     TRACE("(%p)\n", This);
     This->prop_changed = FALSE;
-
-    hr = flush_output_buffer(This);
-    if (FAILED(hr)) return hr;
-
-    if (This->dest_doc) {
-        mxwriter_get_output(&This->IMXWriter_iface, &dest);
-        return IXMLDOMDocument_loadXML(This->dest_doc, V_BSTR(&dest), &success);
-    }
-    return S_OK;
+    return flush_output_buffer(This);
 }
 
 static HRESULT WINAPI SAXContentHandler_startPrefixMapping(
@@ -2644,7 +2608,6 @@ HRESULT MXWriter_create(MSXML_VERSION version, void **ppObj)
     This->newline = FALSE;
 
     This->dest = NULL;
-    This->dest_doc = NULL;
 
     hr = init_output_buffer(This->xml_enc, &This->buffer);
     if (hr != S_OK) {

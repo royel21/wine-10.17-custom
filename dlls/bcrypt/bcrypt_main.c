@@ -257,6 +257,8 @@ static const struct algorithm pseudo_algorithms[] =
     {{ MAGIC_ALG }, ALG_ID_ECDSA_P384, 0, 0, ECC_CURVE_P384R1 },
     {{ MAGIC_ALG }, ALG_ID_ECDSA_P521, 0, 0, ECC_CURVE_P521R1 },
     {{ MAGIC_ALG }, ALG_ID_RSA_SIGN },
+    {{ 0 }}, /* CAPI_KDF */
+    {{ MAGIC_ALG }, ALG_ID_PBKDF2 },
 };
 
 /* Algorithm pseudo-handles are denoted by having the lowest bit set.

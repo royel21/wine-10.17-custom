@@ -108,11 +108,10 @@ HRESULT hresult_from_vkd3d_result(int vkd3d_result);
 
 struct vkd3d_device_descriptor_limits
 {
-    unsigned int uniform_buffer_max_descriptors;
-    unsigned int sampled_image_max_descriptors;
-    unsigned int storage_buffer_max_descriptors;
-    unsigned int storage_image_max_descriptors;
-    unsigned int sampler_max_descriptors;
+    unsigned int max_cbv_descriptor_count;
+    unsigned int max_srv_descriptor_count;
+    unsigned int max_uav_descriptor_count;
+    unsigned int max_sampler_descriptor_count;
 };
 
 struct vkd3d_vulkan_info
@@ -397,6 +396,7 @@ struct d3d12_fence
 
     uint64_t value;
     uint64_t max_pending_value;
+    uint64_t last_waited_value;
     struct vkd3d_mutex mutex;
 
     struct vkd3d_waiting_event

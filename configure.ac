@@ -107,16 +107,6 @@ AC_CHECK_TOOL(CPPBIN,cpp,cpp)
 AC_DEFINE_UNQUOTED(EXEEXT,["$ac_exeext"],[Define to the file extension for executables.])
 AC_CHECK_TOOL(LD,ld)
 
-case $host in
-  *-darwin*)
-    with_fontconfig=${with_fontconfig:-no}
-    ;;
-  *-mingw32*|*-cygwin*)
-    enable_win16=${enable_win16:-no}
-    with_mingw=${with_mingw:-no}
-    ;;
-esac
-
 AC_SUBST(TARGETFLAGS)
 case $host in
   x86_64*|amd64*)
@@ -185,6 +175,25 @@ case "$host_cpu" in
 esac
 m4_set_add_all([_AC_SUBST_VARS],[HOST_ARCH]m4_foreach([cpu],[aarch64,arm,arm64ec,i386,x86_64],
                                 [m4_foreach([var],[CC,CFLAGS,EXTRACFLAGS,LDFLAGS,DEBUG,TARGET,STRIP,DELAYLOADFLAG,DISABLED_SUBDIRS],[,cpu[_]var])]))
+
+case $host_os in
+  darwin*)
+    with_fontconfig=${with_fontconfig:-no}
+    ;;
+  mingw32*|cygwin*)
+    enable_archs=${enable_archs:-$HOST_ARCH}
+    AS_VAR_SET(${HOST_ARCH}_CC,$CC)
+    dnl Disable modules that can't be used on Windows
+    enable_loader=${enable_loader:-no}
+    enable_server=${enable_server:-no}
+    enable_wine=${enable_wine:-no}
+    enable_win16=${enable_win16:-no}
+    dnl Disable dependencies that are not useful on Windows
+    with_x=${with_x:-no}
+    with_pthread=${with_pthread:-no}
+    with_mingw=${with_mingw:-no}
+    ;;
+esac
 
 AC_SUBST(toolsdir,[$with_wine_tools])
 AC_MSG_CHECKING([for the directory containing the Wine tools])
@@ -912,14 +921,6 @@ case $host_os in
   cygwin*|mingw32*)
     LIBEXT="dll"
     DLLEXT=""
-    EXTRACFLAGS="-D__WINE_PE_BUILD"
-    dnl Disable modules that can't be used on Windows
-    enable_loader=${enable_loader:-no}
-    enable_server=${enable_server:-no}
-    enable_wine=${enable_wine:-no}
-    dnl Disable dependencies that are not useful on Windows
-    with_x=${with_x:-no}
-    with_pthread=${with_pthread:-no}
     ;;
 
   darwin*)
