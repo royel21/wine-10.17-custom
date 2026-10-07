@@ -42,13 +42,6 @@ typedef struct tagLANGANDCODEPAGE
     WORD wCodePage;
 } LANGANDCODEPAGE;
 
-extern void sessions_lock(void);
-extern void sessions_unlock(void);
-
-extern HRESULT get_audio_session(const GUID *sessionguid, IMMDevice *device, UINT channels,
-                                 struct audio_session **out);
-extern struct audio_session_wrapper *session_wrapper_create(struct audio_client *client);
-
 static HANDLE main_loop_thread;
 
 void main_loop_stop(void)
@@ -365,6 +358,73 @@ skip:
     return wcsdup(name);
 }
 
+HRESULT validate_fmt(const WAVEFORMATEXTENSIBLE *fmt, BOOL compatible)
+{
+    WAVEFORMATEXTENSIBLE fmt2 = *fmt;
+    HRESULT ret;
+
+    /* Reduce non-extensible formats to extensible ones. */
+    if (fmt2.Format.wFormatTag != WAVE_FORMAT_EXTENSIBLE)
+    {
+        switch (fmt2.Format.wFormatTag)
+        {
+            case WAVE_FORMAT_PCM: fmt2.SubFormat = KSDATAFORMAT_SUBTYPE_PCM; break;
+            case WAVE_FORMAT_IEEE_FLOAT: fmt2.SubFormat = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT; break;
+            default: return AUDCLNT_E_UNSUPPORTED_FORMAT;
+        }
+
+        if (fmt2.Format.nChannels > 2)
+            return E_INVALIDARG;
+
+        fmt2.dwChannelMask = (1u << fmt2.Format.nChannels) - 1;
+        fmt2.Samples.wValidBitsPerSample = fmt2.Format.wBitsPerSample;
+        fmt2.Format.cbSize = sizeof(fmt2) - sizeof(fmt2.Format);
+    }
+
+    if (fmt2.Format.cbSize < sizeof(fmt2) - sizeof(fmt2.Format))
+        ret = E_INVALIDARG;
+    else if (fmt2.Format.nChannels == 0 || fmt2.Format.nSamplesPerSec == 0)
+        ret = E_INVALIDARG;
+    else if (fmt2.Format.nBlockAlign != fmt2.Format.nChannels * fmt2.Format.wBitsPerSample / 8)
+        ret = E_INVALIDARG;
+    else if (fmt2.Format.nAvgBytesPerSec != fmt2.Format.nBlockAlign * fmt2.Format.nSamplesPerSec)
+        ret = E_INVALIDARG;
+    else if (fmt2.Samples.wValidBitsPerSample == 0)
+        ret = E_INVALIDARG;
+    else if (fmt2.Samples.wValidBitsPerSample > fmt2.Format.wBitsPerSample)
+        ret = E_INVALIDARG;
+    else if (IsEqualGUID(&fmt2.SubFormat, &KSDATAFORMAT_SUBTYPE_PCM))
+    {
+        if (fmt2.Format.wBitsPerSample != 8 && fmt2.Format.wBitsPerSample != 16
+                && fmt2.Format.wBitsPerSample != 24 && fmt2.Format.wBitsPerSample != 32)
+            ret = E_INVALIDARG;
+        else if (fmt2.Format.wBitsPerSample == 32 && fmt2.Samples.wValidBitsPerSample == 24)
+            ret = S_OK;
+        else if (fmt2.Samples.wValidBitsPerSample != fmt2.Format.wBitsPerSample)
+            ret = AUDCLNT_E_UNSUPPORTED_FORMAT;
+        else
+            ret = S_OK;
+    }
+    else if (IsEqualGUID(&fmt2.SubFormat, &KSDATAFORMAT_SUBTYPE_IEEE_FLOAT))
+    {
+        if (fmt2.Format.wBitsPerSample != 32 && fmt2.Format.wBitsPerSample != 64)
+            ret = E_INVALIDARG;
+        else if (fmt2.Format.wBitsPerSample != 32)
+            ret = AUDCLNT_E_UNSUPPORTED_FORMAT;
+        else if (fmt2.Samples.wValidBitsPerSample != fmt2.Format.wBitsPerSample)
+            ret = AUDCLNT_E_UNSUPPORTED_FORMAT;
+        else
+            ret = S_OK;
+    }
+    else
+        ret = AUDCLNT_E_UNSUPPORTED_FORMAT;
+
+    if (!compatible && ret == S_OK)
+        ret = AUDCLNT_E_UNSUPPORTED_FORMAT;
+
+    return ret;
+}
+
 static HRESULT stream_init(struct audio_client *client, const BOOLEAN force_def_period,
                            const AUDCLNT_SHAREMODE mode, const DWORD flags,
                            REFERENCE_TIME duration, REFERENCE_TIME period,
@@ -373,7 +433,9 @@ static HRESULT stream_init(struct audio_client *client, const BOOLEAN force_def_
     struct create_stream_params params;
     UINT32 i, channel_count;
     stream_handle stream;
+    BOOL compatible;
     WCHAR *name;
+    HRESULT hr;
 
     if (!fmt)
         return E_POINTER;
@@ -396,6 +458,37 @@ static HRESULT stream_init(struct audio_client *client, const BOOLEAN force_def_
         FIXME("Unknown flags: %08lx\n", flags);
         return E_INVALIDARG;
     }
+    if (flags & AUDCLNT_STREAMFLAGS_CROSSPROCESS)
+        FIXME("Cross-process sessions not supported\n");
+
+    if (mode != AUDCLNT_SHAREMODE_SHARED && mode != AUDCLNT_SHAREMODE_EXCLUSIVE)
+        return E_INVALIDARG;
+
+    if (mode == AUDCLNT_SHAREMODE_EXCLUSIVE) {
+        if (flags & AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM)
+            return E_INVALIDARG;
+
+        compatible = TRUE;
+    } else {
+        WAVEFORMATEX *mix_fmt;
+
+        if (FAILED(hr = IAudioClient3_GetMixFormat(&client->IAudioClient3_iface, &mix_fmt)))
+            return hr;
+
+        if (flags & AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM)
+            compatible = TRUE;
+        else if (flags & AUDCLNT_STREAMFLAGS_RATEADJUST)
+            compatible = fmt->nChannels == mix_fmt->nChannels;
+        else
+            compatible = fmt->nSamplesPerSec == mix_fmt->nSamplesPerSec && fmt->nChannels == mix_fmt->nChannels;
+
+        CoTaskMemFree(mix_fmt);
+    }
+
+    hr = validate_fmt((const WAVEFORMATEXTENSIBLE *)fmt, compatible);
+
+    if (hr != S_OK)
+        return hr;
 
     sessions_lock();
 
@@ -756,32 +849,69 @@ static HRESULT WINAPI client_IsFormatSupported(IAudioClient3 *iface, AUDCLNT_SHA
 {
     struct audio_client *This = impl_from_IAudioClient3(iface);
     struct is_format_supported_params params;
+    BOOL compatible;
+    HRESULT hr;
 
     TRACE("(%p)->(%x, %p, %p)\n", This, mode, fmt, out);
 
-    if (fmt)
-        dump_fmt(fmt);
-
-    params.device  = This->device_name;
-    params.flow    = This->dataflow;
-    params.share   = mode;
-    params.fmt_in  = fmt;
-    params.fmt_out = NULL;
-
-    if (out) {
+    if (out)
         *out = NULL;
-        if (mode == AUDCLNT_SHAREMODE_SHARED)
-            params.fmt_out = CoTaskMemAlloc(sizeof(*params.fmt_out));
+
+    if (!fmt || (mode == AUDCLNT_SHAREMODE_SHARED && !out))
+        return E_POINTER;
+
+    dump_fmt(fmt);
+
+    if (mode != AUDCLNT_SHAREMODE_SHARED && mode != AUDCLNT_SHAREMODE_EXCLUSIVE)
+        return E_INVALIDARG;
+
+    if (mode == AUDCLNT_SHAREMODE_EXCLUSIVE) {
+        compatible = TRUE;
+    } else {
+        WAVEFORMATEX *mix_fmt;
+
+        if (FAILED(hr = IAudioClient3_GetMixFormat(iface, &mix_fmt)))
+            return hr;
+
+        compatible = fmt->nSamplesPerSec == mix_fmt->nSamplesPerSec && fmt->nChannels == mix_fmt->nChannels;
+
+        CoTaskMemFree(mix_fmt);
     }
 
-    wine_unix_call(is_format_supported, &params);
+    hr = validate_fmt((const WAVEFORMATEXTENSIBLE *)fmt, TRUE);
 
-    if (params.result == S_FALSE)
-        *out = &params.fmt_out->Format;
-    else
-        CoTaskMemFree(params.fmt_out);
+    if (hr == S_OK && !compatible)
+        hr = S_FALSE;
 
-    return params.result;
+    if (FAILED(hr))
+        return hr;
+
+    if (hr == S_OK) {
+        params.device  = This->device_name;
+        params.flow    = This->dataflow;
+        params.share   = mode;
+        params.fmt_in  = fmt;
+
+        wine_unix_call(is_format_supported, &params);
+
+        hr = params.result;
+    }
+
+    if (hr == S_FALSE) {
+        if (mode == AUDCLNT_SHAREMODE_EXCLUSIVE) {
+            return AUDCLNT_E_UNSUPPORTED_FORMAT;
+        } else {
+            if (FAILED(hr = IAudioClient3_GetMixFormat(iface, out)))
+                return hr;
+            return S_FALSE;
+        }
+    }
+
+    if (hr == AUDCLNT_E_EXCLUSIVE_MODE_NOT_ALLOWED && This->dataflow == eCapture)
+        hr = AUDCLNT_E_UNSUPPORTED_FORMAT;
+
+    return hr;
+
 }
 
 static HRESULT WINAPI client_GetMixFormat(IAudioClient3 *iface, WAVEFORMATEX **pwfx)
