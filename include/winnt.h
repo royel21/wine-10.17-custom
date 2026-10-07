@@ -2552,6 +2552,28 @@ typedef struct _NT_TIB
 	struct _NT_TIB *Self;
 } NT_TIB, *PNT_TIB;
 
+typedef struct _NT_TIB32
+{
+    ULONG ExceptionList;        /* 0000 */
+    ULONG StackBase;            /* 0004 */
+    ULONG StackLimit;           /* 0008 */
+    ULONG SubSystemTib;         /* 000c */
+    ULONG FiberData;            /* 0010 */
+    ULONG ArbitraryUserPointer; /* 0014 */
+    ULONG Self;                 /* 0018 */
+} NT_TIB32;
+
+typedef struct _NT_TIB64
+{
+    ULONG64 ExceptionList;        /* 0000 */
+    ULONG64 StackBase;            /* 0008 */
+    ULONG64 StackLimit;           /* 0010 */
+    ULONG64 SubSystemTib;         /* 0018 */
+    ULONG64 FiberData;            /* 0020 */
+    ULONG64 ArbitraryUserPointer; /* 0028 */
+    ULONG64 Self;                 /* 0030 */
+} NT_TIB64;
+
 struct _TEB;
 
 #ifdef WINE_UNIX_LIB
@@ -4634,7 +4656,7 @@ typedef DWORD SECURITY_INFORMATION, *PSECURITY_INFORMATION;
 typedef WORD SECURITY_DESCRIPTOR_CONTROL, *PSECURITY_DESCRIPTOR_CONTROL;
 
 /* The security descriptor structure */
-typedef struct {
+typedef struct _SECURITY_DESCRIPTOR_RELATIVE {
     BYTE Revision;
     BYTE Sbz1;
     SECURITY_DESCRIPTOR_CONTROL Control;
@@ -4644,7 +4666,7 @@ typedef struct {
     DWORD Dacl;
 } SECURITY_DESCRIPTOR_RELATIVE, *PISECURITY_DESCRIPTOR_RELATIVE;
 
-typedef struct {
+typedef struct _SECURITY_DESCRIPTOR {
     BYTE Revision;
     BYTE Sbz1;
     SECURITY_DESCRIPTOR_CONTROL Control;
