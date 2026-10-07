@@ -3770,124 +3770,74 @@ BOOL WINAPI SetupDiInstallClassW(
 /***********************************************************************
  *		SetupDiOpenClassRegKey  (SETUPAPI.@)
  */
-HKEY WINAPI SetupDiOpenClassRegKey(
-        const GUID* ClassGuid,
-        REGSAM samDesired)
+HKEY WINAPI SetupDiOpenClassRegKey(const GUID *class, REGSAM access)
 {
-    return SetupDiOpenClassRegKeyExW(ClassGuid, samDesired,
-                                     DIOCR_INSTALLER, NULL, NULL);
+    return SetupDiOpenClassRegKeyExW(class, access, DIOCR_INSTALLER, NULL, NULL);
 }
 
 
 /***********************************************************************
  *		SetupDiOpenClassRegKeyExA  (SETUPAPI.@)
  */
-HKEY WINAPI SetupDiOpenClassRegKeyExA(
-        const GUID* ClassGuid,
-        REGSAM samDesired,
-        DWORD Flags,
-        PCSTR MachineName,
-        PVOID Reserved)
+HKEY WINAPI SetupDiOpenClassRegKeyExA(const GUID *class, REGSAM access, DWORD flags,
+        const char *machine_nameA, void *reserved)
 {
-    PWSTR MachineNameW = NULL;
-    HKEY hKey;
+    WCHAR *machine_nameW = strdupAtoW(machine_nameA);
+    HKEY hkey;
 
-    TRACE("\n");
+    TRACE("class %s, access %#lx, flags %#lx, machine_nameA %s, reserved %p.\n", debugstr_guid(class),
+            access, flags, debugstr_a(machine_nameA), reserved);
 
-    if (MachineName)
-    {
-        MachineNameW = MultiByteToUnicode(MachineName, CP_ACP);
-        if (MachineNameW == NULL)
-            return INVALID_HANDLE_VALUE;
-    }
-
-    hKey = SetupDiOpenClassRegKeyExW(ClassGuid, samDesired,
-                                     Flags, MachineNameW, Reserved);
-
-    MyFree(MachineNameW);
-
-    return hKey;
+    hkey = SetupDiOpenClassRegKeyExW(class, access, flags, machine_nameW, reserved);
+    free(machine_nameW);
+    return hkey;
 }
 
 
 /***********************************************************************
  *		SetupDiOpenClassRegKeyExW  (SETUPAPI.@)
  */
-HKEY WINAPI SetupDiOpenClassRegKeyExW(
-        const GUID* ClassGuid,
-        REGSAM samDesired,
-        DWORD Flags,
-        PCWSTR MachineName,
-        PVOID Reserved)
+HKEY WINAPI SetupDiOpenClassRegKeyExW(const GUID *class, REGSAM access, DWORD flags,
+        const WCHAR *machine_name, void *reserved)
 {
-    HKEY hClassesKey;
+    DWORD open_flags = 0;
+    GUID guid = {0};
+    CONFIGRET ret;
     HKEY key;
-    LPCWSTR lpKeyName;
-    LONG l;
 
-    if (MachineName && *MachineName)
+    TRACE("class %s, access %#lx, flags %#lx, machine_name %s, reserved %p.\n", debugstr_guid(class),
+            access, flags, debugstr_w(machine_name), reserved);
+
+    if (machine_name && *machine_name)
     {
         FIXME("Remote access not supported yet!\n");
         return INVALID_HANDLE_VALUE;
     }
 
-    if (Flags == DIOCR_INSTALLER)
-    {
-        lpKeyName = ControlClass;
-    }
-    else if (Flags == DIOCR_INTERFACE)
-    {
-        lpKeyName = DeviceClasses;
-    }
+    if (flags & DIOCR_INSTALLER)
+        open_flags = CM_OPEN_CLASS_KEY_INSTALLER;
+    else if (flags & DIOCR_INTERFACE)
+        open_flags = CM_OPEN_CLASS_KEY_INTERFACE;
     else
     {
-        ERR("Invalid Flags parameter!\n");
+        ERR("Invalid flags parameter!\n");
         SetLastError(ERROR_INVALID_PARAMETER);
         return INVALID_HANDLE_VALUE;
     }
 
-    if (!ClassGuid)
+    if (class)
     {
-        if ((l = RegOpenKeyExW(HKEY_LOCAL_MACHINE,
-                          lpKeyName,
-                          0,
-                          samDesired,
-                          &hClassesKey)))
-        {
-            SetLastError(l);
-            hClassesKey = INVALID_HANDLE_VALUE;
-        }
-        key = hClassesKey;
+        guid = *class;
+        class = &guid;
     }
-    else
+
+    if ((ret = CM_Open_Class_Key_ExW((GUID *)class, NULL, access,
+                 RegDisposition_OpenExisting, &key, open_flags, NULL)))
     {
-        WCHAR bracedGuidString[39];
-
-        SETUPDI_GuidToString(ClassGuid, bracedGuidString);
-
-        if (!(l = RegOpenKeyExW(HKEY_LOCAL_MACHINE,
-                          lpKeyName,
-                          0,
-                          samDesired,
-                          &hClassesKey)))
-        {
-            if ((l = RegOpenKeyExW(hClassesKey,
-                              bracedGuidString,
-                              0,
-                              samDesired,
-                              &key)))
-            {
-                SetLastError(l);
-                key = INVALID_HANDLE_VALUE;
-            }
-            RegCloseKey(hClassesKey);
-        }
-        else
-        {
-            SetLastError(l);
-            key = INVALID_HANDLE_VALUE;
-        }
+        SetLastError(CM_MapCrToWin32Err(ret, ERROR_INVALID_PARAMETER));
+        return INVALID_HANDLE_VALUE;
     }
+
     return key;
 }
 
