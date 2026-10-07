@@ -30,6 +30,7 @@
 #include <stdbool.h>
 #include <sys/types.h>
 #include <math.h>
+#include <intrin.h>
 #include <limits.h>
 #include <float.h>
 #define LIBVKD3D_SHADER_SOURCE
@@ -434,13 +435,7 @@ static inline unsigned short float_32_to_16(const float *in)
 
 static inline unsigned int wined3d_popcount(unsigned int x)
 {
-#if defined(__MINGW32__)
-    return __builtin_popcount(x);
-#else
-    x -= x >> 1 & 0x55555555;
-    x = (x & 0x33333333) + (x >> 2 & 0x33333333);
-    return ((x + (x >> 4)) & 0x0f0f0f0f) * 0x01010101 >> 24;
-#endif
+    return __popcnt(x);
 }
 
 static inline int wined3d_uint32_compare(uint32_t x, uint32_t y)
