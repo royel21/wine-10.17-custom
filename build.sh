@@ -16,7 +16,7 @@ done
 # ==============================================================================
 # CONFIGURATION & PATHS
 # ==============================================================================
-WINEVER="11.1"
+WINEVER="11.4"
 WINE_SRC_DIR="$(cd "./" && pwd)"
 BUILD_DIR="${WINE_SRC_DIR}/wine"
 INSTALL_PREFIX="/tmp/wine_build-current"
