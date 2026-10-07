@@ -654,7 +654,6 @@ TAGSFLAGS
 EXTERNAL_SUBDIRS
 RT_LIBS
 WINELOADER_PROGRAMS
-DELAYLOADFLAG
 MSVCRTFLAGS
 NETAPI_LIBS
 NETAPI_CFLAGS
@@ -755,8 +754,6 @@ FLUIDSYNTH_PE_LIBS
 FLUIDSYNTH_PE_CFLAGS
 FAUDIO_PE_LIBS
 FAUDIO_PE_CFLAGS
-COMPILER_RT_PE_LIBS
-COMPILER_RT_PE_CFLAGS
 CAPSTONE_PE_LIBS
 CAPSTONE_PE_CFLAGS
 MINGW_PKG_CONFIG
@@ -775,6 +772,7 @@ IOKIT_LIBS
 DISKARBITRATION_LIBS
 COREFOUNDATION_LIBS
 CORETEXT_LIBS
+DELAYLOADFLAG
 CONFIGURE_TARGETS
 DISABLED_SUBDIRS
 SUBDIRS
@@ -815,8 +813,11 @@ x86_64_STRIP
 x86_64_TARGET
 x86_64_DEBUG
 x86_64_LDFLAGS
+x86_64_EXTRACXXFLAGS
 x86_64_EXTRACFLAGS
+x86_64_CXXFLAGS
 x86_64_CFLAGS
+x86_64_CXX
 x86_64_CC
 i386_DISABLED_SUBDIRS
 i386_DELAYLOADFLAG
@@ -824,8 +825,11 @@ i386_STRIP
 i386_TARGET
 i386_DEBUG
 i386_LDFLAGS
+i386_EXTRACXXFLAGS
 i386_EXTRACFLAGS
+i386_CXXFLAGS
 i386_CFLAGS
+i386_CXX
 i386_CC
 arm64ec_DISABLED_SUBDIRS
 arm64ec_DELAYLOADFLAG
@@ -833,8 +837,11 @@ arm64ec_STRIP
 arm64ec_TARGET
 arm64ec_DEBUG
 arm64ec_LDFLAGS
+arm64ec_EXTRACXXFLAGS
 arm64ec_EXTRACFLAGS
+arm64ec_CXXFLAGS
 arm64ec_CFLAGS
+arm64ec_CXX
 arm64ec_CC
 arm_DISABLED_SUBDIRS
 arm_DELAYLOADFLAG
@@ -842,8 +849,11 @@ arm_STRIP
 arm_TARGET
 arm_DEBUG
 arm_LDFLAGS
+arm_EXTRACXXFLAGS
 arm_EXTRACFLAGS
+arm_CXXFLAGS
 arm_CFLAGS
+arm_CXX
 arm_CC
 aarch64_DISABLED_SUBDIRS
 aarch64_DELAYLOADFLAG
@@ -851,8 +861,11 @@ aarch64_STRIP
 aarch64_TARGET
 aarch64_DEBUG
 aarch64_LDFLAGS
+aarch64_EXTRACXXFLAGS
 aarch64_EXTRACFLAGS
+aarch64_CXXFLAGS
 aarch64_CFLAGS
+aarch64_CXX
 aarch64_CC
 HOST_ARCH
 toolsext
@@ -1829,8 +1842,6 @@ OBJC
 OBJCFLAGS
 CAPSTONE_PE_CFLAGS
 CAPSTONE_PE_LIBS
-COMPILER_RT_PE_CFLAGS
-COMPILER_RT_PE_LIBS
 FAUDIO_PE_CFLAGS
 FAUDIO_PE_LIBS
 FLUIDSYNTH_PE_CFLAGS
@@ -2634,12 +2645,6 @@ Some influential environment variables:
               version
   CAPSTONE_PE_LIBS
               Linker flags for the PE capstone, overriding the bundled version
-  COMPILER_RT_PE_CFLAGS
-              C compiler flags for the PE compiler-rt, overriding the bundled
-              version
-  COMPILER_RT_PE_LIBS
-              Linker flags for the PE compiler-rt, overriding the bundled
-              version
   FAUDIO_PE_CFLAGS
               C compiler flags for the PE faudio, overriding the bundled
               version
@@ -7346,8 +7351,10 @@ then :
 fi
 
 saved_CC=$CC
+saved_CXX=$CXX
 saved_CFLAGS=$CFLAGS
 saved_CPPFLAGS=$CPPFLAGS
+saved_CXXFLAGS=$CXXFLAGS
 saved_LDFLAGS=$LDFLAGS
 
 { extra_arch=; unset extra_arch;}
@@ -7644,8 +7651,22 @@ then :
 else $as_nop
   eval "${wine_arch}_LDFLAGS=\$CROSSLDFLAGS"
 fi
+    if eval test \${${wine_arch}_CXX+y}
+then :
+
+else $as_nop
+  eval ${wine_arch}_CXX=\$${wine_arch}_CC
+fi
+    if eval test \${${wine_arch}_CXXFLAGS+y}
+then :
+
+else $as_nop
+  eval ${wine_arch}_CXXFLAGS=\$${wine_arch}_CFLAGS
+fi
     eval CC=\$${wine_arch}_CC
+    eval CXX=\$${wine_arch}_CXX
     eval CFLAGS=\$${wine_arch}_CFLAGS
+    eval CXXFLAGS=\$${wine_arch}_CXXFLAGS
     eval LDFLAGS=\$${wine_arch}_LDFLAGS
     eval "${wine_arch}_EXTRACFLAGS=\"-D__WINE_PE_BUILD -Wall\""
 
@@ -7666,9 +7687,13 @@ fi
         target_strip=${target:-llvm}-strip
     if test "$wine_try_msvc" = yes -o -z "$target"
     then
-        llvm_target="$mingw_cpu-windows"
+        case $wine_arch in
+          arm)  llvm_target="$mingw_cpu-windows-gnu"
+                llvm_cflags="-mconsole -Wl,--fatal-warnings" ;;
+          *)    llvm_target="$mingw_cpu-windows"
+                llvm_cflags="-Wl,-subsystem:console -Wl,-WX" ;;
+        esac
         llvm_extra_cflags="-target $llvm_target -fuse-ld=lld"
-        llvm_cflags="-Wl,-subsystem:console -Wl,-WX"
     else
         llvm_target=$target
         llvm_extra_cflags="-fuse-ld=lld"
@@ -7761,6 +7786,7 @@ fi }
         as_fn_append ${wine_arch}_EXTRACFLAGS " $llvm_extra_cflags"
         as_fn_append ${wine_arch}_LDFLAGS " $llvm_extra_ldflags"
         CFLAGS="$CFLAGS $llvm_extra_cflags $llvm_cflags"
+        CXXFLAGS="$CXXFLAGS $llvm_extra_cflags $llvm_cflags"
     else
         as_wine_cv_crosscc=`printf "%s\n" "wine_cv_${wine_arch}_crosscc" | $as_tr_sh`
 
@@ -7863,6 +7889,819 @@ printf "%s\n" "$res" >&6; }
           as_fn_append ${wine_arch}_CC " $res" ;;
     esac
 
+    as_wine_cv_crosscxx_cxx17=`printf "%s\n" "ac_cv_${wine_arch}_crosscxx_cxx17" | $as_tr_sh`
+
+    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for $CXX option to enable C++17 features" >&5
+printf %s "checking for $CXX option to enable C++17 features... " >&6; }
+    ac_ext=cpp
+ac_cpp='$CXXCPP $CPPFLAGS'
+ac_compile='$CXX -c $CXXFLAGS $CPPFLAGS conftest.$ac_ext >&5'
+ac_link='$CXX -o conftest$ac_exeext $CXXFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
+ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
+
+
+if eval test \${$as_wine_cv_crosscxx_cxx17+y}
+then :
+  printf %s "(cached) " >&6
+else $as_nop
+  eval "$as_wine_cv_crosscxx_cxx17=no"
+         for arg in '' '-std=gnu++17'
+         do
+             test -z "$arg" || CXX="$CXX $arg"
+             cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+
+// If the compiler admits that it is not ready for C++11, why torture it?
+// Hopefully, this will speed up the test.
+
+#ifndef __cplusplus
+
+#error "This is not a C++ compiler"
+
+// MSVC always sets __cplusplus to 199711L in older versions; newer versions
+// only set it correctly if /Zc:__cplusplus is specified as well as a
+// /std:c++NN switch:
+//
+// https://devblogs.microsoft.com/cppblog/msvc-now-correctly-reports-__cplusplus/
+//
+// The value __cplusplus ought to have is available in _MSVC_LANG since
+// Visual Studio 2015 Update 3:
+//
+// https://learn.microsoft.com/en-us/cpp/preprocessor/predefined-macros
+//
+// This was also the first MSVC version to support C++14 so we can't use the
+// value of either __cplusplus or _MSVC_LANG to quickly rule out MSVC having
+// C++11 or C++14 support, but we can check _MSVC_LANG for C++17 and later.
+#elif __cplusplus < 201103L && !defined _MSC_VER
+
+#error "This is not a C++11 compiler"
+
+#else
+
+namespace cxx11
+{
+
+  namespace test_static_assert
+  {
+
+    template <typename T>
+    struct check
+    {
+      static_assert(sizeof(int) <= sizeof(T), "not big enough");
+    };
+
+  }
+
+  namespace test_final_override
+  {
+
+    struct Base
+    {
+      virtual ~Base() {}
+      virtual void f() {}
+    };
+
+    struct Derived : public Base
+    {
+      virtual ~Derived() override {}
+      virtual void f() override {}
+    };
+
+  }
+
+  namespace test_double_right_angle_brackets
+  {
+
+    template < typename T >
+    struct check {};
+
+    typedef check<void> single_type;
+    typedef check<check<void>> double_type;
+    typedef check<check<check<void>>> triple_type;
+    typedef check<check<check<check<void>>>> quadruple_type;
+
+  }
+
+  namespace test_decltype
+  {
+
+    int
+    f()
+    {
+      int a = 1;
+      decltype(a) b = 2;
+      return a + b;
+    }
+
+  }
+
+  namespace test_type_deduction
+  {
+
+    template < typename T1, typename T2 >
+    struct is_same
+    {
+      static const bool value = false;
+    };
+
+    template < typename T >
+    struct is_same<T, T>
+    {
+      static const bool value = true;
+    };
+
+    template < typename T1, typename T2 >
+    auto
+    add(T1 a1, T2 a2) -> decltype(a1 + a2)
+    {
+      return a1 + a2;
+    }
+
+    int
+    test(const int c, volatile int v)
+    {
+      static_assert(is_same<int, decltype(0)>::value == true, "");
+      static_assert(is_same<int, decltype(c)>::value == false, "");
+      static_assert(is_same<int, decltype(v)>::value == false, "");
+      auto ac = c;
+      auto av = v;
+      auto sumi = ac + av + 'x';
+      auto sumf = ac + av + 1.0;
+      static_assert(is_same<int, decltype(ac)>::value == true, "");
+      static_assert(is_same<int, decltype(av)>::value == true, "");
+      static_assert(is_same<int, decltype(sumi)>::value == true, "");
+      static_assert(is_same<int, decltype(sumf)>::value == false, "");
+      static_assert(is_same<int, decltype(add(c, v))>::value == true, "");
+      return (sumf > 0.0) ? sumi : add(c, v);
+    }
+
+  }
+
+  namespace test_noexcept
+  {
+
+    int f() { return 0; }
+    int g() noexcept { return 0; }
+
+    static_assert(noexcept(f()) == false, "");
+    static_assert(noexcept(g()) == true, "");
+
+  }
+
+  namespace test_constexpr
+  {
+
+    template < typename CharT >
+    unsigned long constexpr
+    strlen_c_r(const CharT *const s, const unsigned long acc) noexcept
+    {
+      return *s ? strlen_c_r(s + 1, acc + 1) : acc;
+    }
+
+    template < typename CharT >
+    unsigned long constexpr
+    strlen_c(const CharT *const s) noexcept
+    {
+      return strlen_c_r(s, 0UL);
+    }
+
+    static_assert(strlen_c("") == 0UL, "");
+    static_assert(strlen_c("1") == 1UL, "");
+    static_assert(strlen_c("example") == 7UL, "");
+    static_assert(strlen_c("another\0example") == 7UL, "");
+
+  }
+
+  namespace test_rvalue_references
+  {
+
+    template < int N >
+    struct answer
+    {
+      static constexpr int value = N;
+    };
+
+    answer<1> f(int&)       { return answer<1>(); }
+    answer<2> f(const int&) { return answer<2>(); }
+    answer<3> f(int&&)      { return answer<3>(); }
+
+    void
+    test()
+    {
+      int i = 0;
+      const int c = 0;
+      static_assert(decltype(f(i))::value == 1, "");
+      static_assert(decltype(f(c))::value == 2, "");
+      static_assert(decltype(f(0))::value == 3, "");
+    }
+
+  }
+
+  namespace test_uniform_initialization
+  {
+
+    struct test
+    {
+      static const int zero {};
+      static const int one {1};
+    };
+
+    static_assert(test::zero == 0, "");
+    static_assert(test::one == 1, "");
+
+  }
+
+  namespace test_lambdas
+  {
+
+    void
+    test1()
+    {
+      auto lambda1 = [](){};
+      auto lambda2 = lambda1;
+      lambda1();
+      lambda2();
+    }
+
+    int
+    test2()
+    {
+      auto a = [](int i, int j){ return i + j; }(1, 2);
+      auto b = []() -> int { return '0'; }();
+      auto c = [=](){ return a + b; }();
+      auto d = [&](){ return c; }();
+      auto e = [a, &b](int x) mutable {
+        const auto identity = [](int y){ return y; };
+        for (auto i = 0; i < a; ++i)
+          a += b--;
+        return x + identity(a + b);
+      }(0);
+      return a + b + c + d + e;
+    }
+
+    int
+    test3()
+    {
+      const auto nullary = [](){ return 0; };
+      const auto unary = [](int x){ return x; };
+      using nullary_t = decltype(nullary);
+      using unary_t = decltype(unary);
+      const auto higher1st = [](nullary_t f){ return f(); };
+      const auto higher2nd = [unary](nullary_t f1){
+        return [unary, f1](unary_t f2){ return f2(unary(f1())); };
+      };
+      return higher1st(nullary) + higher2nd(nullary)(unary);
+    }
+
+  }
+
+  namespace test_variadic_templates
+  {
+
+    template <int...>
+    struct sum;
+
+    template <int N0, int... N1toN>
+    struct sum<N0, N1toN...>
+    {
+      static constexpr auto value = N0 + sum<N1toN...>::value;
+    };
+
+    template <>
+    struct sum<>
+    {
+      static constexpr auto value = 0;
+    };
+
+    static_assert(sum<>::value == 0, "");
+    static_assert(sum<1>::value == 1, "");
+    static_assert(sum<23>::value == 23, "");
+    static_assert(sum<1, 2>::value == 3, "");
+    static_assert(sum<5, 5, 11>::value == 21, "");
+    static_assert(sum<2, 3, 5, 7, 11, 13>::value == 41, "");
+
+  }
+
+  // http://stackoverflow.com/questions/13728184/template-aliases-and-sfinae
+  // Clang 3.1 fails with headers of libstd++ 4.8.3 when using std::function
+  // because of this.
+  namespace test_template_alias_sfinae
+  {
+
+    struct foo {};
+
+    template<typename T>
+    using member = typename T::member_type;
+
+    template<typename T>
+    void func(...) {}
+
+    template<typename T>
+    void func(member<T>*) {}
+
+    void test();
+
+    void test() { func<foo>(0); }
+
+  }
+
+}  // namespace cxx11
+
+#endif  // __cplusplus >= 201103L
+
+
+
+
+// If the compiler admits that it is not ready for C++14, why torture it?
+// Hopefully, this will speed up the test.
+
+#ifndef __cplusplus
+
+#error "This is not a C++ compiler"
+
+#elif __cplusplus < 201402L && !defined _MSC_VER
+
+#error "This is not a C++14 compiler"
+
+#else
+
+namespace cxx14
+{
+
+  namespace test_polymorphic_lambdas
+  {
+
+    int
+    test()
+    {
+      const auto lambda = [](auto&&... args){
+        const auto istiny = [](auto x){
+          return (sizeof(x) == 1UL) ? 1 : 0;
+        };
+        const int aretiny[] = { istiny(args)... };
+        return aretiny[0];
+      };
+      return lambda(1, 1L, 1.0f, '1');
+    }
+
+  }
+
+  namespace test_binary_literals
+  {
+
+    constexpr auto ivii = 0b0000000000101010;
+    static_assert(ivii == 42, "wrong value");
+
+  }
+
+  namespace test_generalized_constexpr
+  {
+
+    template < typename CharT >
+    constexpr unsigned long
+    strlen_c(const CharT *const s) noexcept
+    {
+      auto length = 0UL;
+      for (auto p = s; *p; ++p)
+        ++length;
+      return length;
+    }
+
+    static_assert(strlen_c("") == 0UL, "");
+    static_assert(strlen_c("x") == 1UL, "");
+    static_assert(strlen_c("test") == 4UL, "");
+    static_assert(strlen_c("another\0test") == 7UL, "");
+
+  }
+
+  namespace test_lambda_init_capture
+  {
+
+    int
+    test()
+    {
+      auto x = 0;
+      const auto lambda1 = [a = x](int b){ return a + b; };
+      const auto lambda2 = [a = lambda1(x)](){ return a; };
+      return lambda2();
+    }
+
+  }
+
+  namespace test_digit_separators
+  {
+
+    constexpr auto ten_million = 100'000'000;
+    static_assert(ten_million == 100000000, "");
+
+  }
+
+  namespace test_return_type_deduction
+  {
+
+    auto f(int& x) { return x; }
+    decltype(auto) g(int& x) { return x; }
+
+    template < typename T1, typename T2 >
+    struct is_same
+    {
+      static constexpr auto value = false;
+    };
+
+    template < typename T >
+    struct is_same<T, T>
+    {
+      static constexpr auto value = true;
+    };
+
+    int
+    test()
+    {
+      auto x = 0;
+      static_assert(is_same<int, decltype(f(x))>::value, "");
+      static_assert(is_same<int&, decltype(g(x))>::value, "");
+      return x;
+    }
+
+  }
+
+}  // namespace cxx14
+
+#endif  // __cplusplus >= 201402L
+
+
+
+
+// If the compiler admits that it is not ready for C++17, why torture it?
+// Hopefully, this will speed up the test.
+
+#ifndef __cplusplus
+
+#error "This is not a C++ compiler"
+
+#elif (defined _MSVC_LANG ? _MSVC_LANG : __cplusplus) < 201703L
+
+#error "This is not a C++17 compiler"
+
+#else
+
+namespace cxx17
+{
+
+  namespace test_constexpr_lambdas
+  {
+
+    constexpr int foo = [](){return 42;}();
+
+  }
+
+  namespace test::nested_namespace::definitions
+  {
+
+  }
+
+  namespace test_fold_expression
+  {
+
+    template<typename... Args>
+    int multiply(Args... args)
+    {
+      return (args * ... * 1);
+    }
+
+    template<typename... Args>
+    bool all(Args... args)
+    {
+      return (args && ...);
+    }
+
+  }
+
+  namespace test_extended_static_assert
+  {
+
+    static_assert (true);
+
+  }
+
+  namespace test_typename_in_template_template_parameter
+  {
+
+    template<template<typename> typename X> struct D;
+
+  }
+
+  namespace test_fallthrough_nodiscard_maybe_unused_attributes
+  {
+
+    int f1()
+    {
+      return 42;
+    }
+
+    [[nodiscard]] int f2()
+    {
+      [[maybe_unused]] auto unused = f1();
+
+      switch (f1())
+      {
+      case 17:
+        f1();
+        [[fallthrough]];
+      case 42:
+        f1();
+      }
+      return f1();
+    }
+
+  }
+
+  namespace test_extended_aggregate_initialization
+  {
+
+    struct base1
+    {
+      int b1, b2 = 42;
+    };
+
+    struct base2
+    {
+      base2() {
+        b3 = 42;
+      }
+      int b3;
+    };
+
+    struct derived : base1, base2
+    {
+        int d;
+    };
+
+    derived d1 {{1, 2}, {}, 4};  // full initialization
+    derived d2 {{}, {}, 4};      // value-initialized bases
+
+  }
+
+  namespace test_general_range_based_for_loop
+  {
+
+    struct iter
+    {
+      int i;
+
+      int& operator* ()
+      {
+        return i;
+      }
+
+      const int& operator* () const
+      {
+        return i;
+      }
+
+      iter& operator++()
+      {
+        ++i;
+        return *this;
+      }
+    };
+
+    struct sentinel
+    {
+      int i;
+    };
+
+    bool operator== (const iter& i, const sentinel& s)
+    {
+      return i.i == s.i;
+    }
+
+    bool operator!= (const iter& i, const sentinel& s)
+    {
+      return !(i == s);
+    }
+
+    struct range
+    {
+      iter begin() const
+      {
+        return {0};
+      }
+
+      sentinel end() const
+      {
+        return {5};
+      }
+    };
+
+    void f()
+    {
+      range r {};
+
+      for (auto i : r)
+      {
+        [[maybe_unused]] auto v = i;
+      }
+    }
+
+  }
+
+  namespace test_lambda_capture_asterisk_this_by_value
+  {
+
+    struct t
+    {
+      int i;
+      int foo()
+      {
+        return [*this]()
+        {
+          return i;
+        }();
+      }
+    };
+
+  }
+
+  namespace test_enum_class_construction
+  {
+
+    enum class byte : unsigned char
+    {};
+
+    byte foo {42};
+
+  }
+
+  namespace test_constexpr_if
+  {
+
+    template <bool cond>
+    int f ()
+    {
+      if constexpr(cond)
+      {
+        return 13;
+      }
+      else
+      {
+        return 42;
+      }
+    }
+
+  }
+
+  namespace test_selection_statement_with_initializer
+  {
+
+    int f()
+    {
+      return 13;
+    }
+
+    int f2()
+    {
+      if (auto i = f(); i > 0)
+      {
+        return 3;
+      }
+
+      switch (auto i = f(); i + 4)
+      {
+      case 17:
+        return 2;
+
+      default:
+        return 1;
+      }
+    }
+
+  }
+
+  namespace test_template_argument_deduction_for_class_templates
+  {
+
+    template <typename T1, typename T2>
+    struct pair
+    {
+      pair (T1 p1, T2 p2)
+        : m1 {p1},
+          m2 {p2}
+      {}
+
+      T1 m1;
+      T2 m2;
+    };
+
+    void f()
+    {
+      [[maybe_unused]] auto p = pair{13, 42u};
+    }
+
+  }
+
+  namespace test_non_type_auto_template_parameters
+  {
+
+    template <auto n>
+    struct B
+    {};
+
+    B<5> b1;
+    B<'a'> b2;
+
+  }
+
+  namespace test_exception_spec_type_system
+  {
+
+    struct Good {};
+    struct Bad {};
+
+    void g1() noexcept;
+    void g2();
+
+    template<typename T>
+    Bad
+    f(T*, T*);
+
+    template<typename T1, typename T2>
+    Good
+    f(T1*, T2*);
+
+  }
+
+  namespace test_inline_variables
+  {
+
+    template<class T> void f(T)
+    {}
+
+    template<class T> inline T g(T)
+    {
+      return T{};
+    }
+
+    template<> inline void f<>(int)
+    {}
+
+    template<> int g<>(int)
+    {
+      return 5;
+    }
+
+  }
+
+}  // namespace cxx17
+
+#endif  // (defined _MSVC_LANG ? _MSVC_LANG : __cplusplus) < 201703L
+
+
+
+_ACEOF
+if ac_fn_cxx_try_compile "$LINENO"
+then :
+  eval "$as_wine_cv_crosscxx_cxx17=\$arg"
+else $as_nop
+  eval "$as_wine_cv_crosscxx_cxx17=no"
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+             eval CXX=\$${wine_arch}_CXX
+             if eval test \"x\$"$as_wine_cv_crosscxx_cxx17"\" = x"no"
+then :
+
+else $as_nop
+  break
+fi
+         done
+fi
+
+    eval res=\$$as_wine_cv_crosscxx_cxx17
+    ac_ext=c
+ac_cpp='$CPP $CPPFLAGS'
+ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
+ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
+ac_compiler_gnu=$ac_cv_c_compiler_gnu
+
+
+    case "x$res" in
+      x) { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: none needed" >&5
+printf "%s\n" "none needed" >&6; } ;;
+      xno) { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: unsupported" >&5
+printf "%s\n" "unsupported" >&6; }
+           if test ${enable_archs+y}
+then :
+  as_fn_error $? "$wine_arch PE cross-compiler supporting C++17 not found.
+This is an error since --enable-archs=$wine_arch was requested." "$LINENO" 5
+fi
+           continue
+           ;;
+      x*) { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $res" >&5
+printf "%s\n" "$res" >&6; }
+          as_fn_append ${wine_arch}_CXX " $res" ;;
+    esac
+
     if test "x$wine_arch" = xi386
 then :
 
@@ -7918,8 +8757,6 @@ then :
 else $as_nop
   as_fn_append PE_ARCHS " $wine_arch"
 fi
-
-    wine_compiler_rt_libs="compiler-rt"
 
     { as_ac_var=`printf "%s\n" "ac_cv_${wine_arch}_cflags_-fno-strict-aliasing" | $as_tr_sh`
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether $CC supports -fno-strict-aliasing" >&5
@@ -8110,44 +8947,6 @@ printf "%s\n" "$ac_res" >&6; }
 if eval test \"x\$"$as_ac_var"\" = x"yes"
 then :
   CFLAGS="$CFLAGS -Werror=unsupported-floating-point-opt"
-fi }
-    { as_ac_var=`printf "%s\n" "ac_cv_${wine_arch}_cflags_-Wdeclaration-after-statement" | $as_tr_sh`
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether $CC supports -Wdeclaration-after-statement" >&5
-printf %s "checking whether $CC supports -Wdeclaration-after-statement... " >&6; }
-if eval test \${$as_ac_var+y}
-then :
-  printf %s "(cached) " >&6
-else $as_nop
-  ac_wine_try_cflags_saved=$CFLAGS
-ac_wine_try_cflags_saved_exeext=$ac_exeext
-CFLAGS="$CFLAGS -nostdlib -nodefaultlibs -Wdeclaration-after-statement"
-ac_exeext=".exe"
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-void *__os_arm64x_dispatch_ret = 0;
-const unsigned int _load_config_used[0x50] = { sizeof(_load_config_used) };
-#if defined(__clang_major__) && defined(MIN_CLANG_VERSION) && __clang_major__ < MIN_CLANG_VERSION
-#error Too old clang version
-#endif
-int __cdecl mainCRTStartup(void) { return 0; }
-_ACEOF
-if ac_fn_c_try_link "$LINENO"
-then :
-  eval "$as_ac_var=yes"
-else $as_nop
-  eval "$as_ac_var=no"
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam \
-    conftest$ac_exeext conftest.$ac_ext
-CFLAGS=$ac_wine_try_cflags_saved
-ac_exeext=$ac_wine_try_cflags_saved_exeext
-fi
-eval ac_res=\$$as_ac_var
-	       { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
-printf "%s\n" "$ac_res" >&6; }
-if eval test \"x\$"$as_ac_var"\" = x"yes"
-then :
-  as_fn_append ${wine_arch}_EXTRACFLAGS " -Wdeclaration-after-statement"
 fi }
     { as_ac_var=`printf "%s\n" "ac_cv_${wine_arch}_cflags_-Wempty-body" | $as_tr_sh`
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether $CC supports -Wempty-body" >&5
@@ -8377,44 +9176,6 @@ if eval test \"x\$"$as_ac_var"\" = x"yes"
 then :
   as_fn_append ${wine_arch}_EXTRACFLAGS " -Wshift-overflow=2"
 fi }
-    { as_ac_var=`printf "%s\n" "ac_cv_${wine_arch}_cflags_-Wstrict-prototypes" | $as_tr_sh`
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether $CC supports -Wstrict-prototypes" >&5
-printf %s "checking whether $CC supports -Wstrict-prototypes... " >&6; }
-if eval test \${$as_ac_var+y}
-then :
-  printf %s "(cached) " >&6
-else $as_nop
-  ac_wine_try_cflags_saved=$CFLAGS
-ac_wine_try_cflags_saved_exeext=$ac_exeext
-CFLAGS="$CFLAGS -nostdlib -nodefaultlibs -Wstrict-prototypes"
-ac_exeext=".exe"
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-void *__os_arm64x_dispatch_ret = 0;
-const unsigned int _load_config_used[0x50] = { sizeof(_load_config_used) };
-#if defined(__clang_major__) && defined(MIN_CLANG_VERSION) && __clang_major__ < MIN_CLANG_VERSION
-#error Too old clang version
-#endif
-int __cdecl mainCRTStartup(void) { return 0; }
-_ACEOF
-if ac_fn_c_try_link "$LINENO"
-then :
-  eval "$as_ac_var=yes"
-else $as_nop
-  eval "$as_ac_var=no"
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam \
-    conftest$ac_exeext conftest.$ac_ext
-CFLAGS=$ac_wine_try_cflags_saved
-ac_exeext=$ac_wine_try_cflags_saved_exeext
-fi
-eval ac_res=\$$as_ac_var
-	       { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
-printf "%s\n" "$ac_res" >&6; }
-if eval test \"x\$"$as_ac_var"\" = x"yes"
-then :
-  as_fn_append ${wine_arch}_EXTRACFLAGS " -Wstrict-prototypes"
-fi }
     { as_ac_var=`printf "%s\n" "ac_cv_${wine_arch}_cflags_-Wtype-limits" | $as_tr_sh`
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether $CC supports -Wtype-limits" >&5
 printf %s "checking whether $CC supports -Wtype-limits... " >&6; }
@@ -8643,44 +9404,6 @@ if eval test \"x\$"$as_ac_var"\" = x"yes"
 then :
   as_fn_append ${wine_arch}_EXTRACFLAGS " -Wlogical-op"
 fi }
-    { as_ac_var=`printf "%s\n" "ac_cv_${wine_arch}_cflags_-Wabsolute-value" | $as_tr_sh`
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether $CC supports -Wabsolute-value" >&5
-printf %s "checking whether $CC supports -Wabsolute-value... " >&6; }
-if eval test \${$as_ac_var+y}
-then :
-  printf %s "(cached) " >&6
-else $as_nop
-  ac_wine_try_cflags_saved=$CFLAGS
-ac_wine_try_cflags_saved_exeext=$ac_exeext
-CFLAGS="$CFLAGS -nostdlib -nodefaultlibs -Wabsolute-value"
-ac_exeext=".exe"
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-void *__os_arm64x_dispatch_ret = 0;
-const unsigned int _load_config_used[0x50] = { sizeof(_load_config_used) };
-#if defined(__clang_major__) && defined(MIN_CLANG_VERSION) && __clang_major__ < MIN_CLANG_VERSION
-#error Too old clang version
-#endif
-int __cdecl mainCRTStartup(void) { return 0; }
-_ACEOF
-if ac_fn_c_try_link "$LINENO"
-then :
-  eval "$as_ac_var=yes"
-else $as_nop
-  eval "$as_ac_var=no"
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam \
-    conftest$ac_exeext conftest.$ac_ext
-CFLAGS=$ac_wine_try_cflags_saved
-ac_exeext=$ac_wine_try_cflags_saved_exeext
-fi
-eval ac_res=\$$as_ac_var
-	       { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
-printf "%s\n" "$ac_res" >&6; }
-if eval test \"x\$"$as_ac_var"\" = x"yes"
-then :
-  as_fn_append ${wine_arch}_EXTRACFLAGS " -Wabsolute-value"
-fi }
     { as_ac_var=`printf "%s\n" "ac_cv_${wine_arch}_cflags_-Wenum-enum-conversion" | $as_tr_sh`
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether $CC supports -Wenum-enum-conversion" >&5
 printf %s "checking whether $CC supports -Wenum-enum-conversion... " >&6; }
@@ -8795,44 +9518,6 @@ printf "%s\n" "$ac_res" >&6; }
 if eval test \"x\$"$as_ac_var"\" = x"yes"
 then :
   as_fn_append ${wine_arch}_EXTRACFLAGS " -ffunction-sections"
-fi }
-    { as_ac_var=`printf "%s\n" "ac_cv_${wine_arch}_cflags_-fasync-exceptions -DMIN_CLANG_VERSION=19" | $as_tr_sh`
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether $CC supports -fasync-exceptions -DMIN_CLANG_VERSION=19" >&5
-printf %s "checking whether $CC supports -fasync-exceptions -DMIN_CLANG_VERSION=19... " >&6; }
-if eval test \${$as_ac_var+y}
-then :
-  printf %s "(cached) " >&6
-else $as_nop
-  ac_wine_try_cflags_saved=$CFLAGS
-ac_wine_try_cflags_saved_exeext=$ac_exeext
-CFLAGS="$CFLAGS -nostdlib -nodefaultlibs -fasync-exceptions -DMIN_CLANG_VERSION=19"
-ac_exeext=".exe"
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-void *__os_arm64x_dispatch_ret = 0;
-const unsigned int _load_config_used[0x50] = { sizeof(_load_config_used) };
-#if defined(__clang_major__) && defined(MIN_CLANG_VERSION) && __clang_major__ < MIN_CLANG_VERSION
-#error Too old clang version
-#endif
-int __cdecl mainCRTStartup(void) { return 0; }
-_ACEOF
-if ac_fn_c_try_link "$LINENO"
-then :
-  eval "$as_ac_var=yes"
-else $as_nop
-  eval "$as_ac_var=no"
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam \
-    conftest$ac_exeext conftest.$ac_ext
-CFLAGS=$ac_wine_try_cflags_saved
-ac_exeext=$ac_wine_try_cflags_saved_exeext
-fi
-eval ac_res=\$$as_ac_var
-	       { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
-printf "%s\n" "$ac_res" >&6; }
-if eval test \"x\$"$as_ac_var"\" = x"yes"
-then :
-  as_fn_append ${wine_arch}_EXTRACFLAGS " -fasync-exceptions"
 fi }
     { as_ac_var=`printf "%s\n" "ac_cv_${wine_arch}_cflags_-ffp-exception-behavior=maytrap" | $as_tr_sh`
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether $CC supports -ffp-exception-behavior=maytrap" >&5
@@ -9485,11 +10170,167 @@ then :
 fi }
             test "x$enable_build_id" != xyes || as_fn_append ${wine_arch}_LDFLAGS " -Wl,--build-id"
 
+        eval ${wine_arch}_EXTRACXXFLAGS=\$${wine_arch}_EXTRACFLAGS
+    { as_ac_var=`printf "%s\n" "ac_cv_${wine_arch}_cflags_-Wdeclaration-after-statement" | $as_tr_sh`
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether $CC supports -Wdeclaration-after-statement" >&5
+printf %s "checking whether $CC supports -Wdeclaration-after-statement... " >&6; }
+if eval test \${$as_ac_var+y}
+then :
+  printf %s "(cached) " >&6
+else $as_nop
+  ac_wine_try_cflags_saved=$CFLAGS
+ac_wine_try_cflags_saved_exeext=$ac_exeext
+CFLAGS="$CFLAGS -nostdlib -nodefaultlibs -Wdeclaration-after-statement"
+ac_exeext=".exe"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+void *__os_arm64x_dispatch_ret = 0;
+const unsigned int _load_config_used[0x50] = { sizeof(_load_config_used) };
+#if defined(__clang_major__) && defined(MIN_CLANG_VERSION) && __clang_major__ < MIN_CLANG_VERSION
+#error Too old clang version
+#endif
+int __cdecl mainCRTStartup(void) { return 0; }
+_ACEOF
+if ac_fn_c_try_link "$LINENO"
+then :
+  eval "$as_ac_var=yes"
+else $as_nop
+  eval "$as_ac_var=no"
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam \
+    conftest$ac_exeext conftest.$ac_ext
+CFLAGS=$ac_wine_try_cflags_saved
+ac_exeext=$ac_wine_try_cflags_saved_exeext
+fi
+eval ac_res=\$$as_ac_var
+	       { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
+printf "%s\n" "$ac_res" >&6; }
+if eval test \"x\$"$as_ac_var"\" = x"yes"
+then :
+  as_fn_append ${wine_arch}_EXTRACFLAGS " -Wdeclaration-after-statement"
+fi }
+    { as_ac_var=`printf "%s\n" "ac_cv_${wine_arch}_cflags_-Wstrict-prototypes" | $as_tr_sh`
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether $CC supports -Wstrict-prototypes" >&5
+printf %s "checking whether $CC supports -Wstrict-prototypes... " >&6; }
+if eval test \${$as_ac_var+y}
+then :
+  printf %s "(cached) " >&6
+else $as_nop
+  ac_wine_try_cflags_saved=$CFLAGS
+ac_wine_try_cflags_saved_exeext=$ac_exeext
+CFLAGS="$CFLAGS -nostdlib -nodefaultlibs -Wstrict-prototypes"
+ac_exeext=".exe"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+void *__os_arm64x_dispatch_ret = 0;
+const unsigned int _load_config_used[0x50] = { sizeof(_load_config_used) };
+#if defined(__clang_major__) && defined(MIN_CLANG_VERSION) && __clang_major__ < MIN_CLANG_VERSION
+#error Too old clang version
+#endif
+int __cdecl mainCRTStartup(void) { return 0; }
+_ACEOF
+if ac_fn_c_try_link "$LINENO"
+then :
+  eval "$as_ac_var=yes"
+else $as_nop
+  eval "$as_ac_var=no"
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam \
+    conftest$ac_exeext conftest.$ac_ext
+CFLAGS=$ac_wine_try_cflags_saved
+ac_exeext=$ac_wine_try_cflags_saved_exeext
+fi
+eval ac_res=\$$as_ac_var
+	       { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
+printf "%s\n" "$ac_res" >&6; }
+if eval test \"x\$"$as_ac_var"\" = x"yes"
+then :
+  as_fn_append ${wine_arch}_EXTRACFLAGS " -Wstrict-prototypes"
+fi }
+    { as_ac_var=`printf "%s\n" "ac_cv_${wine_arch}_cflags_-Wabsolute-value" | $as_tr_sh`
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether $CC supports -Wabsolute-value" >&5
+printf %s "checking whether $CC supports -Wabsolute-value... " >&6; }
+if eval test \${$as_ac_var+y}
+then :
+  printf %s "(cached) " >&6
+else $as_nop
+  ac_wine_try_cflags_saved=$CFLAGS
+ac_wine_try_cflags_saved_exeext=$ac_exeext
+CFLAGS="$CFLAGS -nostdlib -nodefaultlibs -Wabsolute-value"
+ac_exeext=".exe"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+void *__os_arm64x_dispatch_ret = 0;
+const unsigned int _load_config_used[0x50] = { sizeof(_load_config_used) };
+#if defined(__clang_major__) && defined(MIN_CLANG_VERSION) && __clang_major__ < MIN_CLANG_VERSION
+#error Too old clang version
+#endif
+int __cdecl mainCRTStartup(void) { return 0; }
+_ACEOF
+if ac_fn_c_try_link "$LINENO"
+then :
+  eval "$as_ac_var=yes"
+else $as_nop
+  eval "$as_ac_var=no"
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam \
+    conftest$ac_exeext conftest.$ac_ext
+CFLAGS=$ac_wine_try_cflags_saved
+ac_exeext=$ac_wine_try_cflags_saved_exeext
+fi
+eval ac_res=\$$as_ac_var
+	       { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
+printf "%s\n" "$ac_res" >&6; }
+if eval test \"x\$"$as_ac_var"\" = x"yes"
+then :
+  as_fn_append ${wine_arch}_EXTRACFLAGS " -Wabsolute-value"
+fi }
+    { as_ac_var=`printf "%s\n" "ac_cv_${wine_arch}_cflags_-fasync-exceptions -DMIN_CLANG_VERSION=19" | $as_tr_sh`
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether $CC supports -fasync-exceptions -DMIN_CLANG_VERSION=19" >&5
+printf %s "checking whether $CC supports -fasync-exceptions -DMIN_CLANG_VERSION=19... " >&6; }
+if eval test \${$as_ac_var+y}
+then :
+  printf %s "(cached) " >&6
+else $as_nop
+  ac_wine_try_cflags_saved=$CFLAGS
+ac_wine_try_cflags_saved_exeext=$ac_exeext
+CFLAGS="$CFLAGS -nostdlib -nodefaultlibs -fasync-exceptions -DMIN_CLANG_VERSION=19"
+ac_exeext=".exe"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+void *__os_arm64x_dispatch_ret = 0;
+const unsigned int _load_config_used[0x50] = { sizeof(_load_config_used) };
+#if defined(__clang_major__) && defined(MIN_CLANG_VERSION) && __clang_major__ < MIN_CLANG_VERSION
+#error Too old clang version
+#endif
+int __cdecl mainCRTStartup(void) { return 0; }
+_ACEOF
+if ac_fn_c_try_link "$LINENO"
+then :
+  eval "$as_ac_var=yes"
+else $as_nop
+  eval "$as_ac_var=no"
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam \
+    conftest$ac_exeext conftest.$ac_ext
+CFLAGS=$ac_wine_try_cflags_saved
+ac_exeext=$ac_wine_try_cflags_saved_exeext
+fi
+eval ac_res=\$$as_ac_var
+	       { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
+printf "%s\n" "$ac_res" >&6; }
+if eval test \"x\$"$as_ac_var"\" = x"yes"
+then :
+  as_fn_append ${wine_arch}_EXTRACFLAGS " -fasync-exceptions"
+fi }
+
 done
 
 CC=$saved_CC
+CXX=$saved_CXX
 CFLAGS=$saved_CFLAGS
 CPPFLAGS=$saved_CPPFLAGS
+CXXFLAGS=$saved_CXXFLAGS
 LDFLAGS=$saved_LDFLAGS
 
 case $HOST_ARCH in
@@ -11345,6 +12186,35 @@ case $host_os in
   cygwin*|mingw32*)
     LIBEXT="dll"
     DLLEXT=""
+    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether the compiler supports -Wl,-delayload,autoconftest.dll" >&5
+printf %s "checking whether the compiler supports -Wl,-delayload,autoconftest.dll... " >&6; }
+if test ${ac_cv_cflags__Wl__delayload_autoconftest_dll+y}
+then :
+  printf %s "(cached) " >&6
+else $as_nop
+  ac_wine_try_cflags_saved=$CFLAGS
+CFLAGS="$CFLAGS -Wl,-delayload,autoconftest.dll"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+int main(int argc, char **argv) { return 0; }
+_ACEOF
+if ac_fn_c_try_link "$LINENO"
+then :
+  ac_cv_cflags__Wl__delayload_autoconftest_dll=yes
+else $as_nop
+  ac_cv_cflags__Wl__delayload_autoconftest_dll=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam \
+    conftest$ac_exeext conftest.$ac_ext
+CFLAGS=$ac_wine_try_cflags_saved
+fi
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_cflags__Wl__delayload_autoconftest_dll" >&5
+printf "%s\n" "$ac_cv_cflags__Wl__delayload_autoconftest_dll" >&6; }
+if test "x$ac_cv_cflags__Wl__delayload_autoconftest_dll" = xyes
+then :
+  DELAYLOADFLAG="-Wl,-delayload,"
+
+fi
     ;;
 
   darwin*)
@@ -11854,8 +12724,8 @@ printf %s "checking whether the compiler supports -Wl,--rosegment... " >&6; }
 if test ${ac_cv_cflags__Wl___rosegment+y}
 then :
   printf %s "(cached) " >&6
-else case e in #(
-  e) ac_wine_try_cflags_saved=$CFLAGS
+else $as_nop
+  ac_wine_try_cflags_saved=$CFLAGS
 CFLAGS="$CFLAGS -Wl,--rosegment"
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
@@ -11864,14 +12734,12 @@ _ACEOF
 if ac_fn_c_try_link "$LINENO"
 then :
   ac_cv_cflags__Wl___rosegment=yes
-else case e in #(
-  e) ac_cv_cflags__Wl___rosegment=no ;;
-esac
+else $as_nop
+  ac_cv_cflags__Wl___rosegment=no
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.beam \
     conftest$ac_exeext conftest.$ac_ext
-CFLAGS=$ac_wine_try_cflags_saved ;;
-esac
+CFLAGS=$ac_wine_try_cflags_saved
 fi
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_cflags__Wl___rosegment" >&5
 printf "%s\n" "$ac_cv_cflags__Wl___rosegment" >&6; }
@@ -13659,21 +14527,6 @@ else $as_nop
 fi
 printf "%s\n" "$as_me:${as_lineno-$LINENO}: capstone cflags: $CAPSTONE_PE_CFLAGS" >&5
 printf "%s\n" "$as_me:${as_lineno-$LINENO}: capstone libs: $CAPSTONE_PE_LIBS" >&5
-
-if ${COMPILER_RT_PE_LIBS:+false} :
-then :
-  COMPILER_RT_PE_LIBS="$wine_compiler_rt_libs"
-   if ${COMPILER_RT_PE_CFLAGS:+false} :
-then :
-  COMPILER_RT_PE_CFLAGS=
-else $as_nop
-  enable_compiler_rt=no
-fi
-else $as_nop
-  enable_compiler_rt=no
-fi
-printf "%s\n" "$as_me:${as_lineno-$LINENO}: compiler-rt cflags: $COMPILER_RT_PE_CFLAGS" >&5
-printf "%s\n" "$as_me:${as_lineno-$LINENO}: compiler-rt libs: $COMPILER_RT_PE_LIBS" >&5
 
 if ${FAUDIO_PE_LIBS:+false} :
 then :
@@ -19816,40 +20669,11 @@ then :
 fi
   fi
 
-    MSVCRTFLAGS=""
+  if test -n "$DLLEXT"
+  then
+    MSVCRTFLAGS="-D_WIN32"
 
-  case $host_os in
-    mingw32*)         { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether the compiler supports -Wl,-delayload,autoconftest.dll" >&5
-printf %s "checking whether the compiler supports -Wl,-delayload,autoconftest.dll... " >&6; }
-if test ${ac_cv_cflags__Wl__delayload_autoconftest_dll+y}
-then :
-  printf %s "(cached) " >&6
-else $as_nop
-  ac_wine_try_cflags_saved=$CFLAGS
-CFLAGS="$CFLAGS -Wl,-delayload,autoconftest.dll"
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-int main(int argc, char **argv) { return 0; }
-_ACEOF
-if ac_fn_c_try_link "$LINENO"
-then :
-  ac_cv_cflags__Wl__delayload_autoconftest_dll=yes
-else $as_nop
-  ac_cv_cflags__Wl__delayload_autoconftest_dll=no
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam \
-    conftest$ac_exeext conftest.$ac_ext
-CFLAGS=$ac_wine_try_cflags_saved
-fi
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_cflags__Wl__delayload_autoconftest_dll" >&5
-printf "%s\n" "$ac_cv_cflags__Wl__delayload_autoconftest_dll" >&6; }
-if test "x$ac_cv_cflags__Wl__delayload_autoconftest_dll" = xyes
-then :
-  DELAYLOADFLAG="-Wl,-delayload,"
-
-fi ;;
-    *) MSVCRTFLAGS="-D_WIN32"
-       { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether the compiler supports -mlong-double-64" >&5
+    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether the compiler supports -mlong-double-64" >&5
 printf %s "checking whether the compiler supports -mlong-double-64... " >&6; }
 if test ${ac_cv_cflags__mlong_double_64+y}
 then :
@@ -19877,7 +20701,7 @@ if test "x$ac_cv_cflags__mlong_double_64" = xyes
 then :
   MSVCRTFLAGS="$MSVCRTFLAGS -mlong-double-64"
 fi
-       { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether the compiler supports -fno-builtin" >&5
+    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether the compiler supports -fno-builtin" >&5
 printf %s "checking whether the compiler supports -fno-builtin... " >&6; }
 if test ${ac_cv_cflags__fno_builtin+y}
 then :
@@ -19905,7 +20729,7 @@ if test "x$ac_cv_cflags__fno_builtin" = xyes
 then :
   MSVCRTFLAGS="$MSVCRTFLAGS -fno-builtin"
 fi
-       { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether the compiler supports -fshort-wchar" >&5
+    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether the compiler supports -fshort-wchar" >&5
 printf %s "checking whether the compiler supports -fshort-wchar... " >&6; }
 if test ${ac_cv_cflags__fshort_wchar+y}
 then :
@@ -19933,7 +20757,7 @@ if test "x$ac_cv_cflags__fshort_wchar" = xyes
 then :
   MSVCRTFLAGS="$MSVCRTFLAGS -fshort-wchar"
 fi
-       { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether the compiler supports -Wno-format" >&5
+    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether the compiler supports -Wno-format" >&5
 printf %s "checking whether the compiler supports -Wno-format... " >&6; }
 if test ${ac_cv_cflags__Wno_format+y}
 then :
@@ -19960,11 +20784,10 @@ printf "%s\n" "$ac_cv_cflags__Wno_format" >&6; }
 if test "x$ac_cv_cflags__Wno_format" = xyes
 then :
   MSVCRTFLAGS="$MSVCRTFLAGS -Wno-format"
-fi ;;
-  esac
-
-  case $HOST_ARCH in
-        i386) { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether the compiler supports -fno-omit-frame-pointer" >&5
+fi
+    if test "$HOST_ARCH" = i386
+    then
+            { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether the compiler supports -fno-omit-frame-pointer" >&5
 printf %s "checking whether the compiler supports -fno-omit-frame-pointer... " >&6; }
 if test ${ac_cv_cflags__fno_omit_frame_pointer+y}
 then :
@@ -19991,45 +20814,16 @@ printf "%s\n" "$ac_cv_cflags__fno_omit_frame_pointer" >&6; }
 if test "x$ac_cv_cflags__fno_omit_frame_pointer" = xyes
 then :
   MSVCRTFLAGS="$MSVCRTFLAGS -fno-omit-frame-pointer"
-fi ;;
-    x86_64)
-      case $host_os in
-                cygwin*|mingw32*) { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether the compiler supports -Wno-format" >&5
-printf %s "checking whether the compiler supports -Wno-format... " >&6; }
-if test ${ac_cv_cflags__Wno_format+y}
-then :
-  printf %s "(cached) " >&6
-else $as_nop
-  ac_wine_try_cflags_saved=$CFLAGS
-CFLAGS="$CFLAGS -Wno-format"
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-int main(int argc, char **argv) { return 0; }
-_ACEOF
-if ac_fn_c_try_link "$LINENO"
-then :
-  ac_cv_cflags__Wno_format=yes
-else $as_nop
-  ac_cv_cflags__Wno_format=no
 fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam \
-    conftest$ac_exeext conftest.$ac_ext
-CFLAGS=$ac_wine_try_cflags_saved
-fi
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_cflags__Wno_format" >&5
-printf "%s\n" "$ac_cv_cflags__Wno_format" >&6; }
-if test "x$ac_cv_cflags__Wno_format" = xyes
-then :
-  EXTRACFLAGS="$EXTRACFLAGS -Wno-format"
-fi ;;
-                *) { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for working -mabi=ms" >&5
+    else
+            { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for working -mabi=ms" >&5
 printf %s "checking for working -mabi=ms... " >&6; }
 if test ${ac_cv_mabi_ms+y}
 then :
   printf %s "(cached) " >&6
 else $as_nop
   CFLAGS="$CFLAGS -mabi=ms"
-                cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+              cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 #include <stdarg.h>
 void a(int b, ...) { __builtin_ms_va_list list; __builtin_ms_va_start(list,b); }
@@ -20048,48 +20842,19 @@ else $as_nop
   ac_cv_mabi_ms=no
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
-                CFLAGS=$saved_CFLAGS
+              CFLAGS=$saved_CFLAGS
 fi
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_mabi_ms" >&5
 printf "%s\n" "$ac_cv_mabi_ms" >&6; }
-           if test "x$ac_cv_mabi_ms" = xyes
+      if test "x$ac_cv_mabi_ms" = xyes
 then :
   MSVCRTFLAGS="$MSVCRTFLAGS -mabi=ms"
 else $as_nop
   test -n "$PE_ARCHS" || as_fn_error $? "The compiler doesn't support -mabi=ms. Use gcc instead of clang, or install mingw-w64." "$LINENO" 5
-                      DLLEXT=""
-fi ;;
-      esac ;;
-    arm)
-      { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether the compiler supports -Wincompatible-function-pointer-types" >&5
-printf %s "checking whether the compiler supports -Wincompatible-function-pointer-types... " >&6; }
-if test ${ac_cv_cflags__Wincompatible_function_pointer_types+y}
-then :
-  printf %s "(cached) " >&6
-else $as_nop
-  ac_wine_try_cflags_saved=$CFLAGS
-CFLAGS="$CFLAGS -Wincompatible-function-pointer-types"
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-int main(int argc, char **argv) { return 0; }
-_ACEOF
-if ac_fn_c_try_link "$LINENO"
-then :
-  ac_cv_cflags__Wincompatible_function_pointer_types=yes
-else $as_nop
-  ac_cv_cflags__Wincompatible_function_pointer_types=no
+                 DLLEXT=""
 fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam \
-    conftest$ac_exeext conftest.$ac_ext
-CFLAGS=$ac_wine_try_cflags_saved
-fi
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_cflags__Wincompatible_function_pointer_types" >&5
-printf "%s\n" "$ac_cv_cflags__Wincompatible_function_pointer_types" >&6; }
-if test "x$ac_cv_cflags__Wincompatible_function_pointer_types" = xyes
-then :
-  EXTRACFLAGS="$EXTRACFLAGS -Wno-error=incompatible-function-pointer-types"
-fi ;;
-  esac
+    fi
+  fi
 
   CFLAGS=$saved_CFLAGS
 
@@ -22672,6 +23437,7 @@ test "x$enable_tools" = xno || wine_fn_config_makefile tools/wmc enable_wmc
 test "x$enable_tools" = xno || wine_fn_config_makefile tools/wrc enable_wrc
 
 
+
 as_fn_append CONFIGURE_TARGETS " TAGS"
 as_fn_append CONFIGURE_TARGETS " tags"
 as_fn_append CONFIGURE_TARGETS " config.log"
@@ -22740,7 +23506,7 @@ dlls/wineandroid.drv/wine-debug.apk: dlls/wineandroid.drv/build.gradle ${wine_sr
 	mv dlls/wineandroid.drv/build/outputs/apk/wine-debug.apk \$@"
 
 
-EXTERNAL_SUBDIRS="libs/capstone libs/compiler-rt libs/faudio libs/fluidsynth libs/gsm libs/jpeg libs/jxr libs/lcms2 libs/ldap libs/mpg123 libs/musl libs/png libs/tiff libs/tomcrypt libs/vkd3d libs/xml2 libs/xslt libs/zlib"
+EXTERNAL_SUBDIRS="libs/capstone libs/faudio libs/fluidsynth libs/gsm libs/jpeg libs/jxr libs/lcms2 libs/ldap libs/mpg123 libs/musl libs/png libs/tiff libs/tomcrypt libs/vkd3d libs/xml2 libs/xslt libs/zlib libs/compiler-rt"
 
 TAGSFLAGS="--langmap='c:+.idl.l.rh,make:(Make*.in)'"
 
@@ -23511,8 +24277,11 @@ TARGETFLAGS = $TARGETFLAGS
 toolsext = $toolsext
 HOST_ARCH = $HOST_ARCH
 aarch64_CC = $aarch64_CC
+aarch64_CXX = $aarch64_CXX
 aarch64_CFLAGS = $aarch64_CFLAGS
+aarch64_CXXFLAGS = $aarch64_CXXFLAGS
 aarch64_EXTRACFLAGS = $aarch64_EXTRACFLAGS
+aarch64_EXTRACXXFLAGS = $aarch64_EXTRACXXFLAGS
 aarch64_LDFLAGS = $aarch64_LDFLAGS
 aarch64_DEBUG = $aarch64_DEBUG
 aarch64_TARGET = $aarch64_TARGET
@@ -23520,8 +24289,11 @@ aarch64_STRIP = $aarch64_STRIP
 aarch64_DELAYLOADFLAG = $aarch64_DELAYLOADFLAG
 aarch64_DISABLED_SUBDIRS = $aarch64_DISABLED_SUBDIRS
 arm_CC = $arm_CC
+arm_CXX = $arm_CXX
 arm_CFLAGS = $arm_CFLAGS
+arm_CXXFLAGS = $arm_CXXFLAGS
 arm_EXTRACFLAGS = $arm_EXTRACFLAGS
+arm_EXTRACXXFLAGS = $arm_EXTRACXXFLAGS
 arm_LDFLAGS = $arm_LDFLAGS
 arm_DEBUG = $arm_DEBUG
 arm_TARGET = $arm_TARGET
@@ -23529,8 +24301,11 @@ arm_STRIP = $arm_STRIP
 arm_DELAYLOADFLAG = $arm_DELAYLOADFLAG
 arm_DISABLED_SUBDIRS = $arm_DISABLED_SUBDIRS
 arm64ec_CC = $arm64ec_CC
+arm64ec_CXX = $arm64ec_CXX
 arm64ec_CFLAGS = $arm64ec_CFLAGS
+arm64ec_CXXFLAGS = $arm64ec_CXXFLAGS
 arm64ec_EXTRACFLAGS = $arm64ec_EXTRACFLAGS
+arm64ec_EXTRACXXFLAGS = $arm64ec_EXTRACXXFLAGS
 arm64ec_LDFLAGS = $arm64ec_LDFLAGS
 arm64ec_DEBUG = $arm64ec_DEBUG
 arm64ec_TARGET = $arm64ec_TARGET
@@ -23538,8 +24313,11 @@ arm64ec_STRIP = $arm64ec_STRIP
 arm64ec_DELAYLOADFLAG = $arm64ec_DELAYLOADFLAG
 arm64ec_DISABLED_SUBDIRS = $arm64ec_DISABLED_SUBDIRS
 i386_CC = $i386_CC
+i386_CXX = $i386_CXX
 i386_CFLAGS = $i386_CFLAGS
+i386_CXXFLAGS = $i386_CXXFLAGS
 i386_EXTRACFLAGS = $i386_EXTRACFLAGS
+i386_EXTRACXXFLAGS = $i386_EXTRACXXFLAGS
 i386_LDFLAGS = $i386_LDFLAGS
 i386_DEBUG = $i386_DEBUG
 i386_TARGET = $i386_TARGET
@@ -23547,8 +24325,11 @@ i386_STRIP = $i386_STRIP
 i386_DELAYLOADFLAG = $i386_DELAYLOADFLAG
 i386_DISABLED_SUBDIRS = $i386_DISABLED_SUBDIRS
 x86_64_CC = $x86_64_CC
+x86_64_CXX = $x86_64_CXX
 x86_64_CFLAGS = $x86_64_CFLAGS
+x86_64_CXXFLAGS = $x86_64_CXXFLAGS
 x86_64_EXTRACFLAGS = $x86_64_EXTRACFLAGS
+x86_64_EXTRACXXFLAGS = $x86_64_EXTRACXXFLAGS
 x86_64_LDFLAGS = $x86_64_LDFLAGS
 x86_64_DEBUG = $x86_64_DEBUG
 x86_64_TARGET = $x86_64_TARGET
@@ -23589,6 +24370,7 @@ READELF = $READELF
 SUBDIRS = $SUBDIRS
 DISABLED_SUBDIRS = $DISABLED_SUBDIRS
 CONFIGURE_TARGETS = $CONFIGURE_TARGETS
+DELAYLOADFLAG = $DELAYLOADFLAG
 CORETEXT_LIBS = $CORETEXT_LIBS
 COREFOUNDATION_LIBS = $COREFOUNDATION_LIBS
 DISKARBITRATION_LIBS = $DISKARBITRATION_LIBS
@@ -23607,8 +24389,6 @@ WINELOADER_DEPENDS = $WINELOADER_DEPENDS
 MINGW_PKG_CONFIG = $MINGW_PKG_CONFIG
 CAPSTONE_PE_CFLAGS = $CAPSTONE_PE_CFLAGS
 CAPSTONE_PE_LIBS = $CAPSTONE_PE_LIBS
-COMPILER_RT_PE_CFLAGS = $COMPILER_RT_PE_CFLAGS
-COMPILER_RT_PE_LIBS = $COMPILER_RT_PE_LIBS
 FAUDIO_PE_CFLAGS = $FAUDIO_PE_CFLAGS
 FAUDIO_PE_LIBS = $FAUDIO_PE_LIBS
 FLUIDSYNTH_PE_CFLAGS = $FLUIDSYNTH_PE_CFLAGS
@@ -23709,7 +24489,6 @@ PROCSTAT_LIBS = $PROCSTAT_LIBS
 NETAPI_CFLAGS = $NETAPI_CFLAGS
 NETAPI_LIBS = $NETAPI_LIBS
 MSVCRTFLAGS = $MSVCRTFLAGS
-DELAYLOADFLAG = $DELAYLOADFLAG
 WINELOADER_PROGRAMS = $WINELOADER_PROGRAMS
 RT_LIBS = $RT_LIBS
 EXTERNAL_SUBDIRS = $EXTERNAL_SUBDIRS

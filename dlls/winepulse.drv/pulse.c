@@ -31,6 +31,7 @@
 #include <pulse/pulseaudio.h>
 
 #include "ntstatus.h"
+#define WIN32_NO_STATUS
 #include "winternl.h"
 
 #include "mmdeviceapi.h"
@@ -1176,12 +1177,6 @@ static NTSTATUS pulse_create_stream(void *args)
     stream->period_bytes = pa_frame_size(&stream->ss) * muldiv(params->period,
                                                                stream->ss.rate,
                                                                10000000);
-
-    if (stream->period_bytes == 0)
-    {
-        hr = E_INVALIDARG;
-        goto exit;
-    }
 
     stream->bufsize_frames = ceil((params->duration / 10000000.) * params->fmt->nSamplesPerSec);
     bufsize_bytes = stream->bufsize_frames * pa_frame_size(&stream->ss);

@@ -174,7 +174,7 @@ case "$host_cpu" in
   x86_64)          HOST_ARCH=x86_64 ;;
 esac
 m4_set_add_all([_AC_SUBST_VARS],[HOST_ARCH]m4_foreach([cpu],[aarch64,arm,arm64ec,i386,x86_64],
-                                [m4_foreach([var],[CC,CFLAGS,EXTRACFLAGS,LDFLAGS,DEBUG,TARGET,STRIP,DELAYLOADFLAG,DISABLED_SUBDIRS],[,cpu[_]var])]))
+                                [m4_foreach([var],[CC,CXX,CFLAGS,CXXFLAGS,EXTRACFLAGS,EXTRACXXFLAGS,LDFLAGS,DEBUG,TARGET,STRIP,DELAYLOADFLAG,DISABLED_SUBDIRS],[,cpu[_]var])]))
 
 case $host_os in
   darwin*)
@@ -396,8 +396,10 @@ AS_VAR_SET_IF([enable_archs],
 AS_VAR_IF([PE_ARCHS],[none],[cross_archs=])
 
 saved_CC=$CC
+saved_CXX=$CXX
 saved_CFLAGS=$CFLAGS
 saved_CPPFLAGS=$CPPFLAGS
+saved_CXXFLAGS=$CXXFLAGS
 saved_LDFLAGS=$LDFLAGS
 
 AS_UNSET(extra_arch)
@@ -446,8 +448,12 @@ do
     CPPFLAGS=""
     AS_VAR_SET_IF([${wine_arch}_CFLAGS],[],[AS_VAR_SET([${wine_arch}_CFLAGS],[${CROSSCFLAGS:-"-g -O2"}])])
     AS_VAR_SET_IF([${wine_arch}_LDFLAGS],[],[AS_VAR_SET([${wine_arch}_LDFLAGS],[$CROSSLDFLAGS])])
+    AS_VAR_SET_IF([${wine_arch}_CXX],[],[AS_VAR_COPY([${wine_arch}_CXX],[${wine_arch}_CC])])
+    AS_VAR_SET_IF([${wine_arch}_CXXFLAGS],[],[AS_VAR_COPY([${wine_arch}_CXXFLAGS],[${wine_arch}_CFLAGS])])
     AS_VAR_COPY([CC],[${wine_arch}_CC])
+    AS_VAR_COPY([CXX],[${wine_arch}_CXX])
     AS_VAR_COPY([CFLAGS],[${wine_arch}_CFLAGS])
+    AS_VAR_COPY([CXXFLAGS],[${wine_arch}_CXXFLAGS])
     AS_VAR_COPY([LDFLAGS],[${wine_arch}_LDFLAGS])
     AS_VAR_SET([${wine_arch}_EXTRACFLAGS],["-D__WINE_PE_BUILD -Wall"])
 
@@ -469,9 +475,13 @@ do
     target_strip=${target:-llvm}-strip
     if test "$wine_try_msvc" = yes -o -z "$target"
     then
-        llvm_target="$mingw_cpu-windows"
+        case $wine_arch in
+          arm)  llvm_target="$mingw_cpu-windows-gnu"
+                llvm_cflags="-mconsole -Wl,--fatal-warnings" ;;
+          *)    llvm_target="$mingw_cpu-windows"
+                llvm_cflags="-Wl,-subsystem:console -Wl,-WX" ;;
+        esac
         llvm_extra_cflags="-target $llvm_target -fuse-ld=lld"
-        llvm_cflags="-Wl,-subsystem:console -Wl,-WX"
     else
         llvm_target=$target
         llvm_extra_cflags="-fuse-ld=lld"
@@ -489,6 +499,7 @@ do
         AS_VAR_APPEND([${wine_arch}_EXTRACFLAGS],[" $llvm_extra_cflags"])
         AS_VAR_APPEND([${wine_arch}_LDFLAGS],[" $llvm_extra_ldflags"])
         CFLAGS="$CFLAGS $llvm_extra_cflags $llvm_cflags"
+        CXXFLAGS="$CXXFLAGS $llvm_extra_cflags $llvm_cflags"
     else
         AS_VAR_PUSHDEF([wine_cv_crosscc], [wine_cv_${wine_arch}_crosscc])
         AC_CACHE_CHECK([whether $CC works], wine_cv_crosscc,
@@ -534,6 +545,35 @@ This is an error since --enable-archs=$wine_arch was requested.])])
           AS_VAR_APPEND([${wine_arch}_CC],[" $res"]) ;;
     esac
 
+    AS_VAR_PUSHDEF([wine_cv_crosscxx_cxx17],[ac_cv_${wine_arch}_crosscxx_cxx17])
+    AC_MSG_CHECKING([for $CXX option to enable C++17 features])
+    AC_LANG_PUSH([C++])
+    AC_CACHE_VAL([wine_cv_crosscxx_cxx17],
+        [AS_VAR_SET([wine_cv_crosscxx_cxx17],[no])
+         for arg in '' '-std=gnu++17'
+         do
+             test -z "$arg" || CXX="$CXX $arg"
+             AC_COMPILE_IFELSE([AC_LANG_SOURCE([_AX_CXX_COMPILE_STDCXX_testbody_17])],
+                               [AS_VAR_SET([wine_cv_crosscxx_cxx17],[$arg])],
+                               [AS_VAR_SET([wine_cv_crosscxx_cxx17],[no])])
+             AS_VAR_COPY([CXX],[${wine_arch}_CXX])
+             AS_VAR_IF([wine_cv_crosscxx_cxx17],[no],[],[break])
+         done])
+    AS_VAR_COPY([res],[wine_cv_crosscxx_cxx17])
+    AC_LANG_POP([C++])
+    AS_VAR_POPDEF([wine_cv_crosscxx_cxx17])
+    case "x$res" in
+      x) AC_MSG_RESULT([none needed]) ;;
+      xno) AC_MSG_RESULT([unsupported])
+           AS_VAR_SET_IF([enable_archs],
+                [AC_MSG_ERROR([$wine_arch PE cross-compiler supporting C++17 not found.
+This is an error since --enable-archs=$wine_arch was requested.])])
+           continue
+           ;;
+      x*) AC_MSG_RESULT([$res])
+          AS_VAR_APPEND([${wine_arch}_CXX],[" $res"]) ;;
+    esac
+
     AS_VAR_IF([wine_arch],[i386],[],
               [AS_VAR_PUSHDEF([wine_cv_seh_support],[ac_cv_${wine_arch}_seh_support])
                AC_CACHE_CHECK([whether $CC supports SEH directives], wine_cv_seh_support,
@@ -555,24 +595,20 @@ This is an error since --enable-archs=$wine_arch was requested.])])
     WINE_TRY_PE_CFLAGS([-Werror=unused-command-line-argument],[CFLAGS="$CFLAGS -Werror=unused-command-line-argument"])
     WINE_TRY_PE_CFLAGS([-Werror=ignored-optimization-argument],[CFLAGS="$CFLAGS -Werror=ignored-optimization-argument"])
     WINE_TRY_PE_CFLAGS([-Werror=unsupported-floating-point-opt],[CFLAGS="$CFLAGS -Werror=unsupported-floating-point-opt"])
-    WINE_TRY_PE_CFLAGS([-Wdeclaration-after-statement])
     WINE_TRY_PE_CFLAGS([-Wempty-body])
     WINE_TRY_PE_CFLAGS([-Wignored-qualifiers])
     WINE_TRY_PE_CFLAGS([-Winit-self])
     WINE_TRY_PE_CFLAGS([-Wpacked-not-aligned],[AS_VAR_APPEND(${wine_arch}_EXTRACFLAGS,[" -Wno-packed-not-aligned"])])
     WINE_TRY_PE_CFLAGS([-Wmicrosoft-enum-forward-reference],[AS_VAR_APPEND(${wine_arch}_EXTRACFLAGS,[" -Wno-microsoft-enum-forward-reference"])])
     WINE_TRY_PE_CFLAGS([-Wshift-overflow=2])
-    WINE_TRY_PE_CFLAGS([-Wstrict-prototypes])
     WINE_TRY_PE_CFLAGS([-Wtype-limits])
     WINE_TRY_PE_CFLAGS([-Wunused-but-set-parameter])
     WINE_TRY_PE_CFLAGS([-Wvla])
     WINE_TRY_PE_CFLAGS([-Wwrite-strings])
     WINE_TRY_PE_CFLAGS([-Wpointer-arith])
     WINE_TRY_PE_CFLAGS([-Wlogical-op])
-    WINE_TRY_PE_CFLAGS([-Wabsolute-value])
     WINE_TRY_PE_CFLAGS([-Wenum-enum-conversion],[:],WINE_TRY_PE_CFLAGS([-Wenum-conversion]))
     WINE_TRY_PE_CFLAGS([-ffunction-sections])
-    WINE_TRY_PE_CFLAGS([-fasync-exceptions -DMIN_CLANG_VERSION=19], AS_VAR_APPEND([${wine_arch}_EXTRACFLAGS],[" -fasync-exceptions"]))
     WINE_TRY_PE_CFLAGS([-ffp-exception-behavior=maytrap])
 
     dnl clang had broken -fms-hotpatch support before version 18 (https://github.com/llvm/llvm-project/pull/77245)
@@ -640,11 +676,20 @@ This is an error since --enable-archs=$wine_arch was requested.])])
     dnl don't bother testing flags, compilation will fail afterwards
     test "x$enable_build_id" != xyes || AS_VAR_APPEND([${wine_arch}_LDFLAGS],[" -Wl,--build-id"])
 
+    dnl Options that differ between C and C++
+    AS_VAR_COPY([${wine_arch}_EXTRACXXFLAGS],[${wine_arch}_EXTRACFLAGS])
+    WINE_TRY_PE_CFLAGS([-Wdeclaration-after-statement])
+    WINE_TRY_PE_CFLAGS([-Wstrict-prototypes])
+    WINE_TRY_PE_CFLAGS([-Wabsolute-value])
+    WINE_TRY_PE_CFLAGS([-fasync-exceptions -DMIN_CLANG_VERSION=19], AS_VAR_APPEND([${wine_arch}_EXTRACFLAGS],[" -fasync-exceptions"]))
+
 done
 
 CC=$saved_CC
+CXX=$saved_CXX
 CFLAGS=$saved_CFLAGS
 CPPFLAGS=$saved_CPPFLAGS
+CXXFLAGS=$saved_CXXFLAGS
 LDFLAGS=$saved_LDFLAGS
 
 case $HOST_ARCH in
