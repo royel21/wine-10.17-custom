@@ -33,7 +33,6 @@
 #include <sys/stat.h>
 
 #include "ntstatus.h"
-#define WIN32_NO_STATUS
 #include "winternl.h"
 #include "unix_private.h"
 #include "wine/debug.h"

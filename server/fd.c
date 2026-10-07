@@ -89,7 +89,6 @@
 #endif
 
 #include "ntstatus.h"
-#define WIN32_NO_STATUS
 #include "object.h"
 #include "file.h"
 #include "handle.h"

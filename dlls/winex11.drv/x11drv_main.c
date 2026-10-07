@@ -41,7 +41,6 @@
 #endif
 
 #include "ntstatus.h"
-#define WIN32_NO_STATUS
 
 #include "x11drv.h"
 #include "winreg.h"

@@ -90,7 +90,6 @@ extern void _thread_set_tsd_base(uint64_t);
 #endif
 
 #include "ntstatus.h"
-#define WIN32_NO_STATUS
 #include "windef.h"
 #include "winternl.h"
 #include "ddk/wdm.h"
@@ -1205,6 +1204,7 @@ NTSTATUS WINAPI NtSetContextThread( HANDLE handle, const CONTEXT *context )
     if (flags & CONTEXT_FLOATING_POINT)
     {
         frame->xsave = context->FltSave;
+        frame->xsave.MxCsr = context->MxCsr;
         frame->xstate.Mask |= XSTATE_MASK_LEGACY;
     }
     if (flags & CONTEXT_XSTATE)
