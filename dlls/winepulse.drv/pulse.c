@@ -961,6 +961,8 @@ static HRESULT pulse_spec_from_waveformat(struct pulse_stream *stream, const WAV
             stream->ss.format = PA_SAMPLE_U8;
         else if (fmt->wBitsPerSample == 16)
             stream->ss.format = PA_SAMPLE_S16LE;
+        else if (fmt->wBitsPerSample == 24)
+            stream->ss.format = PA_SAMPLE_S24LE;
         else if (fmt->wBitsPerSample == 32)
             stream->ss.format = PA_SAMPLE_S32LE;
         else
@@ -971,7 +973,7 @@ static HRESULT pulse_spec_from_waveformat(struct pulse_stream *stream, const WAV
         WAVEFORMATEXTENSIBLE *wfe = (WAVEFORMATEXTENSIBLE*)fmt;
         UINT mask = wfe->dwChannelMask;
         unsigned i = 0, j;
-        if (fmt->cbSize != (sizeof(*wfe) - sizeof(*fmt)) && fmt->cbSize != sizeof(*wfe))
+        if (fmt->cbSize < sizeof(*wfe) - sizeof(*fmt))
             break;
         if (IsEqualGUID(&wfe->SubFormat, &KSDATAFORMAT_SUBTYPE_IEEE_FLOAT) &&
             (!wfe->Samples.wValidBitsPerSample || wfe->Samples.wValidBitsPerSample == 32) &&
@@ -997,9 +999,7 @@ static HRESULT pulse_spec_from_waveformat(struct pulse_stream *stream, const WAV
                         stream->ss.format = PA_SAMPLE_S24LE;
                     break;
                 case 32:
-                    if (valid == 24)
-                        stream->ss.format = PA_SAMPLE_S24_32LE;
-                    else if (valid == 32)
+                    if (valid == 32)
                         stream->ss.format = PA_SAMPLE_S32LE;
                     break;
                 default:
@@ -1025,19 +1025,6 @@ static HRESULT pulse_spec_from_waveformat(struct pulse_stream *stream, const WAV
         }
         break;
         }
-    case WAVE_FORMAT_ALAW:
-    case WAVE_FORMAT_MULAW:
-        if (fmt->wBitsPerSample != 8) {
-            FIXME("Unsupported bpp %u for LAW\n", fmt->wBitsPerSample);
-            return AUDCLNT_E_UNSUPPORTED_FORMAT;
-        }
-        if (fmt->nChannels != 1 && fmt->nChannels != 2) {
-            FIXME("Unsupported channels %u for LAW\n", fmt->nChannels);
-            return AUDCLNT_E_UNSUPPORTED_FORMAT;
-        }
-        stream->ss.format = fmt->wFormatTag == WAVE_FORMAT_MULAW ? PA_SAMPLE_ULAW : PA_SAMPLE_ALAW;
-        pa_channel_map_init_auto(&stream->map, fmt->nChannels, PA_CHANNEL_MAP_ALSA);
-        break;
     default:
         WARN("Unhandled tag %x\n", fmt->wFormatTag);
         return AUDCLNT_E_UNSUPPORTED_FORMAT;
