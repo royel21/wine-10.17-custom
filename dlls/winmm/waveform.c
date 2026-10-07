@@ -906,7 +906,7 @@ static MMRESULT WINMM_TryDeviceMapping(WINMM_Device *device, WAVEFORMATEX *fmt,
     hr = IAudioClient_IsFormatSupported(device->client,
             AUDCLNT_SHAREMODE_SHARED, &target, &closer_fmt);
     CoTaskMemFree(closer_fmt);
-    if(hr != S_OK)
+    if(FAILED(hr))
         return WAVERR_BADFORMAT;
 
     /* device supports our target format, so see if MSACM can
@@ -928,7 +928,8 @@ static MMRESULT WINMM_TryDeviceMapping(WINMM_Device *device, WAVEFORMATEX *fmt,
     }
 
     hr = IAudioClient_Initialize(device->client, AUDCLNT_SHAREMODE_SHARED,
-            AUDCLNT_STREAMFLAGS_EVENTCALLBACK | AUDCLNT_STREAMFLAGS_NOPERSIST,
+            AUDCLNT_STREAMFLAGS_EVENTCALLBACK | AUDCLNT_STREAMFLAGS_NOPERSIST
+            | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM,
             AC_BUFLEN, 0, &target, &device->parent->session);
     if(hr != S_OK){
         WARN("Initialize failed: %08lx\n", hr);
@@ -1131,16 +1132,23 @@ static LRESULT WINMM_OpenDevice(WINMM_Device *device, WINMM_OpenInfo *info,
         hr = IAudioClient_IsFormatSupported(device->client,
                 AUDCLNT_SHAREMODE_SHARED, device->orig_fmt, &closer_fmt);
         CoTaskMemFree(closer_fmt);
-        if((hr == S_FALSE || hr == AUDCLNT_E_UNSUPPORTED_FORMAT) && !(info->flags & WAVE_FORMAT_DIRECT))
-            ret = WINMM_MapDevice(device, TRUE, is_out);
+
+        /* S_FALSE means that the format requires conversion, but AUTOCONVERTPCM will do that for us. */
+        if (SUCCEEDED(hr))
+            ret = MMSYSERR_NOERROR;
+        else if (info->flags & WAVE_FORMAT_DIRECT)
+            ret = hr2mmr(hr);
         else
-            ret = hr == S_FALSE ? WAVERR_BADFORMAT : hr2mmr(hr);
+            ret = WINMM_MapDevice(device, TRUE, is_out);
+
         goto error;
     }
 
     hr = IAudioClient_Initialize(device->client, AUDCLNT_SHAREMODE_SHARED,
-            AUDCLNT_STREAMFLAGS_EVENTCALLBACK | AUDCLNT_STREAMFLAGS_NOPERSIST,
+            AUDCLNT_STREAMFLAGS_EVENTCALLBACK | AUDCLNT_STREAMFLAGS_NOPERSIST
+            | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM,
             AC_BUFLEN, 0, device->orig_fmt, &device->parent->session);
+
     if(FAILED(hr)){
         if(hr == AUDCLNT_E_UNSUPPORTED_FORMAT && !(info->flags & WAVE_FORMAT_DIRECT)){
             ret = WINMM_MapDevice(device, FALSE, is_out);
@@ -2742,8 +2750,16 @@ MMRESULT WINAPI waveOutOpen(LPHWAVEOUT lphWaveOut, UINT uDeviceID,
 
     res = SendMessageW(g_devices_hwnd, WODM_OPEN, (DWORD_PTR)&info, 0);
     InterlockedDecrement(&g_devthread_token);
-    if(res != MMSYSERR_NOERROR || (dwFlags & WAVE_FORMAT_QUERY))
+
+    if (dwFlags & WAVE_FORMAT_QUERY)
         return res;
+
+    if (res != MMSYSERR_NOERROR)
+    {
+        if (lphWaveOut)
+            *lphWaveOut = 0;
+        return res;
+    }
 
     if(lphWaveOut)
         *lphWaveOut = (HWAVEOUT)info.handle;

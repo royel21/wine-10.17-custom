@@ -1002,6 +1002,7 @@ case $host_os in
     WINE_TRY_CFLAGS([-Wl,-z,defs],[UNIXLDFLAGS="$UNIXLDFLAGS -Wl,-z,defs"])
     WINE_TRY_CFLAGS([-fPIC -Wl,--export-dynamic],[WINELOADER_LDFLAGS="-Wl,--export-dynamic"])
     WINEPRELOADER_LDFLAGS="-static -nostartfiles -nodefaultlibs -Wl,-Ttext=0x7d400000"
+    WINE_TRY_CFLAGS([-Wl,--rosegment], [WINEPRELOADER_LDFLAGS="$WINEPRELOADER_LDFLAGS -Wl,--rosegment"])
 
     WINE_CHECK_SONAME(GLESv2,glFlush)
 
@@ -3317,6 +3318,8 @@ WINE_CONFIG_MAKEFILE(dlls/windows.gaming.ui.gamebar)
 WINE_CONFIG_MAKEFILE(dlls/windows.gaming.ui.gamebar/tests)
 WINE_CONFIG_MAKEFILE(dlls/windows.globalization)
 WINE_CONFIG_MAKEFILE(dlls/windows.globalization/tests)
+WINE_CONFIG_MAKEFILE(dlls/windows.graphics)
+WINE_CONFIG_MAKEFILE(dlls/windows.graphics/tests)
 WINE_CONFIG_MAKEFILE(dlls/windows.media.devices)
 WINE_CONFIG_MAKEFILE(dlls/windows.media.devices/tests)
 WINE_CONFIG_MAKEFILE(dlls/windows.media.mediacontrol)

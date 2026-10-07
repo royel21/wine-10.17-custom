@@ -2088,7 +2088,6 @@ static void test_format(WAVEFORMATEXTENSIBLE *fmt)
             /* Native seems to largely ignore when the channel mask has nonsensical values, while Wine is more picky. */
             || (fmt->Format.wFormatTag == WAVE_FORMAT_EXTENSIBLE && __popcnt(fmt->dwChannelMask) != fmt->Format.nChannels)))
     ok(mmr == expected || broken(channel_mismatch), "waveOutOpen(0) got result %#08x, expected %#08x\n", mmr, expected);
-    todo_wine_if((mmr == MMSYSERR_NOERROR) != !!hwo)
     ok((mmr == MMSYSERR_NOERROR) == !!hwo, "Unexpected waveout %p\n", hwo);
 
     if (hwo && hwo != (void *)0xdeadf00d)
@@ -2108,7 +2107,6 @@ static void test_format(WAVEFORMATEXTENSIBLE *fmt)
             || (fmt->Format.wFormatTag == WAVE_FORMAT_EXTENSIBLE && __popcnt(fmt->dwChannelMask) != fmt->Format.nChannels)))
     ok(mmr == expected || (mmr == MMSYSERR_INVALPARAM && expected == WAVERR_BADFORMAT) || broken(channel_mismatch),
             "waveOutOpen(DIRECT) got result %#08x, expected %#08x\n", mmr, expected);
-    todo_wine_if((mmr == MMSYSERR_NOERROR) != !!hwo)
     ok((mmr == MMSYSERR_NOERROR) == !!hwo, "Unexpected waveout %p\n", hwo);
 
     if (hwo && hwo != (void *)0xdeadf00d)
@@ -2452,12 +2450,15 @@ static void test_formats(void)
     for (i = 0; i < wave_format_count; ++i)
     {
         const char *additional_context = wave_formats[i].additional_context;
-        WAVEFORMATEXTENSIBLE fmt = wave_formats[i].format;
+        /* The test "cbSize += 1" needs to reserve additional memory. */
+        char buf[sizeof(WAVEFORMATEXTENSIBLE) + 1];
+        WAVEFORMATEXTENSIBLE *fmt = (WAVEFORMATEXTENSIBLE*)&buf;
+        *fmt = wave_formats[i].format;
 
         winetest_push_context("test %u%s%s", i, additional_context ? ", " : "",
                 additional_context ? additional_context : "");
-        push_format_context(&fmt);
-        test_format(&fmt);
+        push_format_context(fmt);
+        test_format(fmt);
         winetest_pop_context();
         winetest_pop_context();
     }

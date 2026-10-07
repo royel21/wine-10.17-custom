@@ -912,6 +912,7 @@ SOURCES = \
 	windows.graphics.capture.interop.idl \
 	windows.graphics.directx.direct3d11.idl \
 	windows.graphics.directx.idl \
+	windows.graphics.display.idl \
 	windows.graphics.effects.idl \
 	windows.graphics.holographic.idl \
 	windows.graphics.idl \
@@ -962,6 +963,8 @@ SOURCES = \
 	windows.ui.idl \
 	windows.ui.input.idl \
 	windows.ui.notifications.idl \
+	windows.ui.text.core.idl \
+	windows.ui.text.idl \
 	windows.ui.viewmanagement.core.idl \
 	windows.ui.viewmanagement.idl \
 	windows.ui.windowmanagement.idl \

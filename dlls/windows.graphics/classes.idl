@@ -1,5 +1,7 @@
 /*
- * Copyright 2019 Zebediah Figura
+ * Runtime Classes for windows.graphics.dll
+ *
+ * Copyright 2026 Zhiyi Zhang for CodeWeavers
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,11 +18,12 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-#include "winuser.h"
+#pragma makedep register
+#pragma winrt ns_prefix
 
-/* @makedep: msvfw32.manifest */
-1 RT_MANIFEST msvfw32.manifest
+import "windows.graphics.display.idl";
 
-/* ffmpeg -f lavfi -i "sine=frequency=500" -t 0.5 -ar 48000 -b:a 32k -f mp3 -acodec mp3 -write_xing 0 test.mp3 */
-/* @makedep: test.mp3 */
-test.mp3 RCDATA "test.mp3"
+namespace Windows.Graphics.Display {
+    runtimeclass AdvancedColorInfo;
+    runtimeclass DisplayInformation;
+}
