@@ -970,8 +970,6 @@ BOOL ANDROID_CreateWindow( HWND hwnd )
     {
         struct android_win_data *data;
 
-        init_event_queue();
-        start_android_device();
         if (!(data = alloc_win_data( hwnd ))) return FALSE;
         release_win_data( data );
     }
@@ -1235,6 +1233,8 @@ BOOL has_client_surface( HWND hwnd )
  */
 BOOL ANDROID_CreateDesktop( const WCHAR *name, UINT width, UINT height )
 {
+    init_event_queue();
+    start_android_device();
     /* wait until we receive the surface changed event */
     while (!screen_width)
     {
@@ -1245,5 +1245,5 @@ BOOL ANDROID_CreateDesktop( const WCHAR *name, UINT width, UINT height )
         }
         process_events( QS_ALLINPUT );
     }
-    return 0;
+    return TRUE;
 }
