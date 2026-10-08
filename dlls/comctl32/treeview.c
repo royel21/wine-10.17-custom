@@ -4303,9 +4303,14 @@ TREEVIEW_LButtonDown(TREEVIEW_INFO *infoPtr, LPARAM lParam)
 
         if (do_focus)
         {
-            infoPtr->focusedItem = ht.hItem;
             TREEVIEW_InvalidateItem(infoPtr, infoPtr->focusedItem);
-            TREEVIEW_InvalidateItem(infoPtr, infoPtr->selectedItem);
+            if (infoPtr->focusedItem != ht.hItem)
+            {
+                infoPtr->focusedItem = ht.hItem;
+                TREEVIEW_InvalidateItem(infoPtr, infoPtr->focusedItem);
+            }
+            if (infoPtr->focusedItem != infoPtr->selectedItem)
+                TREEVIEW_InvalidateItem(infoPtr, infoPtr->selectedItem);
         }
     }
 
