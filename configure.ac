@@ -1261,6 +1261,8 @@ WINE_EXTLIB_FLAGS(CXXABI, c++abi, "c++abi \$(UNWIND_PE_LIBS) c++", "-I\$(top_src
 WINE_EXTLIB_FLAGS(FAUDIO, faudio, "faudio mfplat mfreadwrite mfuuid propsys", "-I\$(top_srcdir)/libs/faudio/include")
 WINE_EXTLIB_FLAGS(FLUIDSYNTH, fluidsynth, "fluidsynth", "-I\$(top_srcdir)/libs/fluidsynth/include")
 WINE_EXTLIB_FLAGS(GSM, gsm, gsm, "-I\$(top_srcdir)/libs/gsm/inc")
+WINE_EXTLIB_FLAGS(ICUCOMMON, icucommon, icucommon, "-I\$(top_srcdir)/libs/icucommon")
+WINE_EXTLIB_FLAGS(ICUI18N, icui18n, icui18n)
 WINE_EXTLIB_FLAGS(JPEG, jpeg, jpeg, "-I\$(top_srcdir)/libs/jpeg")
 WINE_EXTLIB_FLAGS(JXR, jxr, jxr, "-I\$(top_srcdir)/libs/jxr/jxrgluelib -I\$(top_srcdir)/libs/jxr/image/sys")
 WINE_EXTLIB_FLAGS(LCMS2, lcms2, lcms2, "-I\$(top_srcdir)/libs/lcms2/include")
@@ -2456,6 +2458,7 @@ else
     enable_xtajit64=${enable_xtajit64:-no}
     enable_compiler_rt=${enable_compiler_rt:-no}
     dnl Disable modules that need C++
+    enable_icu=${enable_icu:-no}
     enable_dmsynth=${enable_dmsynth:-no}
 fi
 
@@ -2846,6 +2849,9 @@ WINE_CONFIG_MAKEFILE(dlls/iccvid/tests)
 WINE_CONFIG_MAKEFILE(dlls/icmp)
 WINE_CONFIG_MAKEFILE(dlls/icmui)
 WINE_CONFIG_MAKEFILE(dlls/icmui/tests)
+WINE_CONFIG_MAKEFILE(dlls/icu)
+WINE_CONFIG_MAKEFILE(dlls/icuin)
+WINE_CONFIG_MAKEFILE(dlls/icuuc)
 WINE_CONFIG_MAKEFILE(dlls/ieframe)
 WINE_CONFIG_MAKEFILE(dlls/ieframe/tests)
 WINE_CONFIG_MAKEFILE(dlls/ieproxy)
@@ -3572,6 +3578,8 @@ WINE_CONFIG_MAKEFILE(libs/dxguid)
 WINE_CONFIG_MAKEFILE(libs/faudio)
 WINE_CONFIG_MAKEFILE(libs/fluidsynth)
 WINE_CONFIG_MAKEFILE(libs/gsm)
+WINE_CONFIG_MAKEFILE(libs/icucommon)
+WINE_CONFIG_MAKEFILE(libs/icui18n)
 WINE_CONFIG_MAKEFILE(libs/jpeg)
 WINE_CONFIG_MAKEFILE(libs/jxr)
 WINE_CONFIG_MAKEFILE(libs/lcms2)

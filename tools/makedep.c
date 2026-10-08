@@ -2427,23 +2427,23 @@ static struct strarray add_import_libs( const struct makefile *make, struct stra
         {
             const char *ext = (type == IMPORT_TYPE_DELAYED && !delay_load_flags[arch]) ? ".delay.a" : ".a";
             lib = obj_dir_path( submake, strmake( "%slib%s%s", arch_dirs[arch], basename, ext ));
+            goto found;
         }
-        else if ((submake = get_static_lib( basename )))
+        if ((submake = get_static_lib( basename )) && !submake->disabled[link_arch])
         {
-            if (submake->disabled[link_arch]) continue;
             lib = obj_dir_path( submake, strmake( "%slib%s.a", arch_dirs[arch], basename ));
+            goto found;
         }
-        else if (name[0] == '-')  /* pass the original -l option to the linker */
+        if (name[0] == '-')  /* pass the original -l option to the linker */
         {
             strarray_add( &ret, name );
             continue;
         }
-        else
-        {
-            input_file_name = src_dir_path( make, "Makefile.in" );
-            fatal_error( "library %s not found\n", basename );
-        }
+        if (submake) continue;  /* ignore disabled lib */
+        input_file_name = src_dir_path( make, "Makefile.in" );
+        fatal_error( "library %s not found\n", basename );
 
+     found:
         strarray_add_uniq( deps, lib );
         strarray_add( &ret, lib );
     }
@@ -3351,6 +3351,16 @@ static void output_source_nls( struct makefile *make, struct incl_file *source, 
 
 
 /*******************************************************************
+ *         output_source_dat
+ */
+static void output_source_dat( struct makefile *make, struct incl_file *source, const char *obj )
+{
+    install_data_file_src( make, source->name, source->name, "$(datadir)/wine/nls" );
+    output_srcdir_symlink( make, strmake( "%s.dat", obj ));
+}
+
+
+/*******************************************************************
  *         output_source_desktop
  */
 static void output_source_desktop( struct makefile *make, struct incl_file *source, const char *obj )
@@ -3746,6 +3756,7 @@ static const struct
     { "sfd", output_source_sfd },
     { "svg", output_source_svg },
     { "nls", output_source_nls },
+    { "dat", output_source_dat },
     { "desktop", output_source_desktop },
     { "po", output_source_po },
     { "in", output_source_in },

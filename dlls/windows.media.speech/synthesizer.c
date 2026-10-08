@@ -304,7 +304,7 @@ static ULONG WINAPI vector_view_voice_information_Release( IVectorView_VoiceInfo
         for (i = 0; i < impl->provider.num_voices; ++i)
         {
             IVoiceInformation_Release(impl->provider.voices[i]);
-            impl->provider.voices[i] = 0;
+            impl->provider.voices[i] = NULL;
         }
         impl->provider.num_voices = 0;
     }
@@ -1801,12 +1801,16 @@ static HRESULT WINAPI installed_voices_static_get_DefaultVoice( IInstalledVoices
 
     EnterCriticalSection(&allvoices_cs);
 
+    if (FAILED(hr = static_installed_voices_init()))
+        goto end;
+
     if (SUCCEEDED(hr = IVectorView_VoiceInformation_GetAt(&all_voices.IVectorView_VoiceInformation_iface, 0, &static_voice)))
     {
         hr = voice_information_clone(static_voice, value);
         IVoiceInformation_Release(static_voice);
     }
 
+end:
     LeaveCriticalSection(&allvoices_cs);
 
     return hr;
