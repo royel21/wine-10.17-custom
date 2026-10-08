@@ -472,14 +472,12 @@ static HRESULT stack_assume_disp(exec_ctx_t *ctx, unsigned n, IDispatch **disp)
 
     if(V_VT(v) != VT_DISPATCH && (disp || V_VT(v) != VT_UNKNOWN)) {
         if(V_VT(v) != (VT_VARIANT|VT_BYREF)) {
-            FIXME("not supported type: %s\n", debugstr_variant(v));
-            return E_FAIL;
+            return MAKE_VBSERROR(VBSE_OBJECT_REQUIRED);
         }
 
         ref = V_VARIANTREF(v);
         if(V_VT(ref) != VT_DISPATCH && (disp || V_VT(ref) != VT_UNKNOWN)) {
-            FIXME("not disp %s\n", debugstr_variant(ref));
-            return E_FAIL;
+            return MAKE_VBSERROR(VBSE_OBJECT_REQUIRED);
         }
 
         V_VT(v) = V_VT(ref);
@@ -1519,9 +1517,8 @@ static HRESULT interp_newenum(exec_ctx_t *ctx)
         break;
     }
     default:
-        FIXME("Unsupported for %s\n", debugstr_variant(v.v));
         release_val(&v);
-        return E_NOTIMPL;
+        return MAKE_VBSERROR(VBSE_NOT_ENUM);
     }
 
     return S_OK;
@@ -1540,8 +1537,7 @@ static HRESULT interp_enumnext(exec_ctx_t *ctx)
     TRACE("\n");
 
     if(V_VT(stack_top(ctx, 0)) == VT_EMPTY) {
-        FIXME("uninitialized\n");
-        return E_FAIL;
+        return MAKE_VBSERROR(VBSE_NOT_ENUM);
     }
 
     assert(V_VT(stack_top(ctx, 0)) == VT_UNKNOWN);

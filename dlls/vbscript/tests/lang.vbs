@@ -359,6 +359,62 @@ ElseIf not False Then
 End If
 Call ok(x, "elseif not called?")
 
+If false Then x = 1 Else
+If false Then x = 1 Else:
+
+' Else with trailing End If on same line
+x = 1
+If false Then
+   x = 2
+Else x = 3 End If
+Call ok(x = 3, "Else with trailing End If failed")
+
+' Else with colon separator before End If
+x = 1
+If false Then
+   x = 2
+Else x = 3:End If
+Call ok(x = 3, "Else with colon before End If failed")
+
+' Else with colon then statement with trailing End If
+x = 1
+If false Then
+   x = 2
+Else:x = 3 End If
+Call ok(x = 3, "Else colon then statement with trailing End If failed")
+
+' Else with multiple statements and trailing End If
+x = 1
+y = 1
+If false Then
+   x = 2
+Else x = 3:y = 4 End If
+Call ok(x = 3, "Else multi-statement trailing End If failed for x")
+Call ok(y = 4, "Else multi-statement trailing End If failed for y")
+
+' Else with body statement on next line with trailing End If
+x = 1
+If false Then
+   x = 2
+Else
+   x = 3 End If
+Call ok(x = 3, "Else body statement with trailing End If failed")
+
+' ElseIf single-line with trailing End If
+x = 1
+If false Then
+   x = 2
+ElseIf true Then x = 3 End If
+Call ok(x = 3, "ElseIf single-line with trailing End If failed")
+
+' Empty Else block with newline
+x = 1
+If false Then
+   x = 2
+Else
+End If
+Call ok(x = 1, "empty Else block should be accepted")
+
 x = false
 If true Then
   :x = true
@@ -1381,6 +1437,25 @@ End Class
 
 Set obj = New TestMe
 Call obj.test(obj)
+
+Class TestMeIndex
+    Private arr_(1)
+    Public Default Property Get Item(idx)
+        Item = arr_(idx)
+    End Property
+    Public Sub SetVal(idx, val)
+        arr_(idx) = val
+    End Sub
+    Public Sub TestAccess()
+        SetVal 0, "hello"
+        SetVal 1, "world"
+        Call ok(Me(0) = "hello", "Me(0) = " & Me(0))
+        Call ok(Me(1) = "world", "Me(1) = " & Me(1))
+    End Sub
+End Class
+
+Set obj = New TestMeIndex
+Call obj.TestAccess()
 
 Call ok(getVT(test) = "VT_DISPATCH", "getVT(test) = " & getVT(test))
 Call ok(Me is Test, "Me is not Test")
