@@ -1815,6 +1815,7 @@ struct test_media_stream
     IMFMediaSource *source;
     LONGLONG sample_duration;
     LONGLONG sample_time;
+    LONGLONG prev_key_frame;
     BOOL is_new;
     BOOL test_expect;
     BOOL delay_sample;
@@ -1925,16 +1926,34 @@ static HRESULT WINAPI test_media_stream_GetStreamDescriptor(IMFMediaStream *ifac
     return S_OK;
 }
 
+static void test_media_stream_send_delayed_samples(struct test_media_stream *stream)
+{
+    DWORD delayed_samples;
+    IMFSample *sample;
+    HRESULT hr;
+    int i;
+
+    hr = IMFCollection_GetElementCount(stream->delayed_samples, &delayed_samples);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    for (i = 0; i < delayed_samples; i++)
+    {
+        hr = IMFCollection_RemoveElement(stream->delayed_samples, 0, (IUnknown **)&sample);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        hr = IMFMediaEventQueue_QueueEventParamUnk(stream->event_queue, MEMediaSample, &GUID_NULL, S_OK,
+                (IUnknown *)sample);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    }
+}
+
 DEFINE_EXPECT(test_media_stream_RequestSample);
 
 static HRESULT WINAPI test_media_stream_RequestSample(IMFMediaStream *iface, IUnknown *token)
 {
     struct test_media_stream *stream = impl_from_IMFMediaStream(iface);
-    IMFSample *sample, *delayed_sample;
     IMFMediaBuffer *buffer;
-    DWORD delayed_samples;
+    IMFSample *sample;
     HRESULT hr;
-    INT i;
 
     if (stream->test_expect)
     {
@@ -1989,17 +2008,7 @@ static HRESULT WINAPI test_media_stream_RequestSample(IMFMediaStream *iface, IUn
     }
     else
     {
-        hr = IMFCollection_GetElementCount(stream->delayed_samples, &delayed_samples);
-        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-
-        for (i = 0; i < delayed_samples; i++)
-        {
-            hr = IMFCollection_RemoveElement(stream->delayed_samples, 0, (IUnknown **)&delayed_sample);
-            ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-            hr = IMFMediaEventQueue_QueueEventParamUnk(stream->event_queue, MEMediaSample, &GUID_NULL, S_OK,
-                (IUnknown *)delayed_sample);
-            ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-        }
+        test_media_stream_send_delayed_samples(stream);
 
         hr = IMFMediaEventQueue_QueueEventParamUnk(stream->event_queue, MEMediaSample, &GUID_NULL, S_OK,
                 (IUnknown *)sample);
@@ -2040,6 +2049,7 @@ static struct test_media_stream *create_test_stream(DWORD stream_index, IMFMedia
     IMFMediaSource_AddRef(stream->source);
     stream->is_new = TRUE;
     stream->sample_duration = 333667;
+    stream->prev_key_frame = -1;
     hr = MFCreateCollection(&stream->delayed_samples);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     stream->delayed_sample_event = CreateEventW(NULL, FALSE, FALSE, NULL);
@@ -2275,7 +2285,10 @@ static HRESULT WINAPI test_source_Start(IMFMediaSource *iface, IMFPresentationDe
 
         if (start_position->vt == VT_I8)
         {
-            source->streams[i]->sample_time = start_position->hVal.QuadPart;
+            if (source->streams[i]->prev_key_frame >= 0)
+                source->streams[i]->sample_time = source->streams[i]->prev_key_frame;
+            else
+                source->streams[i]->sample_time = start_position->hVal.QuadPart;
             event_type = MEStreamSeeked;
         }
         else
@@ -10459,7 +10472,7 @@ static HRESULT WINAPI test_transform_ProcessInput(IMFTransform *iface, DWORD id,
         hr = E_NOTIMPL;
     }
 
-    CHECK_EXPECT(test_transform_ProcessInput);
+    CHECK_EXPECT2(test_transform_ProcessInput);
     add_object_state(&actual_object_state_record, MFT_PROCESS_INPUT);
 
     return hr;
@@ -10560,19 +10573,25 @@ static void test_media_session_seek(void)
     static const struct object_state_record expected_seek_start_no_pending_request_records = {{SOURCE_STOP, MFT_FLUSH, SOURCE_START, SINK_FLUSH, SINK_ON_CLOCK_START}, 5};
     static const struct object_state_record expected_seek_start_pending_request_records = {{SOURCE_STOP, MFT_FLUSH, SOURCE_START, MFT_PROCESS_OUTPUT, SOURCE_REQUEST_SAMPLE, SINK_FLUSH, SINK_ON_CLOCK_START}, 7};
 
+    IMFTopologyNode *src_node, *mft_node, *sink_node;
     MFT_OUTPUT_STREAM_INFO output_stream_info = {0};
     struct test_callback *test_callback;
     struct test_media_sink *media_sink;
     struct test_source *media_source;
     struct test_handler *handler;
     IMFAsyncCallback *callback;
+    IMFCollection *collection;
     IMFMediaSession *session;
+    LONGLONG time, duration;
     IMFMediaSource *source;
     IMFTopology *topology;
     PROPVARIANT propvar;
     IMFMediaType *type;
     IMFTransform *mft;
+    IMFSample *sample;
+    DWORD input_idx;
     UINT32 status;
+    DWORD count;
     HRESULT hr;
     INT i;
 
@@ -10599,15 +10618,41 @@ static void test_media_session_seek(void)
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     hr = IMFMediaType_SetUINT64(type, &MF_MT_FRAME_SIZE, (UINT64)640 << 32 | 480);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFMediaType_SetUINT32(type, &MF_MT_ALL_SAMPLES_INDEPENDENT, TRUE);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     mft = NULL;
     hr = test_transform_create(1, &type, 1, &type, FALSE, &mft);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     test_transform_set_output_stream_info(mft, &output_stream_info);
-    IMFMediaType_Release(type);
 
     SET_EXPECT(test_transform_ProcessMessage_BEGIN_STREAMING);
     topology = create_test_topology_unk(source, (IUnknown*)media_sink->stream, (IUnknown*) mft, NULL);
-    hr = IMFMediaSession_SetTopology(session, 0, topology);
+
+    hr = IMFTopology_GetSourceNodeCollection(topology, &collection);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFCollection_GetElement(collection, 0, (IUnknown**)&src_node);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    IMFCollection_Release(collection);
+
+    hr = IMFTopologyNode_SetUINT64(src_node, &MF_TOPONODE_MEDIASTART, 0);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFTopologyNode_GetOutput(src_node, 0, &mft_node, &input_idx);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    IMFTopologyNode_Release(src_node);
+
+    hr = IMFTopologyNode_SetUINT32(mft_node, &MF_TOPONODE_MARKIN_HERE, 1);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFTopologyNode_SetUINT32(mft_node, &MF_TOPONODE_MARKOUT_HERE, 1);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IMFTopologyNode_GetOutput(mft_node, 0, &sink_node, &input_idx);
+    IMFTopologyNode_Release(mft_node);
+
+    hr = IMFTopologyNode_SetInputPrefType(sink_node, 0, type);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    IMFTopologyNode_Release(sink_node);
+    IMFMediaType_Release(type);
+
+    hr = IMFMediaSession_SetTopology(session, MFSESSION_SETTOPOLOGY_NORESOLUTION, topology);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     IMFTopology_Release(topology);
 
@@ -10665,7 +10710,6 @@ static void test_media_session_seek(void)
     CHECK_CALLED(test_transform_ProcessOutput);
     CHECK_CALLED(test_transform_ProcessInput);
     CHECK_CALLED(test_stream_sink_ProcessSample);
-    CLEAR_CALLED(test_stream_sink_ProcessSample);
 
     compare_object_states(&actual_object_state_record, &expected_sample_request_and_delivery_records);
 
@@ -10699,7 +10743,7 @@ static void test_media_session_seek(void)
     SET_EXPECT(test_stream_sink_Flush);
     SET_EXPECT(test_transform_ProcessMessage_FLUSH);
     propvar.vt = VT_I8;
-    propvar.hVal.QuadPart = 10000000;
+    propvar.hVal.QuadPart = 1000000;
     hr = IMFMediaSession_Start(session, NULL, &propvar);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     PropVariantClear(&propvar);
@@ -10750,11 +10794,20 @@ static void test_media_session_seek(void)
     SET_EXPECT(test_transform_ProcessMessage_FLUSH);
     SET_EXPECT(test_transform_ProcessOutput);
     SET_EXPECT(test_media_stream_RequestSample);
+    SET_EXPECT(test_transform_ProcessInput);
+    SET_EXPECT(test_stream_sink_ProcessSample);
     propvar.vt = VT_I8;
     propvar.hVal.QuadPart = 10000000;
+
+    /* mimic that nearest keyframe is one and a half frames prior to requested seek position */
+    media_source->streams[0]->prev_key_frame = 10000000 - media_source->streams[0]->sample_duration * 3 / 2;
+
     hr = IMFMediaSession_Start(session, NULL, &propvar);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     PropVariantClear(&propvar);
+
+    ResetEvent(media_sink->stream->sample_event);
+    IMFCollection_RemoveAllElements(media_sink->stream->samples);
 
     hr = wait_media_event(session, callback, MESessionStarted, 1000, &propvar);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
@@ -10765,12 +10818,46 @@ static void test_media_session_seek(void)
     CHECK_CALLED(test_media_sink_GetStreamSinkCount);
     CHECK_CALLED(test_stream_sink_Flush);
     CHECK_CALLED(test_transform_ProcessMessage_FLUSH);
-    CHECK_CALLED(test_transform_ProcessOutput);
     CHECK_CALLED(test_media_stream_RequestSample);
     CLEAR_CALLED(test_transform_ProcessMessage_FLUSH);
 
     flaky
     compare_object_states(&actual_object_state_record, &expected_seek_start_pending_request_records);
+
+    hr = WaitForSingleObject(media_source->streams[0]->delayed_sample_event, 1000);
+    ok(hr == WAIT_OBJECT_0, "Unexpected hr %#lx.\n", hr);
+
+    media_source->streams[0]->delay_sample = FALSE;
+    media_source->streams[0]->test_expect = FALSE;
+
+    /* Release the delayed samples */
+    test_media_stream_send_delayed_samples(media_source->streams[0]);
+
+    hr = WaitForSingleObject(media_sink->stream->sample_event, 1000);
+    ok(hr == WAIT_OBJECT_0, "Unexpected hr %#lx.\n", hr);
+
+    /* The first frame should be dropped and the second should be trimmed */
+    hr = IMFCollection_GetElementCount(media_sink->stream->samples, &count);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(count == 1, "Unexpected count %ld\n", count);
+
+    for (i = 0; i < count; i++)
+    {
+        winetest_push_context("sample %d", i);
+
+        hr = IMFCollection_GetElement(media_sink->stream->samples, i, (IUnknown**)&sample);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+        hr = IMFSample_GetSampleTime(sample, &time);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        hr = IMFSample_GetSampleDuration(sample, &duration);
+        ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+        ok(time == 10000000, "Unexpected time %I64d.\n", time);
+        ok(duration == (media_source->streams[0]->sample_duration+1)/2, "Unexpected duration %I64d.\n", duration);
+
+        IMFSample_Release(sample);
+        winetest_pop_context();
+    }
 
     IMFAsyncCallback_Release(callback);
     IMFTransform_Release(mft);
@@ -10781,6 +10868,10 @@ static void test_media_session_seek(void)
 
     hr = IMFMediaSource_Shutdown(source);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    CLEAR_CALLED(test_transform_ProcessInput);
+    CLEAR_CALLED(test_transform_ProcessOutput);
+    CLEAR_CALLED(test_stream_sink_ProcessSample);
 
     IMFMediaSession_Release(session);
     IMFMediaSource_Release(source);
