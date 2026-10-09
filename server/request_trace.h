@@ -53,6 +53,7 @@ static void dump_varargs_unicode_str( const char *prefix, data_size_t size );
 static void dump_varargs_unicode_strings( const char *prefix, data_size_t size );
 static void dump_varargs_user_handles( const char *prefix, data_size_t size );
 static void dump_varargs_ushorts( const char *prefix, data_size_t size );
+static void dump_varargs_version_res( const char *prefix, data_size_t size );
 
 static const void *cur_data;
 static data_size_t cur_size;
@@ -883,8 +884,10 @@ static void dump_get_mapping_info_reply( const struct get_mapping_info_reply *re
     fprintf( stderr, ", flags=%08x", req->flags );
     fprintf( stderr, ", shared_file=%04x", req->shared_file );
     fprintf( stderr, ", name_len=%u", req->name_len );
+    fprintf( stderr, ", ver_len=%u", req->ver_len );
     fprintf( stderr, ", total=%u", req->total );
     dump_varargs_pe_image_info( ", image=", cur_size );
+    dump_varargs_version_res( ", version=", min( cur_size, req->ver_len ));
     dump_varargs_unicode_str( ", name=", min( cur_size, req->name_len ));
     dump_varargs_string( ", exp_name=", cur_size );
 }
@@ -2223,11 +2226,12 @@ static void dump_get_thread_input_reply( const struct get_thread_input_reply *re
     dump_obj_locator( " locator=", &req->locator );
 }
 
-static void dump_get_last_input_time_request( const struct get_last_input_time_request *req )
+static void dump_set_user_input_time_request( const struct set_user_input_time_request *req )
 {
+    fprintf( stderr, " set=%d", req->set );
 }
 
-static void dump_get_last_input_time_reply( const struct get_last_input_time_reply *req )
+static void dump_set_user_input_time_reply( const struct set_user_input_time_reply *req )
 {
     fprintf( stderr, " time=%08x", req->time );
 }
@@ -3746,7 +3750,7 @@ static const dump_func req_dumpers[REQ_NB_REQUESTS] =
     (dump_func)dump_unregister_hotkey_request,
     (dump_func)dump_attach_thread_input_request,
     (dump_func)dump_get_thread_input_request,
-    (dump_func)dump_get_last_input_time_request,
+    (dump_func)dump_set_user_input_time_request,
     (dump_func)dump_get_key_state_request,
     (dump_func)dump_set_key_state_request,
     (dump_func)dump_set_foreground_window_request,
@@ -4060,7 +4064,7 @@ static const dump_func reply_dumpers[REQ_NB_REQUESTS] =
     (dump_func)dump_unregister_hotkey_reply,
     NULL,
     (dump_func)dump_get_thread_input_reply,
-    (dump_func)dump_get_last_input_time_reply,
+    (dump_func)dump_set_user_input_time_reply,
     (dump_func)dump_get_key_state_reply,
     NULL,
     (dump_func)dump_set_foreground_window_reply,
@@ -4374,7 +4378,7 @@ static const char * const req_names[REQ_NB_REQUESTS] =
     "unregister_hotkey",
     "attach_thread_input",
     "get_thread_input",
-    "get_last_input_time",
+    "set_user_input_time",
     "get_key_state",
     "set_key_state",
     "set_foreground_window",
@@ -4554,7 +4558,6 @@ static const struct
     { "INVALID_ACL",                 STATUS_INVALID_ACL },
     { "INVALID_ADDRESS",             STATUS_INVALID_ADDRESS },
     { "INVALID_ADDRESS_COMPONENT",   STATUS_INVALID_ADDRESS_COMPONENT },
-    { "INVALID_BUFFER_SIZE",         STATUS_INVALID_BUFFER_SIZE },
     { "INVALID_CID",                 STATUS_INVALID_CID },
     { "INVALID_CONNECTION",          STATUS_INVALID_CONNECTION },
     { "INVALID_DEVICE_REQUEST",      STATUS_INVALID_DEVICE_REQUEST },
@@ -4573,9 +4576,6 @@ static const struct
     { "INVALID_PIPE_STATE",          STATUS_INVALID_PIPE_STATE },
     { "INVALID_READ_MODE",           STATUS_INVALID_READ_MODE },
     { "INVALID_SECURITY_DESCR",      STATUS_INVALID_SECURITY_DESCR },
-    { "INVALID_USER_BUFFER",         STATUS_INVALID_USER_BUFFER },
-    { "IO_REPARSE_DATA_INVALID",     STATUS_IO_REPARSE_DATA_INVALID },
-    { "IO_REPARSE_TAG_INVALID",      STATUS_IO_REPARSE_TAG_INVALID },
     { "IO_TIMEOUT",                  STATUS_IO_TIMEOUT },
     { "KERNEL_APC",                  STATUS_KERNEL_APC },
     { "KEY_DELETED",                 STATUS_KEY_DELETED },
@@ -4587,7 +4587,6 @@ static const struct
     { "NETWORK_UNREACHABLE",         STATUS_NETWORK_UNREACHABLE },
     { "NOT_ALL_ASSIGNED",            STATUS_NOT_ALL_ASSIGNED },
     { "NOT_A_DIRECTORY",             STATUS_NOT_A_DIRECTORY },
-    { "NOT_A_REPARSE_POINT",         STATUS_NOT_A_REPARSE_POINT },
     { "NOT_FOUND",                   STATUS_NOT_FOUND },
     { "NOT_IMPLEMENTED",             STATUS_NOT_IMPLEMENTED },
     { "NOT_MAPPED_VIEW",             STATUS_NOT_MAPPED_VIEW },
