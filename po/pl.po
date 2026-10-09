@@ -10,7 +10,7 @@ msgstr ""
 "Project-Id-Version: Wine\n"
 "Report-Msgid-Bugs-To: https://bugs.winehq.org\n"
 "POT-Creation-Date: N/A\n"
-"PO-Revision-Date: 2025-11-26 07:59+0100\n"
+"PO-Revision-Date: 2026-03-21 17:30+0100\n"
 "Last-Translator: Adam Markowski <wbcwknvstb@proton.me>\n"
 "Language-Team: Polish <kde-i18n-doc@kde.org>\n"
 "Language: pl\n"
@@ -19,7 +19,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 "
 "|| n%100>=20) ? 1 : 2);\n"
-"X-Generator: Poedit 3.8\n"
+"X-Generator: Poedit 3.9\n"
 
 #: dlls/aclui/aclui.rc:29 dlls/inetcpl.cpl/inetcpl.rc:90
 #: programs/winefile/winefile.rc:114
@@ -487,7 +487,7 @@ msgstr "&Zamknij"
 
 #: dlls/comctl32/comctl32.rc:101
 msgid "R&eset"
-msgstr "Wyze&ruj"
+msgstr "&Resetuj"
 
 #: dlls/comctl32/comctl32.rc:102 dlls/comdlg32/comdlg32.rc:173
 #: dlls/comdlg32/comdlg32.rc:195 dlls/comdlg32/comdlg32.rc:266
@@ -999,7 +999,7 @@ msgstr "Nazwa pliku:"
 msgid "Files of type:"
 msgstr "Pliki rodzaju:"
 
-#: dlls/comdlg32/comdlg32.rc:33 dlls/vbscript/vbscript.rc:35
+#: dlls/comdlg32/comdlg32.rc:33 dlls/vbscript/vbscript.rc:36
 msgid "File not found"
 msgstr "Nie znaleziono pliku"
 
@@ -2978,9 +2978,9 @@ msgid ""
 "sign messages with it.\n"
 "Are you sure you want to remove this certificate?"
 msgstr ""
-"Już nie będziesz mógł odszyfrowywać i podpisywać wiadomości tym "
+"Już nie będzie można odszyfrowywać i podpisywać wiadomości tym "
 "certyfikatem.\n"
-"Czy jesteś pewien, że chcesz usunąć ten certyfikat?"
+"Czy na pewno chcesz usunąć ten certyfikat?"
 
 #: dlls/cryptui/cryptui.rc:111
 msgid ""
@@ -2988,9 +2988,9 @@ msgid ""
 "sign messages with them.\n"
 "Are you sure you want to remove these certificates?"
 msgstr ""
-"Już nie będziesz mógł odszyfrowywać i podpisywać wiadomości tymi "
+"Już nie będzie można odszyfrowywać i podpisywać wiadomości tymi "
 "certyfikatami.\n"
-"Czy jesteś pewien, że chcesz usunąć te certyfikaty?"
+"Czy na pewno chcesz usunąć te certyfikaty?"
 
 #: dlls/cryptui/cryptui.rc:112
 msgid ""
@@ -2998,9 +2998,9 @@ msgid ""
 "verify messages signed with it.\n"
 "Are you sure you want to remove this certificate?"
 msgstr ""
-"Już nie będziesz mógł szyfrować i weryfikować wiadomości podpisanych tym "
+"Już nie będzie można szyfrować i weryfikować wiadomości podpisanych tym "
 "certyfikatem.\n"
-"Czy jesteś pewien, że chcesz usunąć ten certyfikat?"
+"Czy na pewno chcesz usunąć ten certyfikat?"
 
 #: dlls/cryptui/cryptui.rc:113
 msgid ""
@@ -3008,9 +3008,9 @@ msgid ""
 "verify messages signed with them.\n"
 "Are you sure you want to remove these certificates?"
 msgstr ""
-"Już nie będziesz mógł szyfrować i weryfikować wiadomości podpisanych tymi "
+"Już nie będzie można szyfrować i weryfikować wiadomości podpisanych tymi "
 "certyfikatami.\n"
-"Czy jesteś pewien, że chcesz usunąć te certyfikaty?"
+"Czy na pewno chcesz usunąć te certyfikaty?"
 
 #: dlls/cryptui/cryptui.rc:114
 msgid ""
@@ -3019,7 +3019,7 @@ msgid ""
 "Are you sure you want to remove this certificate?"
 msgstr ""
 "Certyfikaty wydane przez ten urząd certyfikacji stracą zaufanie.\n"
-"Czy jesteś pewien, że chcesz usunąć ten certyfikat?"
+"Czy na pewno chcesz usunąć ten certyfikat?"
 
 #: dlls/cryptui/cryptui.rc:115
 msgid ""
@@ -3028,7 +3028,7 @@ msgid ""
 "Are you sure you want to remove these certificates?"
 msgstr ""
 "Certyfikaty wydane przez te urzędy certyfikacji stracą zaufanie.\n"
-"Czy jesteś pewien, że chcesz usunąć te certyfikaty?"
+"Czy na pewno chcesz usunąć te certyfikaty?"
 
 #: dlls/cryptui/cryptui.rc:116
 msgid ""
@@ -3038,7 +3038,7 @@ msgid ""
 msgstr ""
 "Certyfikaty wydane przez ten główny urząd certyfikacji, albo jakiekolwiek "
 "urzędy certyfikacji, które wydał, stracą zaufanie.\n"
-"Czy jesteś pewien, że chcesz usunąć ten główny zaufany certyfikat?"
+"Czy na pewno chcesz usunąć ten główny zaufany certyfikat?"
 
 #: dlls/cryptui/cryptui.rc:117
 msgid ""
@@ -3048,7 +3048,7 @@ msgid ""
 msgstr ""
 "Certyfikaty wydane przez te główne urzędy certyfikacji, albo jakiekolwiek "
 "urzędy certyfikacji, które wydały, stracą zaufanie.\n"
-"Czy jesteś pewien, że chcesz usunąć te główne zaufane certyfikaty?"
+"Czy na pewno chcesz usunąć te główne zaufane certyfikaty?"
 
 #: dlls/cryptui/cryptui.rc:118
 msgid ""
@@ -3056,7 +3056,7 @@ msgid ""
 "Are you sure you want to remove this certificate?"
 msgstr ""
 "Oprogramowanie podpisane przez tego wydawce stracą zaufanie.\n"
-"Czy jesteś pewien, że chcesz usunąć ten certyfikat?"
+"Czy na pewno chcesz usunąć ten certyfikat?"
 
 #: dlls/cryptui/cryptui.rc:119
 msgid ""
@@ -3064,15 +3064,15 @@ msgid ""
 "Are you sure you want to remove these certificates?"
 msgstr ""
 "Oprogramowanie podpisane przez tych wydawców stracą zaufanie.\n"
-"Czy jesteś pewien, że chcesz usunąć te certyfikaty?"
+"Czy na pewno chcesz usunąć te certyfikaty?"
 
 #: dlls/cryptui/cryptui.rc:120
 msgid "Are you sure you want to remove this certificate?"
-msgstr "Czy jesteś pewien, że chcesz usunąć ten certyfikat?"
+msgstr "Czy na pewno chcesz usunąć ten certyfikat?"
 
 #: dlls/cryptui/cryptui.rc:121
 msgid "Are you sure you want to remove these certificates?"
-msgstr "Czy jesteś pewien, że chcesz usunąć te certyfikaty?"
+msgstr "Czy na pewno chcesz usunąć te certyfikaty?"
 
 #: dlls/cryptui/cryptui.rc:124
 msgid "Ensures the identity of a remote computer"
@@ -3231,7 +3231,7 @@ msgstr "Wirtualny pulpit"
 
 #: dlls/desk.cpl/desk.rc:40 dlls/joy.cpl/joy.rc:41
 msgid "&Reset"
-msgstr "Wyze&ruj"
+msgstr "&Resetuj"
 
 #: dlls/desk.cpl/desk.rc:42
 msgid "Emulate display mode changes (requires restart)"
@@ -3251,7 +3251,7 @@ msgstr "Ustawienia urządzeń"
 
 #: dlls/dinput/dinput.rc:39
 msgid "Reset"
-msgstr "Wyzeruj"
+msgstr "Resetuj"
 
 #: dlls/dinput/dinput.rc:42
 msgid "Player"
@@ -3979,7 +3979,7 @@ msgstr "Indeks dolny poza zakresem"
 msgid "Out of stack space"
 msgstr "Wyczerpano pamięć stosu"
 
-#: dlls/jscript/jscript.rc:32 dlls/vbscript/vbscript.rc:46
+#: dlls/jscript/jscript.rc:32 dlls/vbscript/vbscript.rc:47
 msgid "Object required"
 msgstr "Wymagany obiekt"
 
@@ -3987,19 +3987,19 @@ msgstr "Wymagany obiekt"
 msgid "Automation server can't create object"
 msgstr "Serwer automatyzacji nie może stworzyć obiektu"
 
-#: dlls/jscript/jscript.rc:34 dlls/vbscript/vbscript.rc:50
+#: dlls/jscript/jscript.rc:34 dlls/vbscript/vbscript.rc:51
 msgid "Object doesn't support this property or method"
 msgstr "Obiekt nie wspiera tej właściwości lub metody"
 
-#: dlls/jscript/jscript.rc:35 dlls/vbscript/vbscript.rc:51
+#: dlls/jscript/jscript.rc:35 dlls/vbscript/vbscript.rc:52
 msgid "Object doesn't support this action"
 msgstr "Obiekt nie wspiera tej akcji"
 
-#: dlls/jscript/jscript.rc:36 dlls/vbscript/vbscript.rc:55
+#: dlls/jscript/jscript.rc:36 dlls/vbscript/vbscript.rc:56
 msgid "Argument not optional"
 msgstr "Argument nieopcjonalny"
 
-#: dlls/jscript/jscript.rc:37 dlls/vbscript/vbscript.rc:57
+#: dlls/jscript/jscript.rc:37 dlls/vbscript/vbscript.rc:58
 msgid "Object not a collection"
 msgstr "Obiekt nie jest zbiorem"
 
@@ -4075,7 +4075,7 @@ msgstr "Błąd kompilacji Microsoft JScript"
 msgid "Microsoft JScript runtime error"
 msgstr "Błąd biblioteki uruchomieniowej Microsoft JScript"
 
-#: dlls/jscript/jscript.rc:99 dlls/vbscript/vbscript.rc:65
+#: dlls/jscript/jscript.rc:99 dlls/vbscript/vbscript.rc:66
 msgid "Unknown runtime error"
 msgstr "Nieznany błąd biblioteki uruchomieniowej"
 
@@ -7274,7 +7274,7 @@ msgstr "Nie można przypisać żądanego adresu.\n"
 
 #: dlls/kernelbase/winerror.mc:3785
 msgid "Connection reset by peer.\n"
-msgstr "Połączenie wyzerowane przez uczestnika.\n"
+msgstr "Połączenie zresetowane przez uczestnika.\n"
 
 #: dlls/kernelbase/winerror.mc:3795
 msgid "Host not found.\n"
@@ -7301,10 +7301,8 @@ msgid "Call failed.\n"
 msgstr "Nie udało się wywołać.\n"
 
 #: dlls/kernelbase/winerror.mc:3817
-#, fuzzy
-#| msgid "Unable to unload media.\n"
 msgid "Unable to find matching object.\n"
-msgstr "Nie można wysunąć nośnika.\n"
+msgstr "Nie można znaleźć pasującego obiektu.\n"
 
 #: dlls/kernelbase/winerror.mc:3824
 msgid "No Signature found in file.\n"
@@ -8882,226 +8880,172 @@ msgid "Wine Video 1 video codec"
 msgstr "Kodek Wine Video 1"
 
 #: dlls/msxml3/msxml.mc:31
-#, fuzzy
-#| msgid "Undefined external error."
 msgid "Undefined reference\n"
-msgstr "Niezdefiniowany błąd zewnętrzny."
+msgstr "Niezdefiniowane odniesienie\n"
 
 #: dlls/msxml3/msxml.mc:38
 msgid "Found self-referential entity\n"
-msgstr ""
+msgstr "Znaleziono jednostkę autoreferencyjną\n"
 
 #: dlls/msxml3/msxml.mc:45
 msgid "Unparsed entity reference\n"
-msgstr ""
+msgstr "Nieprzetworzone odniesienie do encji\n"
 
 #: dlls/msxml3/msxml.mc:52
 msgid "Name text contains colon ':'\n"
-msgstr ""
+msgstr "Tekst nazwy zawiera dwukropek ':'\n"
 
 #: dlls/msxml3/msxml.mc:59
 msgid "Namespace prefix hasn't been declared\n"
-msgstr ""
+msgstr "Prefiks przestrzeni nazw nie został zadeklarowany\n"
 
 #: dlls/msxml3/msxml.mc:66
-#, fuzzy
-#| msgid "Expected '='"
 msgid "Expected '=' character\n"
-msgstr "Oczekiwano ';'"
+msgstr "Oczekiwano znaku '='\n"
 
 #: dlls/msxml3/msxml.mc:73
-#, fuzzy
-#| msgid "Expected an operator.\n"
 msgid "Expected a quote character\n"
-msgstr "Oczekiwano operatora.\n"
+msgstr "Oczekiwano znaku cytatu\n"
 
 #: dlls/msxml3/msxml.mc:80
 msgid "Malformed comment\n"
-msgstr ""
+msgstr "Nieprawidłowy komentarz\n"
 
 #: dlls/msxml3/msxml.mc:87
-#, fuzzy
-#| msgid "Invalid character"
 msgid "Invalid name start character\n"
-msgstr "Nieprawidłowy znak"
+msgstr "Nieprawidłowy znak początkowy nazwy\n"
 
 #: dlls/msxml3/msxml.mc:94
-#, fuzzy
-#| msgid "Invalid character"
 msgid "Invalid name character\n"
-msgstr "Nieprawidłowy znak"
+msgstr "Nieprawidłowy znak nazwy\n"
 
 #: dlls/msxml3/msxml.mc:101
 msgid "The '<' character found in attribute value\n"
-msgstr ""
+msgstr "Znaleziono znak '<' w wartości atrybutu\n"
 
 #: dlls/msxml3/msxml.mc:108
-#, fuzzy
-#| msgid "Expected an operator.\n"
 msgid "Expected whitespace character\n"
-msgstr "Oczekiwano operatora.\n"
+msgstr "Oczekiwano znaku odstępu\n"
 
 #: dlls/msxml3/msxml.mc:115
-#, fuzzy
-#| msgid "Expected an operator.\n"
 msgid "Expected end tag character '>'\n"
-msgstr "Oczekiwano operatora.\n"
+msgstr "Oczekiwano znaku końcowego znacznika '>'\n"
 
 #: dlls/msxml3/msxml.mc:122
-#, fuzzy
-#| msgid "Invalid character(s) in path"
 msgid "Invalid character in DTD content\n"
-msgstr "Błędny(e) znak(i) w nazwie"
+msgstr "Nieprawidłowy znak w treści DTD\n"
 
 #: dlls/msxml3/msxml.mc:129
-#, fuzzy
-#| msgid "Expected ';'"
 msgid "Expected ';' character\n"
-msgstr "Oczekiwano ';'"
+msgstr "Oczekiwano znaku ';'\n"
 
 #: dlls/msxml3/msxml.mc:136
-#, fuzzy
-#| msgid "Invalid character(s) in path"
 msgid "Invalid character in entity reference\n"
-msgstr "Błędny(e) znak(i) w nazwie"
+msgstr "Nieprawidłowy znak w odniesieniu do encji\n"
 
 #: dlls/msxml3/msxml.mc:143
-#, fuzzy
-#| msgid "Invalid character(s) in path"
 msgid "Invalid character in mixed DTD content\n"
-msgstr "Błędny(e) znak(i) w nazwie"
+msgstr "Nieprawidłowy znak w mieszanej zawartości DTD\n"
 
 #: dlls/msxml3/msxml.mc:150
-#, fuzzy
-#| msgid "Expected an operator.\n"
 msgid "Expected '*' character\n"
-msgstr "Oczekiwano operatora.\n"
+msgstr "Oczekiwano znaku '*'\n"
 
 #: dlls/msxml3/msxml.mc:157
-#, fuzzy
-#| msgid "Expected an operator.\n"
 msgid "Expected parenthesis character\n"
-msgstr "Oczekiwano operatora.\n"
+msgstr "Oczekiwano znaku nawiasu\n"
 
 #: dlls/msxml3/msxml.mc:164
-#, fuzzy
-#| msgid "Invalid character(s) in path"
 msgid "Invalid character in DTD enumeration\n"
-msgstr "Błędny(e) znak(i) w nazwie"
+msgstr "Nieprawidłowy znak w wyliczeniu DTD\n"
 
 #: dlls/msxml3/msxml.mc:171
-#, fuzzy
-#| msgid "Invalid name syntax.\n"
 msgid "Invalid PI syntax\n"
-msgstr "Niepoprawna nazwa składni.\n"
+msgstr "Nieprawidłowa składnia PI\n"
 
 #: dlls/msxml3/msxml.mc:178
-#, fuzzy
-#| msgid "Expected an operator.\n"
 msgid "Expected closing quote character\n"
-msgstr "Oczekiwano operatora.\n"
+msgstr "Oczekiwano znaku zamknięcia cudzysłowu\n"
 
 #: dlls/msxml3/msxml.mc:185
 msgid "Multiple colon character found\n"
-msgstr ""
+msgstr "Znaleziono wiele znaków dwukropka\n"
 
 #: dlls/msxml3/msxml.mc:192
-#, fuzzy
-#| msgid "Invalid character"
 msgid "Invalid Unicode character\n"
-msgstr "Nieprawidłowy znak"
+msgstr "Nieprawidłowy znak Unicode\n"
 
 #: dlls/msxml3/msxml.mc:199
 msgid "Expected whitespace or '?' character\n"
-msgstr ""
+msgstr "Oczekiwano spacji lub znaku '?'\n"
 
 #: dlls/msxml3/msxml.mc:206
 msgid "Unexpected end tag '>' character\n"
-msgstr ""
+msgstr "Nieoczekiwany znak końcowy znacznika '>'\n"
 
 #: dlls/msxml3/msxml.mc:213
-#, fuzzy
-#| msgid "Invalid group attributes.\n"
 msgid "Found duplicate attribute\n"
-msgstr "Niepoprawne atrybuty grupy.\n"
+msgstr "Znaleziono duplikat atrybutu\n"
 
 #: dlls/msxml3/msxml.mc:220
-#, fuzzy
-#| msgid "Key is invalid.\n"
 msgid "Document root is invalid\n"
-msgstr "Nieprawidłowy klucz.\n"
+msgstr "Katalog główny dokumentów jest nieprawidłowy\n"
 
 #: dlls/msxml3/msxml.mc:227
-#, fuzzy
-#| msgid "Invalid handle operation.\n"
 msgid "Invalid xml declaration\n"
-msgstr "Nieprawidłowe działanie na uchwycie.\n"
+msgstr "Nieprawidłowa deklaracja XML\n"
 
 #: dlls/msxml3/msxml.mc:234
-#, fuzzy
-#| msgid "Source is missing.\n"
 msgid "Document root is missing\n"
-msgstr "Brakuje źródła.\n"
+msgstr "Brakuje katalogu głównego dokumentów\n"
 
 #: dlls/msxml3/msxml.mc:241
 msgid "Unexpected end of input data stream\n"
-msgstr ""
+msgstr "Nieoczekiwany koniec strumienia danych wejściowych\n"
 
 #: dlls/msxml3/msxml.mc:248
 msgid "Found unexpected CDATA closing markup ']]>'\n"
-msgstr ""
+msgstr "Znaleziono nieoczekiwany znacznik zamykający CDATA ']]>'\n"
 
 #: dlls/msxml3/msxml.mc:255
 msgid "Found unterminated PI declaration\n"
-msgstr ""
+msgstr "Znaleziono niezakończoną deklarację PI\n"
 
 #: dlls/msxml3/msxml.mc:262
 msgid "Found unterminated end tag\n"
-msgstr ""
+msgstr "Znaleziono niezakończony znacznik końcowy\n"
 
 #: dlls/msxml3/msxml.mc:269
 msgid "Found unterminated CDATA block\n"
-msgstr ""
+msgstr "Znaleziono niezakończony blok CDATA\n"
 
 #: dlls/msxml3/msxml.mc:276
 msgid "Use namespace prefix is reserved\n"
-msgstr ""
+msgstr "Używany prefiks przestrzeni nazw jest zarezerwowany\n"
 
 #: dlls/msxml3/msxml.mc:283
-#, fuzzy
-#| msgid "The passwords do not match."
 msgid "End tag does not match\n"
-msgstr "Niezgodność haseł."
+msgstr "Znacznik końcowy nie pasuje\n"
 
 #: dlls/msxml3/msxml.mc:290
-#, fuzzy
-#| msgid "Invalid domain name.\n"
 msgid "Invalid encoding name\n"
-msgstr "Niepoprawna nazwa domeny.\n"
+msgstr "Nieprawidłowa nazwa kodowania\n"
 
 #: dlls/msxml3/msxml.mc:297
-#, fuzzy
-#| msgid "Invalid media type.\n"
 msgid "Invalid model in DTD contentspec\n"
-msgstr "Nieprawidłowy rodzaj treści.\n"
+msgstr "Nieprawidłowy model w specyfikacji zawartości DTD\n"
 
 #: dlls/msxml3/msxml.mc:304
-#, fuzzy
-#| msgid "Invalid group attributes.\n"
 msgid "Invalid DTD attribute type\n"
-msgstr "Niepoprawne atrybuty grupy.\n"
+msgstr "Nieprawidłowy typ atrybutu DTD\n"
 
 #: dlls/msxml3/msxml.mc:311
-#, fuzzy
-#| msgid "Invalid handle operation.\n"
 msgid "Invalid standalone declaration\n"
-msgstr "Nieprawidłowe działanie na uchwycie.\n"
+msgstr "Nieprawidłowa deklaracja samodzielna\n"
 
 #: dlls/msxml3/msxml.mc:318
-#, fuzzy
-#| msgid "Invalid version option.\n"
 msgid "Invalid xml version\n"
-msgstr "Niepoprawne ustawienie wersji.\n"
+msgstr "Nieprawidłowa wersja XML\n"
 
 #: dlls/oleacc/oleacc.rc:31
 msgid "unknown object"
@@ -9789,8 +9733,8 @@ msgid ""
 "File does not appear to be a valid OLE module. Unable to register OLE "
 "control."
 msgstr ""
-"Plik nie wydaje się być poprawnym modułem OLE. Nie udało się zarejestrować "
-"kontrolki OLE."
+"Plik prawdopodobnie nie jest prawidłowym modułem OLE. Nie można "
+"zarejestrować kontrolki OLE."
 
 #: dlls/oledlg/oledlg.rc:32
 msgid "Add Control"
@@ -10715,7 +10659,7 @@ msgstr "Pobrane"
 
 #: dlls/shell32/shell32.rc:169
 msgid "Unable to create new Folder: Permission denied."
-msgstr "Nie mogę utworzyć nowego katalogu: brak dostępu."
+msgstr "Nie można utworzyć nowego katalogu: brak dostępu."
 
 #: dlls/shell32/shell32.rc:170
 msgid "Error during creation of a new folder"
@@ -10731,11 +10675,11 @@ msgstr "Potwierdź usunięcie katalogu"
 
 #: dlls/shell32/shell32.rc:173
 msgid "Are you sure you want to delete '%1'?"
-msgstr "Czy jesteś pewien, że chcesz usunąć '%1'?"
+msgstr "Czy na pewno chcesz usunąć '%1'?"
 
 #: dlls/shell32/shell32.rc:174
 msgid "Are you sure you want to delete these %1 items?"
-msgstr "Czy jesteś pewien, że chcesz usunąć te %1 pliki?"
+msgstr "Czy na pewno chcesz usunąć te pliki: %1?"
 
 #: dlls/shell32/shell32.rc:181
 msgid "Confirm file overwrite"
@@ -10753,27 +10697,26 @@ msgstr ""
 
 #: dlls/shell32/shell32.rc:175
 msgid "Are you sure you want to delete the selected item(s)?"
-msgstr "Czy jesteś pewien, że chcesz usunąć wybrane elementy?"
+msgstr "Czy na pewno chcesz usunąć wybrane elementy?"
 
 #: dlls/shell32/shell32.rc:177
 msgid ""
 "Are you sure that you want to send '%1' and all its content to the Trash?"
 msgstr ""
-"Czy jesteś pewien, że chcesz umieścić katalog '%1' i całą jego zawartość w "
-"koszu?"
+"Czy na pewno chcesz umieścić katalog '%1' i całą jego zawartość w koszu?"
 
 #: dlls/shell32/shell32.rc:176
 msgid "Are you sure that you want to send '%1' to the Trash?"
-msgstr "Czy jesteś pewien, że chcesz umieścić plik '%1' w Koszu?"
+msgstr "Czy na pewno chcesz umieścić plik '%1' w koszu?"
 
 #: dlls/shell32/shell32.rc:178
 msgid "Are you sure that you want to send these %1 items to the Trash?"
-msgstr "Elementów: %1 - czy na pewno chcesz je umieścić w Koszu?"
+msgstr "Czy na pewno chcesz umieścić w koszu te elementy: %1?"
 
 #: dlls/shell32/shell32.rc:179
 msgid "The item '%1' can't be sent to Trash. Do you want to delete it instead?"
 msgstr ""
-"Nie mogę przenieść elementu '%1' do Kosza. Czy chcesz go zamiast tego usunąć?"
+"Nie mogę umieścić elementu '%1' w koszu. Czy chcesz go zamiast tego usunąć?"
 
 #: dlls/shell32/shell32.rc:186
 msgid ""
@@ -10786,9 +10729,8 @@ msgstr ""
 "Ten katalog już zawiera katalog o nazwie '%1'.\n"
 "\n"
 "Jeżeli w docelowym katalogu wystąpią pliki o takich samych nazwach jak\n"
-"w wybranym katalogu, to zostaną one zastąpione. Czy chcesz mimo to "
-"przenieść\n"
-"lub skopiować katalog?"
+"w wybranym katalogu, to zostaną one zastąpione. Czy chcesz mimo to\n"
+"przenieść lub skopiować katalog?"
 
 #: dlls/shell32/shell32.rc:242
 msgid "Wine Control Panel"
@@ -10809,7 +10751,8 @@ msgstr "Pliki wykonywalne (*.exe)"
 #: dlls/shell32/shell32.rc:246
 msgid "There is no Windows program configured to open this type of file."
 msgstr ""
-"Nie ma przypisanego programu Windowsowego do otwierania tego rodzaju plików."
+"Nie ma przypisanego programu systemu Windows do otwierania tego rodzaju "
+"pliku."
 
 #: dlls/shell32/shell32.rc:248
 msgid "Are you sure you wish to permanently delete '%1'?"
@@ -10863,11 +10806,11 @@ msgid ""
 "along with Wine; if not, write to the Free Software Foundation, Inc., 51 "
 "Franklin St, Fifth Floor, Boston, MA 02110-1301, USA."
 msgstr ""
-"Wine jest wolnym oprogramowaniem; wolno ci je rozpowszechniać i/lub zmieniać "
+"Wine jest wolnym oprogramowaniem; wolno Ci je rozpowszechniać i/lub zmieniać "
 "zgodnie z warunkami zawartymi w GNU Lesser General Public License (z ang. "
 "Mniejsza Powszechna Licencja Publiczna GNU) opublikowanej przez Free "
 "Software Foundation (z ang. Fundacja Wolnego Oprogramowania); albo w wersji "
-"2.1 licencji, lub (do twojego wyboru) jakiejkolwiek późniejszej wersji.\n"
+"2.1 licencji, lub (do wyboru) jakiejkolwiek późniejszej wersji.\n"
 "\n"
 "Wine jest rozpowszechniany w nadziei, że będzie użyteczny, ale BEZ ŻADNEJ "
 "GWARANCJI; nawet bez odpowiedzialności za dorozumianą gwarancję "
@@ -12974,98 +12917,102 @@ msgid "This array is fixed or temporarily locked"
 msgstr "Ta macierz jest sztywna lub tymczasowo zablokowana"
 
 #: dlls/vbscript/vbscript.rc:34
+msgid "Division by zero"
+msgstr "Dzielenie przez zero"
+
+#: dlls/vbscript/vbscript.rc:35
 msgid "Type mismatch"
 msgstr "Niezgodność rodzajów"
 
-#: dlls/vbscript/vbscript.rc:36
+#: dlls/vbscript/vbscript.rc:37
 msgid "Device I/O error"
 msgstr "Błąd we/wy urządzenia"
 
-#: dlls/vbscript/vbscript.rc:37
+#: dlls/vbscript/vbscript.rc:38
 msgid "File already exists"
 msgstr "Plik już istnieje"
 
-#: dlls/vbscript/vbscript.rc:38
+#: dlls/vbscript/vbscript.rc:39
 msgid "Disk full"
 msgstr "Dysk pełen"
 
-#: dlls/vbscript/vbscript.rc:39
+#: dlls/vbscript/vbscript.rc:40
 msgid "Too many files"
 msgstr "Zbyt wiele plików"
 
-#: dlls/vbscript/vbscript.rc:40
+#: dlls/vbscript/vbscript.rc:41
 msgid "Permission denied"
 msgstr "Odmówiono dostępu"
 
-#: dlls/vbscript/vbscript.rc:41
+#: dlls/vbscript/vbscript.rc:42
 msgid "Path/File access error"
 msgstr "Błąd dostępu do ścieżki/pliku"
 
-#: dlls/vbscript/vbscript.rc:42
+#: dlls/vbscript/vbscript.rc:43
 msgid "Path not found"
 msgstr "Nie znaleziono ścieżki"
 
-#: dlls/vbscript/vbscript.rc:43
+#: dlls/vbscript/vbscript.rc:44
 msgid "Object variable not set"
 msgstr "Nie ustawiono zmiennej obiektu"
 
-#: dlls/vbscript/vbscript.rc:44
+#: dlls/vbscript/vbscript.rc:45
 msgid "Invalid use of Null"
 msgstr "Nieprawidłowe użycie Null"
 
-#: dlls/vbscript/vbscript.rc:45
+#: dlls/vbscript/vbscript.rc:46
 msgid "Can't create necessary temporary file"
 msgstr "Nie można utworzyć potrzebnego pliku tymczasowego"
 
-#: dlls/vbscript/vbscript.rc:47
+#: dlls/vbscript/vbscript.rc:48
 msgid "ActiveX component can't create object"
 msgstr "Składnik ActiveX nie może utworzyć obiektu"
 
-#: dlls/vbscript/vbscript.rc:48
+#: dlls/vbscript/vbscript.rc:49
 msgid "Class doesn't support Automation"
 msgstr "Klasa nie obsługuje Automation"
 
-#: dlls/vbscript/vbscript.rc:49
+#: dlls/vbscript/vbscript.rc:50
 msgid "File name or class name not found during Automation operation"
 msgstr "Nie znaleziono nazwy pliku lub klasy podczas działania Automation"
 
-#: dlls/vbscript/vbscript.rc:52
+#: dlls/vbscript/vbscript.rc:53
 msgid "Object doesn't support named arguments"
 msgstr "Obiekt nie obsługuje nazwanych argumentów"
 
-#: dlls/vbscript/vbscript.rc:53
+#: dlls/vbscript/vbscript.rc:54
 msgid "Object doesn't support current locale setting"
 msgstr "Obiekt nie obsługuje ustawień bieżącego regionu"
 
-#: dlls/vbscript/vbscript.rc:54
+#: dlls/vbscript/vbscript.rc:55
 msgid "Named argument not found"
 msgstr "Nie znaleziono nazwanego argumentu"
 
-#: dlls/vbscript/vbscript.rc:56
+#: dlls/vbscript/vbscript.rc:57
 msgid "Wrong number of arguments or invalid property assignment"
 msgstr "Zła liczba argumentów lub nieprawidłowe przypisanie własności"
 
-#: dlls/vbscript/vbscript.rc:58
+#: dlls/vbscript/vbscript.rc:59
 msgid "Specified DLL function not found"
 msgstr "Nie odnaleziono danej funkcji DLL"
 
-#: dlls/vbscript/vbscript.rc:59
+#: dlls/vbscript/vbscript.rc:60
 msgid "Variable uses an Automation type not supported in VBScript"
 msgstr "Zmienna używa rodzaju Automation nieobsługiwanego w VBScript"
 
-#: dlls/vbscript/vbscript.rc:60
+#: dlls/vbscript/vbscript.rc:61
 msgid "The remote server machine does not exist or is unavailable"
 msgstr "Komputer serwera zdalnego nie istnieje lub jest niedostępny"
 
-#: dlls/vbscript/vbscript.rc:61
+#: dlls/vbscript/vbscript.rc:62
 msgid "Invalid or unqualified reference"
 msgstr "Nieprawidłowe lub niezwartościowane odniesienie"
 
-#: dlls/vbscript/vbscript.rc:63
+#: dlls/vbscript/vbscript.rc:64
 msgid "Microsoft VBScript compilation error"
 msgstr "Błąd kompilacji Microsoft VBScript"
 
-#: dlls/vbscript/vbscript.rc:64
+#: dlls/vbscript/vbscript.rc:65
 msgid "Microsoft VBScript runtime error"
 msgstr "Błąd biblioteki uruchomieniowej Microsoft VBScript"
 
@@ -13872,7 +13819,7 @@ msgstr "Plik wyjściowy już istnieje. Wybierz, OK aby zastąpić plik."
 
 #: dlls/winspool.drv/winspool.rc:32
 msgid "Unable to create the output file."
-msgstr "Nie mogę utworzyć pliku wyjściowego."
+msgstr "Nie można utworzyć pliku wyjściowego."
 
 #: dlls/wldap32/wldap32.rc:32
 msgid "Success"
@@ -14874,7 +14821,7 @@ msgstr ""
 
 #: programs/cmd/cmd.rc:362
 msgid "Are you sure?"
-msgstr "Czy jesteś pewien?"
+msgstr "Czy na pewno?"
 
 #: programs/cmd/cmd.rc:363 programs/reg/reg.rc:126 programs/xcopy/xcopy.rc:43
 msgctxt "Yes key"
@@ -15256,8 +15203,7 @@ msgstr "&Zamknij pulpit"
 msgid ""
 "Are you sure you want to close all programs and exit the virtual desktop?"
 msgstr ""
-"Czy jesteś pewien, że chcesz zamknąć wszystkie programy i opuścić wirtualny "
-"pulpit?"
+"Czy na pewno chcesz zamknąć wszystkie programy i opuścić wirtualny pulpit?"
 
 #: programs/explorer/explorer.rc:38
 msgid "Wine Desktop"
@@ -15647,7 +15593,7 @@ msgstr "Nieudane próby połączenia"
 
 #: programs/netstat/netstat.rc:48
 msgid "Reset Connections"
-msgstr "Wyzerowane połączenia"
+msgstr "Resetowane połączenia"
 
 #: programs/netstat/netstat.rc:49
 msgid "Current Connections"
@@ -16536,9 +16482,7 @@ msgstr "reg: zaniechano działania rejestru\n"
 
 #: programs/reg/reg.rc:174
 msgid "reg: Unable to find the specified registry key\n"
-msgstr ""
-"reg: nie można znaleźć określonego klucza rejestru\n"
-"\n"
+msgstr "reg: nie można znaleźć określonego klucza rejestru\n"
 
 #: programs/reg/reg.rc:120
 msgid "reg: Unable to find the specified registry value\n"
@@ -16988,7 +16932,7 @@ msgstr "reg: nieprawidłowy klucz rejestru\n"
 
 #: programs/reg/reg.rc:119
 msgid "reg: Unable to access remote machine\n"
-msgstr "reg: nie udało się uzyskać dostępu do zdalnej maszyny\n"
+msgstr "reg: nie można uzyskać dostępu do zdalnej maszyny\n"
 
 #: programs/reg/reg.rc:172
 msgid "reg: Invalid system key\n"
@@ -17051,7 +16995,7 @@ msgstr "Czy na pewno chcesz usunąć kłucz rejestru '%1'?"
 
 #: programs/reg/reg.rc:137
 msgid "reg: Unable to delete all registry values in '%1'\n"
-msgstr "reg: nie udało się usunąć wszystkich kluczy rejestru '%1'\n"
+msgstr "reg: nie można usunąć wszystkich kluczy rejestru '%1'\n"
 
 #: programs/reg/reg.rc:173
 msgid "The file '%1' already exists. Do you want to overwrite it?"
@@ -17304,22 +17248,22 @@ msgstr "(nieznany: %d)"
 
 #: programs/regedit/regedit.rc:252
 msgid "Unable to modify the selected registry value."
-msgstr "Nie udało się zmodyfikować określonej wartości rejestru."
+msgstr "Nie można zmodyfikować określonej wartości rejestru."
 
 #: programs/regedit/regedit.rc:253
 msgid "Unable to create a new registry key."
-msgstr "Nie udało się utworzyć nowego klucza rejestru."
+msgstr "Nie można utworzyć nowego klucza rejestru."
 
 #: programs/regedit/regedit.rc:254
 msgid "Unable to create a new registry value."
-msgstr "Nie udało się utworzyć nowej wartości rejestru."
+msgstr "Nie można utworzyć nowej wartości rejestru."
 
 #: programs/regedit/regedit.rc:255
 msgid ""
 "Unable to rename the key '%1'.\n"
 "The specified key name already exists."
 msgstr ""
-"Nie udało się zmienić nazwy klucza '%1'.\n"
+"Nie można zmienić nazwy klucza '%1'.\n"
 "Klucz o podanej nazwie już istnieje."
 
 #: programs/regedit/regedit.rc:256
@@ -17327,20 +17271,20 @@ msgid ""
 "Unable to rename the value '%1'.\n"
 "The specified value name already exists."
 msgstr ""
-"Nie udało się zmienić nazwy wartości '%1'.\n"
+"Nie można zmienić nazwy wartości '%1'.\n"
 "Wartość o podanej nazwie już istnieje."
 
 #: programs/regedit/regedit.rc:257
 msgid "Unable to delete the selected registry key."
-msgstr "Nie udało się usunąć określonego klucza rejestru."
+msgstr "Nie można usunąć określonego klucza rejestru."
 
 #: programs/regedit/regedit.rc:258
 msgid "Unable to rename the selected registry key."
-msgstr "Nie udało się zmienić nazwy określonego klucza rejestru."
+msgstr "Nie można zmienić nazwy określonego klucza rejestru."
 
 #: programs/regedit/regedit.rc:259
 msgid "Unable to rename the selected registry value."
-msgstr "Nie udało się zmienić nazwy określonej wartości rejestru."
+msgstr "Nie można zmienić nazwy określonej wartości rejestru."
 
 #: programs/regedit/regedit.rc:260
 msgid ""
@@ -17350,7 +17294,7 @@ msgstr "Klucze i wartości zawarte w %1 zostały pomyślnie dodane do rejestru."
 #: programs/regedit/regedit.rc:261
 msgid "Unable to import %1. The specified file is not a valid registry file."
 msgstr ""
-"Nie udało się zaimportować %1. Określony plik nie jest prawidłowym plikiem "
+"Nie można zaimportować %1. Określony plik nie jest prawidłowym plikiem "
 "rejestru."
 
 #: programs/regedit/regedit.rc:413
@@ -17432,7 +17376,7 @@ msgstr "regedit: nie znaleziono pliku '%1'.\n"
 
 #: programs/regedit/regedit.rc:419
 msgid "regedit: Unable to open the file '%1'.\n"
-msgstr "regedit: nie udało się otworzyć pliku '%1'.\n"
+msgstr "regedit: nie można otworzyć pliku '%1'.\n"
 
 #: programs/regedit/regedit.rc:420
 msgid "regedit: Unhandled action.\n"
@@ -17451,7 +17395,7 @@ msgid ""
 "regedit: Unable to convert hexadecimal data. An invalid value was "
 "encountered at '%1'.\n"
 msgstr ""
-"regedit: nie udało się przekształcić wartości szesnastkowej. Napotkano "
+"regedit: nie można przekształcić wartości szesnastkowej. Napotkano "
 "nieprawidłową wartość w '%1'.\n"
 
 #: programs/regedit/regedit.rc:424
@@ -17472,11 +17416,11 @@ msgstr "regedit: nie rozpoznano linii '%1'.\n"
 
 #: programs/regedit/regedit.rc:428
 msgid "regedit: Unable to add the registry value '%1' to '%2'.\n"
-msgstr "regedit: nie udało się dodać wartości rejestru '%1' do '%2'.\n"
+msgstr "regedit: nie można dodać wartości rejestru '%1' do '%2'.\n"
 
 #: programs/regedit/regedit.rc:429
 msgid "regedit: Unable to open the registry key '%1'.\n"
-msgstr "regedit: nie udało się otworzyć klucza rejestru '%1'.\n"
+msgstr "regedit: nie można otworzyć klucza rejestru '%1'.\n"
 
 #: programs/regedit/regedit.rc:430
 msgid ""
@@ -17499,12 +17443,12 @@ msgstr "regedit: nieprawidłowy klucz systemowy [%1]\n"
 msgid ""
 "regedit: Unable to export '%1'. The specified registry key was not found.\n"
 msgstr ""
-"regedit: nie udało się wyeksportować '%1'. Określony klucz rejestru nie "
-"został odnaleziony.\n"
+"regedit: nie można wyeksportować '%1'. Określony klucz rejestru nie został "
+"odnaleziony.\n"
 
 #: programs/regedit/regedit.rc:434
 msgid "regedit: Unable to delete the registry key '%1'.\n"
-msgstr "regedit: nie udało się usunąć klucza rejestru '%1'.\n"
+msgstr "regedit: nie można usunąć klucza rejestru '%1'.\n"
 
 #: programs/regedit/regedit.rc:436
 msgid "regedit: The line contains invalid syntax.\n"
@@ -17601,7 +17545,7 @@ msgstr "Nie można odnaleźć wartości rejestru '%1'."
 
 #: programs/regedit/regedit.rc:211
 msgid "Unable to edit registry keys of this type (%1!u!)."
-msgstr "Nie udało się edytować kluczy rejestru tego rodzaju  (%1!u!)."
+msgstr "Nie można edytować kluczy rejestru tego rodzaju (%1!u!)."
 
 #: programs/regedit/regedit.rc:212
 msgid "The value is too big (%1!u!)."
@@ -17613,7 +17557,7 @@ msgstr "Potwierdzenie kasowania"
 
 #: programs/regedit/regedit.rc:214
 msgid "Are you sure you want to delete the selected registry value?"
-msgstr "Czy na pewno usunąć zaznaczoną wartość rejestru?"
+msgstr "Czy na pewno chcesz usunąć zaznaczoną wartość rejestru?"
 
 #: programs/regedit/regedit.rc:220
 msgid "Search complete. The string '%1' was not found."
@@ -17621,7 +17565,7 @@ msgstr "Wyszukiwanie zakończone. Nie znaleziono ciągu tekstu '%1'."
 
 #: programs/regedit/regedit.rc:215
 msgid "Are you sure you want to delete these values?"
-msgstr "Czy jesteś pewien, że chcesz usunąć te wartości?"
+msgstr "Czy na pewno chcesz usunąć te wartości?"
 
 #: programs/regedit/regedit.rc:218
 msgid "New Key #%d"
@@ -19256,7 +19200,7 @@ msgid ""
 "Are you sure you want to do this?"
 msgstr ""
 "Nie zalecamy zmiany kolejności wczytywania dla tej biblioteki.\n"
-"Czy na pewno to zrobić?"
+"Czy na pewno chcesz to zrobić?"
 
 #: programs/winecfg/winecfg.rc:54
 msgid "Warning: system library"
@@ -19830,7 +19774,7 @@ msgstr "Miny"
 
 #: programs/winemine/winemine.rc:34
 msgid "All results will be lost. Are you sure?"
-msgstr "Wszystkie wyniki zostaną utracone. Czy jesteś tego pewny?"
+msgstr "Wszystkie wyniki zostaną utracone. Czy na pewno chcesz to zrobić?"
 
 #: programs/winemine/winemine.rc:30
 msgid "WineMine"
