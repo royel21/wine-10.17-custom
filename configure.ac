@@ -58,7 +58,6 @@ AC_ARG_WITH(pulse,     AS_HELP_STRING([--without-pulse],[do not use PulseAudio s
 AC_ARG_WITH(sane,      AS_HELP_STRING([--without-sane],[do not use SANE (scanner support)]))
 AC_ARG_WITH(sdl,       AS_HELP_STRING([--without-sdl],[do not use SDL]))
 AC_ARG_WITH(udev,      AS_HELP_STRING([--without-udev],[do not use udev (plug and play support)]))
-AC_ARG_WITH(unwind,    AS_HELP_STRING([--without-unwind],[do not use the libunwind library (exception handling)]))
 AC_ARG_WITH(usb,       AS_HELP_STRING([--without-usb],[do not use the libusb library]))
 AC_ARG_WITH(v4l2,      AS_HELP_STRING([--without-v4l2],[do not use v4l2 (video capture)]))
 AC_ARG_WITH(vulkan,    AS_HELP_STRING([--without-vulkan],[do not use Vulkan]))
@@ -677,7 +676,7 @@ This is an error since --enable-archs=$wine_arch was requested.])])
     test "x$enable_werror" != xyes || WINE_TRY_PE_CFLAGS([-Werror])
     dnl clang for PE target wants -build-id (and not --build-id as gcc/mingw or clang in unix target)
     dnl don't bother testing flags, compilation will fail afterwards
-    test "x$enable_build_id" != xyes || AS_VAR_APPEND([${wine_arch}_LDFLAGS],[" -Wl,--build-id"])
+    test "x$enable_build_id" != xno && AS_VAR_APPEND([${wine_arch}_LDFLAGS],[" -Wl,--build-id"])
 
     dnl Options that differ between C and C++
     AS_VAR_COPY([${wine_arch}_EXTRACXXFLAGS],[${wine_arch}_EXTRACFLAGS])
@@ -695,9 +694,9 @@ CPPFLAGS=$saved_CPPFLAGS
 CXXFLAGS=$saved_CXXFLAGS
 LDFLAGS=$saved_LDFLAGS
 
-case $HOST_ARCH in
-  arm|aarch64)
-    test "x$PE_ARCHS" != x || AC_MSG_ERROR([PE cross-compilation is required for $HOST_ARCH, please install clang/llvm-dlltool/lld, or llvm-mingw.])
+case $HOST_ARCH-$host_os in
+  x86_64-darwin*|arm-*|aarch64-*)
+    test "x$PE_ARCHS" != x || AC_MSG_ERROR([PE cross-compilation is required for $host, please install clang/llvm-dlltool/lld, or llvm-mingw.])
     DLLEXT="" ;;
   *)
     AC_SUBST(DLLEXT,".so")
@@ -1054,6 +1053,9 @@ case $host_os in
     WINE_TRY_CFLAGS([-Wl,--rosegment], [WINEPRELOADER_LDFLAGS="$WINEPRELOADER_LDFLAGS -Wl,--rosegment"])
 
     WINE_CHECK_SONAME(GLESv2,glFlush)
+    AC_PATH_PROG([GRADLE], [gradle])
+    test -n "$GRADLE" || AC_MSG_ERROR([gradle is required for the Android build])
+    AC_SUBST([ANDROID_HOME],[$ANDROID_HOME])
 
     if test "x$exec_prefix" = xNONE
     then
@@ -1825,44 +1827,6 @@ then
 fi
 WINE_NOTICE_WITH(udev,[test "x$UDEV_LIBS" = "x"],
                  [libudev ${notice_platform}development files not found, plug and play won't be supported.])
-
-dnl **** Check for libunwind ****
-if test $HOST_ARCH = x86_64
-then
-  if test "x$with_unwind" != xno
-  then
-    WINE_PACKAGE_FLAGS(UNWIND,[libunwind],[-lunwind],,,
-       [AC_CACHE_CHECK([for unw_step],wine_cv_have_unw_step,
-           [AC_LINK_IFELSE([AC_LANG_PROGRAM([[#define UNW_LOCAL_ONLY
-#include <libunwind.h>]],
-                [[unw_cursor_t cursor; unw_step( &cursor );]])],
-                [wine_cv_have_unw_step="yes"],[wine_cv_have_unw_step="no"])])
-        if test "$wine_cv_have_unw_step" = no -a -n "$UNWIND_LIBS"
-        then
-            save_libs=$LIBS
-            dnl Force static libgcc, libunwind breaks libgcc_s unwinding
-            UNWIND_LIBS="-static-libgcc $UNWIND_LIBS"
-            LIBS="$UNWIND_LIBS $LIBS"
-            AC_CACHE_CHECK([for unw_step in libunwind],wine_cv_have_libunwind_unw_step,
-               [AC_LINK_IFELSE([AC_LANG_PROGRAM([[#define UNW_LOCAL_ONLY
-#include <libunwind.h>]],
-                    [[unw_cursor_t cursor; unw_step( &cursor );]])],
-                    [wine_cv_have_libunwind_unw_step="yes"],
-                    [wine_cv_have_libunwind_unw_step="no"])])
-            LIBS=$save_libs
-        fi
-        test "$wine_cv_have_libunwind_unw_step" = yes || UNWIND_LIBS=""
-        if test "x$wine_cv_have_unw_step$wine_cv_have_libunwind_unw_step" != xnono
-        then
-            AC_DEFINE(HAVE_LIBUNWIND,1,[Define to 1 if you have the 'unwind' library (-lunwind).])
-        fi])
-  fi
-  case $host in
-  *-darwin*)
-    WINE_NOTICE_WITH(unwind,[test "x$wine_cv_have_unw_step$wine_cv_have_libunwind_unw_step" = xnono],
-                     [libunwind ${notice_platform}development files not found, stack unwinding won't work.]) ;;
-  esac
-fi
 
 dnl **** Check for libSDL2 ****
 if test "x$with_sdl" != "xno"
@@ -3854,7 +3818,7 @@ WINE_APPEND_RULE(
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$[@]) || echo \$\$build >\$[@] || (rm -f \$[@] && exit 1)
 dlls/wineandroid.drv/wine-debug.apk: dlls/wineandroid.drv/build.gradle ${wine_srcdir}dlls/wineandroid.drv/AndroidManifest.xml ${wine_srcdir}dlls/wineandroid.drv/WineActivity.java ${wine_srcdir}dlls/wineandroid.drv/wine.svg
-	cd dlls/wineandroid.drv && gradle -q -Psrcdir=$srcdir assembleDebug
+	cd dlls/wineandroid.drv && env ANDROID_HOME=\"\$(ANDROID_HOME)\" \$(GRADLE) -q -Psrcdir=$srcdir assembleDebug
 	mv dlls/wineandroid.drv/build/outputs/apk/debug/wine-debug.apk \$[@]])
 
 dnl Misc rules

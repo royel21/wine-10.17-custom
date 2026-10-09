@@ -2144,6 +2144,59 @@ if Asc(Chr(&h81)) = &h8145 then
 end if
 call testAscError()
 
+sub testAscW(arg, expected)
+    dim x
+    x = AscW(arg)
+    call ok(x = expected, "AscW: x = " & x & " expected " & expected)
+    call ok(getVT(x) = "VT_I2*", "AscW: getVT = " & getVT(x))
+end sub
+
+call testAscW("T", 84)
+call testAscW("test", 116)
+call testAscW("3", 51)
+call testAscW(3, 51)
+call testAscW(Chr(0), 0)
+call testAscW(Chr(255), 255)
+if isEnglishLang then testAscW true, 84
+
+sub testAscWError()
+    on error resume next
+    call Err.clear()
+    call AscW(null)
+    Call ok(Err.number = 94, "AscW null: Err.number = " & Err.number)
+    call Err.clear()
+    call AscW(empty)
+    Call ok(Err.number = 5, "AscW empty: Err.number = " & Err.number)
+    call Err.clear()
+    call AscW("")
+    Call ok(Err.number = 5, "AscW """": Err.number = " & Err.number)
+end sub
+
+call testAscWError()
+
+Call ok(getVT(ChrW(120)) = "VT_BSTR", "getVT(ChrW(120)) = " & getVT(ChrW(120)))
+Call ok(ChrW(120) = "x", "ChrW(120) = " & ChrW(120))
+Call ok(ChrW(0) <> "", "ChrW(0) = """"")
+Call ok(ChrW(120.5) = "x", "ChrW(120.5) = " & ChrW(120.5))
+Call ok(ChrW(119.5) = "x", "ChrW(119.5) = " & ChrW(119.5))
+Call ok(ChrW("120") = "x", "ChrW(""120"") = " & ChrW("120"))
+Call ok(ChrW(255) = Chr(255), "ChrW(255) <> Chr(255)")
+Call ok(ChrW(0) = Chr(0), "ChrW(0) <> Chr(0)")
+Call ok(AscW(ChrW(8364)) = 8364, "AscW(ChrW(8364)) = " & AscW(ChrW(8364)))
+Call ok(AscW(ChrW(65535)) = -1, "AscW(ChrW(65535)) = " & AscW(ChrW(65535)))
+
+sub testChrWError()
+    on error resume next
+    call Err.clear()
+    call ChrW(65536)
+    call ok(Err.number = 5, "ChrW 65536: Err.number = " & Err.number)
+    call Err.clear()
+    call ChrW(-32769)
+    call ok(Err.number = 5, "ChrW -32769: Err.number = " & Err.number)
+end sub
+
+call testChrWError()
+
 sub testErrNumber(n)
     call ok(err.number = n, "err.number = " & err.number & " expected " & n)
 end sub
@@ -2623,5 +2676,56 @@ end sub
 
 call testFormatNumber()
 call testFormatNumberError()
+
+' Escape tests
+Call ok(Escape("hello") = "hello", "Escape(""hello"") = " & Escape("hello"))
+Call ok(Escape("hello world") = "hello%20world", "Escape(""hello world"") = " & Escape("hello world"))
+Call ok(Escape("@") = "@", "@ should not be escaped")
+Call ok(Escape("*") = "*", "* should not be escaped")
+Call ok(Escape("_") = "_", "_ should not be escaped")
+Call ok(Escape("+") = "+", "+ should not be escaped")
+Call ok(Escape("-") = "-", "- should not be escaped")
+Call ok(Escape(".") = ".", ". should not be escaped")
+Call ok(Escape("/") = "/", "/ should not be escaped")
+Call ok(Escape("ABC") = "ABC", "ABC should not be escaped")
+Call ok(Escape("abc") = "abc", "abc should not be escaped")
+Call ok(Escape("012") = "012", "012 should not be escaped")
+Call ok(Escape("<") = "%3C", "< escape = " & Escape("<"))
+Call ok(Escape(">") = "%3E", "> escape = " & Escape(">"))
+Call ok(Escape(" ") = "%20", "space escape = " & Escape(" "))
+Call ok(Escape("=") = "%3D", "= escape = " & Escape("="))
+Call ok(Escape("&") = "%26", "& escape = " & Escape("&"))
+Call ok(Escape(Unescape("%u20AC")) = "%u20AC", "Euro sign roundtrip escape")
+Call ok(Escape(Unescape("%u0100")) = "%u0100", "U+0100 roundtrip escape")
+Call ok(Escape("") = "", "Escape("""") should be empty")
+Call ok(getVT(Escape("test")) = "VT_BSTR", "getVT(Escape) = " & getVT(Escape("test")))
+
+' Unescape tests
+Call ok(Unescape("hello") = "hello", "Unescape(""hello"") = " & Unescape("hello"))
+Call ok(Unescape("hello%20world") = "hello world", "Unescape(""hello%20world"") = " & Unescape("hello%20world"))
+Call ok(Unescape("%3C%3E") = "<>", "Unescape(""%3C%3E"") = " & Unescape("%3C%3E"))
+Call ok(Unescape("%3c") = "<", "Unescape(""%3c"") lowercase")
+Call ok(Unescape("%3C") = "<", "Unescape(""%3C"") uppercase")
+Call ok(Unescape("%") = "%", "Unescape(""%"") incomplete")
+Call ok(Unescape("%2") = "%2", "Unescape(""%2"") incomplete")
+Call ok(Unescape("%2G") = "%2G", "Unescape(""%2G"") invalid hex")
+Call ok(Unescape(Escape("hello world!")) = "hello world!", "Roundtrip basic")
+Call ok(Unescape("") = "", "Unescape("""") should be empty")
+Call ok(getVT(Unescape("test")) = "VT_BSTR", "getVT(Unescape) = " & getVT(Unescape("test")))
+
+sub testEscapeError()
+    on error resume next
+    dim r
+
+    call Err.clear()
+    r = Escape(Null)
+    Call ok(Err.number = 94, "Escape(Null) Err.number = " & Err.number)
+
+    call Err.clear()
+    r = Unescape(Null)
+    Call ok(Err.number = 94, "Unescape(Null) Err.number = " & Err.number)
+end sub
+
+call testEscapeError()
 
 Call reportSuccess()

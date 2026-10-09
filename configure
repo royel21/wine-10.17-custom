@@ -670,8 +670,6 @@ CAPI20_LIBS
 CAPI20_CFLAGS
 SDL2_LIBS
 SDL2_CFLAGS
-UNWIND_LIBS
-UNWIND_CFLAGS
 UDEV_LIBS
 UDEV_CFLAGS
 OSS4_LIBS
@@ -767,6 +765,8 @@ CXX_PE_CFLAGS
 CAPSTONE_PE_LIBS
 CAPSTONE_PE_CFLAGS
 MINGW_PKG_CONFIG
+ANDROID_HOME
+GRADLE
 WINELOADER_DEPENDS
 ac_ct_OBJC
 OBJCFLAGS
@@ -983,7 +983,6 @@ with_pulse
 with_sane
 with_sdl
 with_udev
-with_unwind
 with_usb
 with_v4l2
 with_vulkan
@@ -1943,8 +1942,6 @@ ALSA_CFLAGS
 ALSA_LIBS
 UDEV_CFLAGS
 UDEV_LIBS
-UNWIND_CFLAGS
-UNWIND_LIBS
 SDL2_CFLAGS
 SDL2_LIBS
 CAPI20_CFLAGS
@@ -2633,8 +2630,6 @@ Optional Packages:
   --without-sane          do not use SANE (scanner support)
   --without-sdl           do not use SDL
   --without-udev          do not use udev (plug and play support)
-  --without-unwind        do not use the libunwind library (exception
-                          handling)
   --without-usb           do not use the libusb library
   --without-v4l2          do not use v4l2 (video capture)
   --without-vulkan        do not use Vulkan
@@ -2834,9 +2829,6 @@ Some influential environment variables:
   ALSA_LIBS   Linker flags for alsa, overriding pkg-config
   UDEV_CFLAGS C compiler flags for libudev, overriding pkg-config
   UDEV_LIBS   Linker flags for libudev, overriding pkg-config
-  UNWIND_CFLAGS
-              C compiler flags for libunwind, overriding pkg-config
-  UNWIND_LIBS Linker flags for libunwind, overriding pkg-config
   SDL2_CFLAGS C compiler flags for sdl2, overriding pkg-config
   SDL2_LIBS   Linker flags for sdl2, overriding pkg-config
   CAPI20_CFLAGS
@@ -4610,13 +4602,6 @@ fi
 if test ${with_udev+y}
 then :
   withval=$with_udev;
-fi
-
-
-# Check whether --with-unwind was given.
-if test ${with_unwind+y}
-then :
-  withval=$with_unwind;
 fi
 
 
@@ -10226,7 +10211,7 @@ if eval test \"x\$"$as_ac_var"\" = x"yes"
 then :
   as_fn_append ${wine_arch}_EXTRACFLAGS " -Werror"
 fi }
-            test "x$enable_build_id" != xyes || as_fn_append ${wine_arch}_LDFLAGS " -Wl,--build-id"
+            test "x$enable_build_id" != xno && as_fn_append ${wine_arch}_LDFLAGS " -Wl,--build-id"
 
         eval ${wine_arch}_EXTRACXXFLAGS=\$${wine_arch}_EXTRACFLAGS
     { as_ac_var=`printf "%s\n" "ac_cv_${wine_arch}_cflags_-Wdeclaration-after-statement" | $as_tr_sh`
@@ -10391,9 +10376,9 @@ CPPFLAGS=$saved_CPPFLAGS
 CXXFLAGS=$saved_CXXFLAGS
 LDFLAGS=$saved_LDFLAGS
 
-case $HOST_ARCH in
-  arm|aarch64)
-    test "x$PE_ARCHS" != x || as_fn_error $? "PE cross-compilation is required for $HOST_ARCH, please install clang/llvm-dlltool/lld, or llvm-mingw." "$LINENO" 5
+case $HOST_ARCH-$host_os in
+  x86_64-darwin*|arm-*|aarch64-*)
+    test "x$PE_ARCHS" != x || as_fn_error $? "PE cross-compilation is required for $host, please install clang/llvm-dlltool/lld, or llvm-mingw." "$LINENO" 5
     DLLEXT="" ;;
   *)
     DLLEXT=".so"
@@ -12866,6 +12851,54 @@ printf "%s\n" "#define SONAME_LIBGLESV2 \"$ac_cv_lib_soname_GLESv2\"" >>confdefs
 
 
 fi
+    # Extract the first word of "gradle", so it can be a program name with args.
+set dummy gradle; ac_word=$2
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
+printf %s "checking for $ac_word... " >&6; }
+if test ${ac_cv_path_GRADLE+y}
+then :
+  printf %s "(cached) " >&6
+else $as_nop
+  case $GRADLE in
+  [\\/]* | ?:[\\/]*)
+  ac_cv_path_GRADLE="$GRADLE" # Let the user override the test with a path.
+  ;;
+  *)
+  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  case $as_dir in #(((
+    '') as_dir=./ ;;
+    */) ;;
+    *) as_dir=$as_dir/ ;;
+  esac
+    for ac_exec_ext in '' $ac_executable_extensions; do
+  if as_fn_executable_p "$as_dir$ac_word$ac_exec_ext"; then
+    ac_cv_path_GRADLE="$as_dir$ac_word$ac_exec_ext"
+    printf "%s\n" "$as_me:${as_lineno-$LINENO}: found $as_dir$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+  done
+IFS=$as_save_IFS
+
+  ;;
+esac
+fi
+GRADLE=$ac_cv_path_GRADLE
+if test -n "$GRADLE"; then
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $GRADLE" >&5
+printf "%s\n" "$GRADLE" >&6; }
+else
+  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
+printf "%s\n" "no" >&6; }
+fi
+
+
+    test -n "$GRADLE" || as_fn_error $? "gradle is required for the Android build" "$LINENO" 5
+    ANDROID_HOME=$ANDROID_HOME
+
 
     if test "x$exec_prefix" = xNONE
     then
@@ -18999,127 +19032,6 @@ esac
 
 fi
 
-if test $HOST_ARCH = x86_64
-then
-  if test "x$with_unwind" != xno
-  then
-    rm -f conftest.err
-if ${UNWIND_CFLAGS:+false} :
-then :
-  if test ${PKG_CONFIG+y}
-then :
-  UNWIND_CFLAGS=`$PKG_CONFIG --cflags libunwind 2>conftest.err`
-fi
-fi
-
-if ${UNWIND_LIBS:+false} :
-then :
-  if test ${PKG_CONFIG+y}
-then :
-  UNWIND_LIBS=`$PKG_CONFIG --libs libunwind 2>/dev/null`
-fi
-fi
-
-UNWIND_LIBS=${UNWIND_LIBS:-"-lunwind"}
-printf "%s\n" "$as_me:${as_lineno-$LINENO}: libunwind cflags: $UNWIND_CFLAGS" >&5
-printf "%s\n" "$as_me:${as_lineno-$LINENO}: libunwind libs: $UNWIND_LIBS" >&5
-if test -s conftest.err; then
-     printf %s "$as_me:${as_lineno-$LINENO}: libunwind errors: " >&5
-     cat conftest.err >&5
-fi
-rm -f conftest.err
-ac_save_CPPFLAGS=$CPPFLAGS
-CPPFLAGS="$CPPFLAGS $UNWIND_CFLAGS"
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for unw_step" >&5
-printf %s "checking for unw_step... " >&6; }
-if test ${wine_cv_have_unw_step+y}
-then :
-  printf %s "(cached) " >&6
-else $as_nop
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-#define UNW_LOCAL_ONLY
-#include <libunwind.h>
-int
-main (void)
-{
-unw_cursor_t cursor; unw_step( &cursor );
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_link "$LINENO"
-then :
-  wine_cv_have_unw_step="yes"
-else $as_nop
-  wine_cv_have_unw_step="no"
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam \
-    conftest$ac_exeext conftest.$ac_ext
-fi
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $wine_cv_have_unw_step" >&5
-printf "%s\n" "$wine_cv_have_unw_step" >&6; }
-        if test "$wine_cv_have_unw_step" = no -a -n "$UNWIND_LIBS"
-        then
-            save_libs=$LIBS
-                        UNWIND_LIBS="-static-libgcc $UNWIND_LIBS"
-            LIBS="$UNWIND_LIBS $LIBS"
-            { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for unw_step in libunwind" >&5
-printf %s "checking for unw_step in libunwind... " >&6; }
-if test ${wine_cv_have_libunwind_unw_step+y}
-then :
-  printf %s "(cached) " >&6
-else $as_nop
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-#define UNW_LOCAL_ONLY
-#include <libunwind.h>
-int
-main (void)
-{
-unw_cursor_t cursor; unw_step( &cursor );
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_link "$LINENO"
-then :
-  wine_cv_have_libunwind_unw_step="yes"
-else $as_nop
-  wine_cv_have_libunwind_unw_step="no"
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam \
-    conftest$ac_exeext conftest.$ac_ext
-fi
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $wine_cv_have_libunwind_unw_step" >&5
-printf "%s\n" "$wine_cv_have_libunwind_unw_step" >&6; }
-            LIBS=$save_libs
-        fi
-        test "$wine_cv_have_libunwind_unw_step" = yes || UNWIND_LIBS=""
-        if test "x$wine_cv_have_unw_step$wine_cv_have_libunwind_unw_step" != xnono
-        then
-
-printf "%s\n" "#define HAVE_LIBUNWIND 1" >>confdefs.h
-
-        fi
-CPPFLAGS=$ac_save_CPPFLAGS
-
-  fi
-  case $host in
-  *-darwin*)
-    if test "x$wine_cv_have_unw_step$wine_cv_have_libunwind_unw_step" = xnono
-then :
-  case "x$with_unwind" in
-  x)   as_fn_append wine_notices "|libunwind ${notice_platform}development files not found, stack unwinding won't work." ;;
-  xno) ;;
-  *)   as_fn_error $? "libunwind ${notice_platform}development files not found, stack unwinding won't work.
-This is an error since --with-unwind was requested." "$LINENO" 5 ;;
-esac
-
-fi ;;
-  esac
-fi
-
 if test "x$with_sdl" != "xno"
 then
     rm -f conftest.err
@@ -23662,7 +23574,7 @@ dlls/ntdll/unix/version.c: dummy
 programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$@) || echo \$\$build >\$@ || (rm -f \$@ && exit 1)
 dlls/wineandroid.drv/wine-debug.apk: dlls/wineandroid.drv/build.gradle ${wine_srcdir}dlls/wineandroid.drv/AndroidManifest.xml ${wine_srcdir}dlls/wineandroid.drv/WineActivity.java ${wine_srcdir}dlls/wineandroid.drv/wine.svg
-	cd dlls/wineandroid.drv && gradle -q -Psrcdir=$srcdir assembleDebug
+	cd dlls/wineandroid.drv && env ANDROID_HOME=\"\$(ANDROID_HOME)\" \$(GRADLE) -q -Psrcdir=$srcdir assembleDebug
 	mv dlls/wineandroid.drv/build/outputs/apk/debug/wine-debug.apk \$@"
 
 
@@ -24546,6 +24458,8 @@ OBJC = $OBJC
 OBJCFLAGS = $OBJCFLAGS
 ac_ct_OBJC = $ac_ct_OBJC
 WINELOADER_DEPENDS = $WINELOADER_DEPENDS
+GRADLE = $GRADLE
+ANDROID_HOME = $ANDROID_HOME
 MINGW_PKG_CONFIG = $MINGW_PKG_CONFIG
 CAPSTONE_PE_CFLAGS = $CAPSTONE_PE_CFLAGS
 CAPSTONE_PE_LIBS = $CAPSTONE_PE_LIBS
@@ -24641,8 +24555,6 @@ OSS4_CFLAGS = $OSS4_CFLAGS
 OSS4_LIBS = $OSS4_LIBS
 UDEV_CFLAGS = $UDEV_CFLAGS
 UDEV_LIBS = $UDEV_LIBS
-UNWIND_CFLAGS = $UNWIND_CFLAGS
-UNWIND_LIBS = $UNWIND_LIBS
 SDL2_CFLAGS = $SDL2_CFLAGS
 SDL2_LIBS = $SDL2_LIBS
 CAPI20_CFLAGS = $CAPI20_CFLAGS

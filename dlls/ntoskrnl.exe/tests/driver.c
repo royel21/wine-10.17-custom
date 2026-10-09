@@ -57,7 +57,9 @@ static int kmemcmp( const void *ptr1, const void *ptr2, size_t n )
 
 static DRIVER_OBJECT *driver_obj;
 static DEVICE_OBJECT *lower_device, *upper_device;
-static LDR_DATA_TABLE_ENTRY *ldr_module;
+
+static IRP *queued_async_irps[2];
+static unsigned int queued_async_count;
 
 static POBJECT_TYPE *pExEventObjectType, *pIoFileObjectType, *pPsThreadType, *pIoDriverObjectType;
 static PEPROCESS *pPsInitialSystemProcess;
@@ -1079,12 +1081,14 @@ static void test_call_driver(DEVICE_OBJECT *device)
 }
 
 static int cancel_cnt;
+static HANDLE thread_id;
 
 static void WINAPI cancel_irp(DEVICE_OBJECT *device, IRP *irp)
 {
     IoReleaseCancelSpinLock(irp->CancelIrql);
     ok(irp->Cancel == TRUE, "Cancel = %x\n", irp->Cancel);
     ok(!irp->CancelRoutine, "CancelRoutine = %p\n", irp->CancelRoutine);
+    ok(PsGetCurrentThreadId() == thread_id, "Unexpected thread_id %p\n", PsGetCurrentThreadId());
     irp->IoStatus.Status = STATUS_CANCELLED;
     irp->IoStatus.Information = 0;
     cancel_cnt++;
@@ -1093,6 +1097,7 @@ static void WINAPI cancel_irp(DEVICE_OBJECT *device, IRP *irp)
 static void WINAPI cancel_ioctl_irp(DEVICE_OBJECT *device, IRP *irp)
 {
     IoReleaseCancelSpinLock(irp->CancelIrql);
+    todo_wine ok(PsGetCurrentThreadId() == thread_id, "Unexpected thread_id %p\n", PsGetCurrentThreadId());
     irp->IoStatus.Status = STATUS_CANCELLED;
     irp->IoStatus.Information = 0;
     cancel_cnt++;
@@ -1114,6 +1119,8 @@ static void test_cancel_irp(DEVICE_OBJECT *device)
     BOOL completion_called;
     BOOLEAN r;
     NTSTATUS status;
+
+    thread_id = PsGetCurrentThreadId();
 
     /* cancel IRP with no cancel routine */
     irp = IoBuildAsynchronousFsdRequest(IRP_MJ_FLUSH_BUFFERS, device, NULL, 0, NULL, &iosb);
@@ -1726,7 +1733,6 @@ static void test_resource(void)
     status = ExDeleteResourceLite(&resource);
     ok(status == STATUS_SUCCESS, "got status %#lx\n", status);
 }
-
 
 static void test_lookup_thread(void)
 {
@@ -2537,50 +2543,47 @@ static void test_default_security(void)
     FltFreeSecurityDescriptor(sd);
 }
 
-static void test_default_modules(void)
+static void test_device_object(void)
 {
-    BOOL win32k = FALSE, dxgkrnl = FALSE, dxgmms1 = FALSE;
-    LIST_ENTRY *start, *entry;
-    ANSI_STRING name_a;
-    LDR_DATA_TABLE_ENTRY *mod;
-    NTSTATUS status;
+    todo_wine ok(lower_device->Type == 3, "Got type %d.\n", lower_device->Type);
+    todo_wine ok(lower_device->ReferenceCount == 1, "Got refcount %ld.\n", lower_device->ReferenceCount);
+    ok(lower_device->DriverObject == driver_obj, "Got driver %p.\n", lower_device->DriverObject);
+    ok(!lower_device->NextDevice, "Got next device %p.\n", lower_device->NextDevice);
+    ok(lower_device->AttachedDevice == upper_device, "Got attached device %p.\n", lower_device->AttachedDevice);
+    ok(!lower_device->CurrentIrp, "Got current IRP %p.\n", lower_device->CurrentIrp);
+    ok(!lower_device->Timer, "Got timer %p.\n", lower_device->Timer);
+    todo_wine ok(lower_device->Flags == 0x40, "Got flags %#lx.\n", lower_device->Flags);
+    ok(lower_device->Characteristics == (FILE_DEVICE_SECURE_OPEN | FILE_FLOPPY_DISKETTE | FILE_PORTABLE_DEVICE),
+            "Got characteristics %#lx.\n", lower_device->Characteristics);
+    ok(!lower_device->Vpb, "Got VPB %p.\n", lower_device->Vpb);
+    todo_wine ok(!lower_device->DeviceExtension, "Got extension %p.\n", lower_device->DeviceExtension);
+    ok(lower_device->DeviceType == FILE_DEVICE_UNKNOWN, "Got device type %#lx.\n", lower_device->DeviceType);
+    ok(lower_device->StackSize == 1, "Got stack size %u.\n", lower_device->StackSize);
+    ok(!lower_device->AlignmentRequirement, "Got alignment %lu.\n", lower_device->AlignmentRequirement);
+    ok(!lower_device->ActiveThreadCount, "Got thread count %lu.\n", lower_device->ActiveThreadCount);
+    ok(!lower_device->SectorSize, "Got sector size %u.\n", lower_device->SectorSize);
+    todo_wine ok(lower_device->Spare1 == 0x1, "Got Spare1 %#x.\n", lower_device->Spare1);
+    ok(!lower_device->Reserved, "Got Reserved %p.\n", lower_device->Reserved);
 
-    /* Try to find start of the InLoadOrderModuleList list */
-    for (start = ldr_module->InLoadOrderLinks.Flink; ; start = start->Flink)
-    {
-        mod = CONTAINING_RECORD(start, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
-
-        if (!MmIsAddressValid(&mod->DllBase) || !mod->DllBase) break;
-        if (!MmIsAddressValid(&mod->LoadCount) || !mod->LoadCount) break;
-        if (!MmIsAddressValid(&mod->SizeOfImage) || !mod->SizeOfImage) break;
-        if (!MmIsAddressValid(&mod->EntryPoint) || mod->EntryPoint < mod->DllBase ||
-            (DWORD_PTR)mod->EntryPoint > (DWORD_PTR)mod->DllBase + mod->SizeOfImage) break;
-    }
-
-    for (entry = start->Flink; entry != start; entry = entry->Flink)
-    {
-        mod = CONTAINING_RECORD(entry, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
-
-        status = RtlUnicodeStringToAnsiString(&name_a, &mod->BaseDllName, TRUE);
-        ok(!status, "RtlUnicodeStringToAnsiString failed with %08lx\n", status);
-        if (status) continue;
-
-        if (entry == start->Flink)
-        {
-            ok(!strncmp(name_a.Buffer, "ntoskrnl.exe", name_a.Length),
-               "Expected ntoskrnl.exe, got %.*s\n", name_a.Length, name_a.Buffer);
-        }
-
-        if (!strncmp(name_a.Buffer, "win32k.sys", name_a.Length)) win32k = TRUE;
-        if (!strncmp(name_a.Buffer, "dxgkrnl.sys", name_a.Length)) dxgkrnl = TRUE;
-        if (!strncmp(name_a.Buffer, "dxgmms1.sys", name_a.Length)) dxgmms1 = TRUE;
-
-        RtlFreeAnsiString(&name_a);
-    }
-
-    ok(win32k, "Failed to find win32k.sys\n");
-    ok(dxgkrnl, "Failed to find dxgkrnl.sys\n");
-    ok(dxgmms1, "Failed to find dxgmms1.sys\n");
+    todo_wine ok(upper_device->Type == 3, "Got type %d.\n", upper_device->Type);
+    ok(!upper_device->ReferenceCount, "Got refcount %ld.\n", upper_device->ReferenceCount);
+    ok(upper_device->DriverObject == driver_obj, "Got driver %p.\n", upper_device->DriverObject);
+    ok(upper_device->NextDevice == lower_device, "Got next device %p.\n", upper_device->NextDevice);
+    ok(!upper_device->AttachedDevice, "Got attached device %p.\n", upper_device->AttachedDevice);
+    todo_wine ok(!upper_device->CurrentIrp, "Got current IRP %p.\n", upper_device->CurrentIrp);
+    ok(!upper_device->Timer, "Got timer %p.\n", upper_device->Timer);
+    todo_wine ok(upper_device->Flags == 0x40, "Got flags %#lx.\n", upper_device->Flags);
+    ok(upper_device->Characteristics == (FILE_DEVICE_SECURE_OPEN | FILE_READ_ONLY_DEVICE),
+            "Got characteristics %#lx.\n", upper_device->Characteristics);
+    ok(!upper_device->Vpb, "Got VPB %p.\n", upper_device->Vpb);
+    ok(!!upper_device->DeviceExtension, "Expected extension.\n");
+    ok(upper_device->DeviceType == FILE_DEVICE_UNKNOWN, "Got device type %#lx.\n", upper_device->DeviceType);
+    ok(upper_device->StackSize == 2, "Got stack size %u.\n", upper_device->StackSize);
+    ok(!upper_device->AlignmentRequirement, "Got alignment %lu.\n", upper_device->AlignmentRequirement);
+    ok(!upper_device->ActiveThreadCount, "Got thread count %lu.\n", upper_device->ActiveThreadCount);
+    ok(!upper_device->SectorSize, "Got sector size %u.\n", upper_device->SectorSize);
+    ok(!upper_device->Spare1, "Got Spare1 %#x.\n", upper_device->Spare1);
+    ok(!upper_device->Reserved, "Got Reserved %p.\n", upper_device->Reserved);
 }
 
 static NTSTATUS main_test(DEVICE_OBJECT *device, IRP *irp, IO_STACK_LOCATION *stack)
@@ -2615,7 +2618,6 @@ static NTSTATUS main_test(DEVICE_OBJECT *device, IRP *irp, IO_STACK_LOCATION *st
     test_stack_callout();
     test_lookaside_list();
     test_ob_reference();
-    test_default_modules();
     test_resource();
     test_lookup_thread();
     test_IoAttachDeviceToDeviceStack();
@@ -2631,6 +2633,7 @@ static NTSTATUS main_test(DEVICE_OBJECT *device, IRP *irp, IO_STACK_LOCATION *st
     test_permanence();
     test_driver_object_extension();
     test_default_security();
+    test_device_object();
 
     IoMarkIrpPending(irp);
     IoQueueWorkItem(work_item, main_test_task, DelayedWorkQueue, irp);
@@ -2832,10 +2835,17 @@ static NTSTATUS WINAPI driver_Create(DEVICE_OBJECT *device, IRP *irp)
     return STATUS_SUCCESS;
 }
 
+static void cancel_complete(IRP *irp)
+{
+    irp->IoStatus.Status = STATUS_SUCCESS;
+    IoCompleteRequest(irp, IO_NO_INCREMENT);
+}
+
 static NTSTATUS WINAPI driver_IoControl(DEVICE_OBJECT *device, IRP *irp)
 {
     IO_STACK_LOCATION *stack = IoGetCurrentIrpStackLocation(irp);
     NTSTATUS status = STATUS_NOT_SUPPORTED;
+    unsigned int i;
 
     switch (stack->Parameters.DeviceIoControl.IoControlCode)
     {
@@ -2849,13 +2859,36 @@ static NTSTATUS WINAPI driver_IoControl(DEVICE_OBJECT *device, IRP *irp)
             status = test_load_driver_ioctl(irp, stack, &irp->IoStatus.Information);
             break;
         case IOCTL_WINETEST_RESET_CANCEL:
+            ok(!queued_async_count, "expected no queued asyncs left\n");
             cancel_cnt = 0;
             status = STATUS_SUCCESS;
             break;
         case IOCTL_WINETEST_TEST_CANCEL:
+            thread_id = PsGetCurrentThreadId();
             IoSetCancelRoutine(irp, cancel_ioctl_irp);
             IoMarkIrpPending(irp);
             return STATUS_PENDING;
+        case IOCTL_WINETEST_QUEUE_ASYNC:
+            if (queued_async_count >= ARRAY_SIZE(queued_async_irps))
+            {
+                ok(FALSE, "unexpected queued_async_count %u\n", queued_async_count);
+                status = ERROR_TOO_MANY_CMDS;
+                break;
+            }
+            queued_async_irps[queued_async_count++] = irp;
+            IoMarkIrpPending(irp);
+            return STATUS_PENDING;
+        case IOCTL_WINETEST_COMPLETE_ASYNC:
+            /* complete the pending IRPs gathered from
+             * IOCTL_WINETEST_QUEUE_ASYNC */
+            for (i = 0; i < queued_async_count; i++)
+            {
+                cancel_complete(queued_async_irps[i]);
+                queued_async_irps[i] = NULL;
+            }
+            queued_async_count = 0;
+            status = STATUS_SUCCESS;
+            break;
         case IOCTL_WINETEST_GET_CANCEL_COUNT:
             status = get_dword(irp, stack, &irp->IoStatus.Information, cancel_cnt);
             break;
@@ -3048,6 +3081,11 @@ static NTSTATUS WINAPI driver_QueryVolumeInformation(DEVICE_OBJECT *device, IRP 
         return STATUS_PENDING;
     }
 
+    case FileFsDeviceInformation:
+        /* This one is actually handled by the I/O manager;
+         * it's never passed down to a driver. */
+        ok(0, "Unexpected call.\n");
+        /* fall through */
     default:
         ret = STATUS_NOT_IMPLEMENTED;
         break;
@@ -3099,7 +3137,6 @@ NTSTATUS WINAPI DriverEntry(DRIVER_OBJECT *driver, PUNICODE_STRING registry)
     DbgPrint("loading driver\n");
 
     driver_obj = driver;
-    ldr_module = (LDR_DATA_TABLE_ENTRY *)driver->DriverSection;
 
     /* Allow unloading of the driver */
     driver->DriverUnload = driver_Unload;
@@ -3124,14 +3161,17 @@ NTSTATUS WINAPI DriverEntry(DRIVER_OBJECT *driver, PUNICODE_STRING registry)
     RtlInitUnicodeString(&nameW, L"\\Device\\WineTestDriver");
     RtlInitUnicodeString(&linkW, L"\\DosDevices\\WineTestDriver");
 
-    status = IoCreateDevice(driver, 0, &nameW, FILE_DEVICE_UNKNOWN, FILE_DEVICE_SECURE_OPEN, FALSE, &lower_device);
+    status = IoCreateDevice(driver, 0, &nameW, FILE_DEVICE_UNKNOWN,
+            FILE_DEVICE_SECURE_OPEN | FILE_FLOPPY_DISKETTE | FILE_PORTABLE_DEVICE,
+            FALSE, &lower_device);
     ok(!status, "failed to create device, status %#lx\n", status);
     status = IoCreateSymbolicLink(&linkW, &nameW);
     ok(!status, "failed to create link, status %#lx\n", status);
     lower_device->Flags &= ~DO_DEVICE_INITIALIZING;
 
     RtlInitUnicodeString(&nameW, L"\\Device\\WineTestUpper");
-    status = IoCreateDevice(driver, 0, &nameW, FILE_DEVICE_UNKNOWN, FILE_DEVICE_SECURE_OPEN, FALSE, &upper_device);
+    status = IoCreateDevice(driver, 16, &nameW, FILE_DEVICE_UNKNOWN,
+            FILE_DEVICE_SECURE_OPEN | FILE_READ_ONLY_DEVICE, FALSE, &upper_device);
     ok(!status, "failed to create device, status %#lx\n", status);
 
     IoAttachDeviceToDeviceStack(upper_device, lower_device);
