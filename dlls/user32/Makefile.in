@@ -4,7 +4,6 @@ IMPORTLIB = user32
 IMPORTS   = $(PNG_PE_LIBS) gdi32 sechost advapi32 kernelbase win32u uuid
 EXTRAINCL = $(PNG_PE_CFLAGS)
 DELAYIMPORTS = imm32 combase
-i386_EXTRADLLFLAGS = -Wl,--image-base,0x7e410000
 
 VER_PRODUCTVERSION = 5,1,2600,2180
 
@@ -36,6 +35,29 @@ SOURCES = \
 	nonclient.c \
 	property.c \
 	resource.c \
+	resources/ocr_appstarting.svg \
+	resources/ocr_cross.svg \
+	resources/ocr_hand.svg \
+	resources/ocr_help.svg \
+	resources/ocr_ibeam.svg \
+	resources/ocr_no.svg \
+	resources/ocr_normal.svg \
+	resources/ocr_pen.svg \
+	resources/ocr_size.svg \
+	resources/ocr_sizeall.svg \
+	resources/ocr_sizenesw.svg \
+	resources/ocr_sizens.svg \
+	resources/ocr_sizenwse.svg \
+	resources/ocr_sizewe.svg \
+	resources/ocr_up.svg \
+	resources/ocr_wait.svg \
+	resources/oic_bang.svg \
+	resources/oic_hand.svg \
+	resources/oic_note.svg \
+	resources/oic_ques.svg \
+	resources/oic_sample.svg \
+	resources/oic_shield.svg \
+	resources/oic_winlogo.svg \
 	scroll.c \
 	static.c \
 	sysparams.c \

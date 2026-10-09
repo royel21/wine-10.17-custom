@@ -1376,12 +1376,7 @@ static HICON CURSORICON_Load(HINSTANCE hInstance, LPCWSTR name,
           hInstance, debugstr_w(name), width, height, depth, fCursor, loadflags);
 
     if ((loadflags & LR_LOADFROMFILE) && get_app_version() >= 0x4000)    /* Load from file */
-    {
-        if (IS_INTRESOURCE(name) && GetProcessVersion(0) < 0x40000)
-            WARN("Windows 3.1 app set LR_LOADFROMFILE without a name, fallback to loading from resource\n");
-        else
-            return CURSORICON_LoadFromFile( name, width, height, depth, fCursor, loadflags );
-    }
+        return CURSORICON_LoadFromFile( name, width, height, depth, fCursor, loadflags );
 
     if (!hInstance) hInstance = user32_module;  /* Load OEM cursor/icon */
 
@@ -2316,7 +2311,7 @@ HANDLE WINAPI CopyImage( HANDLE hnd, UINT type, INT desiredx,
                     {
                         /* Look if the colors of the DIB are black and white */
 
-                        monochrome =
+                        monochrome = 
                               (bi->bmiColors[0].rgbRed == 0xff
                             && bi->bmiColors[0].rgbGreen == 0xff
                             && bi->bmiColors[0].rgbBlue == 0xff

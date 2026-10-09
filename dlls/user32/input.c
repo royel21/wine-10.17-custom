@@ -450,6 +450,7 @@ BOOL WINAPI UnloadKeyboardLayout( HKL layout )
     return FALSE;
 }
 
+
 static DWORD CALLBACK devnotify_window_callbackW(HANDLE handle, DWORD flags, DEV_BROADCAST_HDR *header)
 {
     SendMessageTimeoutW(handle, WM_DEVICECHANGE, flags, (LPARAM)header, SMTO_ABORTIFHUNG, 2000, NULL);
@@ -846,4 +847,25 @@ HSYNTHETICPOINTERDEVICE WINAPI CreateSyntheticPointerDevice(POINTER_INPUT_TYPE t
     FIXME( "type %ld, max_count %ld, mode %d stub!\n", type, max_count, mode);
     SetLastError( ERROR_CALL_NOT_IMPLEMENTED );
     return NULL;
+}
+
+/***********************************************************************
+ *           DelegateInput (USER32.@)
+ *
+ * Undocumented. Function prototype might be wrong.
+ */
+UINT_PTR WINAPI DelegateInput(void *p1, void *p2, void *p3, void *p4, void *p5, void *p6)
+{
+    FIXME( "p1 %p p2 %p p3 %p p4 %p p5 %p p6 %p stub!\n", p1, p2, p3, p4, p5, p6 );
+    return 1;
+}
+
+/***********************************************************************
+ *           UndelegateInput (USER32.@)
+ *
+ * Undocumented. Function prototype might be wrong.
+ */
+void WINAPI UndelegateInput(void *p1, void *p2)
+{
+    FIXME( "p1 %p p2 %p stub!\n", p1, p2 );
 }

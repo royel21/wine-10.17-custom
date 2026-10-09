@@ -2,7 +2,6 @@
  *
  * Copyright 1994, Bob Amstadt
  *           1995,1996 Alex Korobka
- * Copyright 2018 Katayama Hirofumi MZ
  *
  * This file contains routines to support MDI (Multiple Document
  * Interface) features .
@@ -1791,27 +1790,6 @@ void WINAPI ScrollChildren(HWND hWnd, UINT uMsg, WPARAM wParam,
 done:
     SetThreadDpiAwarenessContext( context );
 }
-
-
-/******************************************************************************
- *		CascadeWindows (USER32.@) Cascades MDI child windows
- *
- * RETURNS
- *    Success: Number of cascaded windows.
- *    Failure: 0
- */
-
-typedef struct CASCADE_INFO
-{
-    HWND top;
-    UINT flags;
-    HWND parent;
-    HWND desktop;
-    HWND tray_wnd;
-    HWND progman;
-    HWND *wnd_array;
-    DWORD wnd_count;
-} CASCADE_INFO;
 
 
 /************************************************************************

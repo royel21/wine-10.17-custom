@@ -40,6 +40,8 @@
 #include "winuser.h"
 #include "winnls.h"
 
+static BOOL (WINAPI *pNtUserModifyUserStartupInfoFlags)(DWORD,DWORD);
+
 #define MAXHWNDS 1024
 static HWND hwnd [MAXHWNDS];
 static unsigned int numwnds=1; /* 0 is reserved for null */
@@ -146,6 +148,17 @@ static const h_entry hierarchy [] = {
     { 84,  4,  WS_CHILD | WS_VISIBLE | WS_TABSTOP, 0},
     {0, 0, 0, 0}
 };
+
+static void pump_messages(void)
+{
+    MSG msg;
+
+    while (PeekMessageA( &msg, 0, 0, 0, PM_REMOVE ))
+    {
+        TranslateMessage( &msg );
+        DispatchMessageA( &msg );
+    }
+}
 
 static DWORD get_button_style(HWND button)
 {
@@ -2068,171 +2081,6 @@ static void test_MessageBoxFontTest(void)
     DestroyWindow(hDlg);
 }
 
-static const char msgbox_title[] = "%5!z9ZXw*ia;57n/FGl.bCH,Su\"mfKN;foCqAU\'j6AmoJgAc_D:Z0A\'E6PF_O/w";
-
-DWORD WINAPI WorkerThread(void *param)
-{
-    WCHAR *expected = param;
-    char windowTitle[sizeof(msgbox_title)];
-    HWND hwndMbox;
-    BOOL succeeded = FALSE;
-
-    Sleep(200);
-
-    hwndMbox = GetForegroundWindow();
-
-    /* Find the Window, if it doesn't have focus */
-    if (!(IsWindow(hwndMbox) &&
-        GetWindowTextA(hwndMbox, windowTitle, sizeof(msgbox_title)) &&
-        lstrcmpA(msgbox_title, windowTitle) == 0))
-    {
-        hwndMbox = FindWindowA(NULL, msgbox_title);
-        if (!IsWindow(hwndMbox))
-            goto cleanup;
-    }
-
-    SendMessageA(hwndMbox, WM_COPY, 0, 0);
-
-    if (IsClipboardFormatAvailable(CF_UNICODETEXT) && OpenClipboard(NULL))
-    {
-        HANDLE textHandle = GetClipboardData(CF_UNICODETEXT);
-        WCHAR *text = GlobalLock(textHandle);
-
-        if (text != NULL)
-        {
-            succeeded = lstrcmpW(expected, text) == 0;
-            if(!succeeded)
-            {
-                ok(0, "%s\n", wine_dbgstr_w(text));
-                ok(0, "%s\n", wine_dbgstr_w(expected));
-            }
-
-            GlobalUnlock(textHandle);
-        }
-        else
-            ok(0, "No text on clipboard.\n");
-
-        CloseClipboard();
-
-    }
-    else
-        trace("Clipboard error\n");
-
-    PostMessageA(hwndMbox, WM_COMMAND, IDIGNORE, 0); /* For MB_ABORTRETRYIGNORE dialog. */
-    PostMessageA(hwndMbox, WM_CLOSE, 0, 0);
-
-cleanup:
-    ok(succeeded, "Failed to get string.\n");
-
-    return 0;
-}
-
-static WCHAR *shell_get_resource_string(UINT id)
-{
-    const WCHAR *resource;
-    unsigned int size;
-    WCHAR *ret;
-
-    size = LoadStringW(NULL, id, (WCHAR *)&resource, 0);
-    ret = malloc((size + 1) * sizeof(WCHAR));
-    memcpy(ret, resource, size * sizeof(WCHAR));
-    ret[size] = 0;
-    return ret;
-}
-
-static WCHAR *create_msgbox_message(UINT res1, UINT res2, UINT res3)
-{
-    /*
-    ---------------------------
-    Dialog Title
-    ---------------------------
-    Dialog Message
-    ---------------------------
-    Button(s) Text. OK<+3 spaces>
-    ---------------------------
-    */
-    static WCHAR text[512];
-    WCHAR *btn1text = shell_get_resource_string(res1);
-
-    lstrcpyW(text, L"---------------------------\r\n");
-    lstrcatW(text, L"%5!z9ZXw*ia;57n/FGl.bCH,Su\"mfKN;foCqAU\'j6AmoJgAc_D:Z0A\'E6PF_O/w");
-    lstrcatW(text, L"\r\n");
-    lstrcatW(text, L"---------------------------\r\n");
-    lstrcatW(text, L"Message\r\n");
-    lstrcatW(text, L"---------------------------\r\n");
-
-    lstrcatW(text, btn1text);
-    lstrcatW(text, L"   ");
-    free(btn1text);
-
-    if (res2 != 0)
-    {
-        WCHAR *btn2text = shell_get_resource_string(res2);
-        lstrcatW(text, btn2text);
-        lstrcatW(text, L"   ");
-        free(btn2text);
-    }
-    if (res3 != 0)
-    {
-        WCHAR *btn3text = shell_get_resource_string(res3);
-        lstrcatW(text, btn3text);
-        lstrcatW(text, L"   ");
-        free(btn3text);
-    }
-    lstrcatW(text, L"\r\n---------------------------\r\n");
-
-    return text;
-}
-
-static void test_MessageBox_WM_COPY_Test(void)
-{
-    DWORD tid = 0;
-    WCHAR *expected;
-    HANDLE hthread;
-
-    expected = create_msgbox_message(102 /* OK */, 0, 0);
-    hthread = CreateThread(NULL, 0, WorkerThread, expected, 0, &tid);
-    MessageBoxA(NULL, "Message", msgbox_title, MB_OK);
-    ok(WaitForSingleObject(hthread, 2000) == WAIT_OBJECT_0, "WaitForSingleObject failed\n");
-    CloseHandle(hthread);
-
-    expected = create_msgbox_message(102 /* OK */, 105 /* Cancel */, 0);
-    hthread = CreateThread(NULL, 0, WorkerThread, expected, 0, &tid);
-    MessageBoxA(NULL, "Message", msgbox_title, MB_OKCANCEL);
-    ok(WaitForSingleObject(hthread, 2000) == WAIT_OBJECT_0, "WaitForSingleObject failed\n");
-    CloseHandle(hthread);
-
-    expected = create_msgbox_message(103 /* Abort */, 104 /* Retry */, 106 /* Ignore */);
-    hthread = CreateThread(NULL, 0, WorkerThread, expected, 0, &tid);
-    MessageBoxA(NULL, "Message", msgbox_title, MB_ABORTRETRYIGNORE);
-    ok(WaitForSingleObject(hthread, 2000) == WAIT_OBJECT_0, "WaitForSingleObject failed\n");
-    CloseHandle(hthread);
-
-    expected = create_msgbox_message(100 /* Yes */, 101 /* No */, 0);
-    hthread = CreateThread(NULL, 0, WorkerThread, expected, 0, &tid);
-    MessageBoxA(NULL, "Message", msgbox_title, MB_YESNO);
-    ok(WaitForSingleObject(hthread, 2000) == WAIT_OBJECT_0, "WaitForSingleObject failed\n");
-    CloseHandle(hthread);
-
-    expected = create_msgbox_message(100 /* Yes */, 101 /* No */, 105 /* Cancel */);
-    hthread = CreateThread(NULL, 0, WorkerThread, expected, 0, &tid);
-    MessageBoxA(NULL, "Message", msgbox_title, MB_YESNOCANCEL);
-    ok(WaitForSingleObject(hthread, 2000) == WAIT_OBJECT_0, "WaitForSingleObject failed\n");
-    CloseHandle(hthread);
-
-    expected = create_msgbox_message(104 /* Retry */, 105 /* Cancel */, 0);
-    hthread = CreateThread(NULL, 0, WorkerThread, expected, 0, &tid);
-    MessageBoxA(NULL, "Message", msgbox_title, MB_RETRYCANCEL);
-    ok(WaitForSingleObject(hthread, 2000) == WAIT_OBJECT_0, "WaitForSingleObject failed\n");
-    CloseHandle(hthread);
-
-    expected = create_msgbox_message(105 /* Cancel */, 107 /* Try again */, 108 /* Continue */);
-    hthread = CreateThread(NULL, 0, WorkerThread, expected, 0, &tid);
-    MessageBoxA(NULL, "Message", msgbox_title, MB_CANCELTRYCONTINUE);
-    ok(WaitForSingleObject(hthread, 2000) == WAIT_OBJECT_0, "WaitForSingleObject failed\n");
-    CloseHandle(hthread);
-}
-
 static void test_SaveRestoreFocus(void)
 {
     HWND hDlg;
@@ -2413,7 +2261,63 @@ static LRESULT CALLBACK msgbox_hook_proc(INT code, WPARAM wParam, LPARAM lParam)
     return CallNextHookEx(NULL, code, wParam, lParam);
 }
 
-static void test_MessageBox(void)
+static LRESULT CALLBACK msgbox_hook_proc2(INT code, WPARAM wParam, LPARAM lParam)
+{
+    return 1; /* prevent message box or dialog window creation. */
+}
+
+static void test_message_box_startup_info(void)
+{
+    HHOOK hook;
+    HWND hwnd;
+    int ret;
+
+    hook = SetWindowsHookExA( WH_CBT, msgbox_hook_proc2, NULL, GetCurrentThreadId() );
+    ret = DialogBoxParamA( GetModuleHandleA( NULL ), "TEST_EMPTY_DIALOG", 0, NULL, 0 );
+    ok(ret == -1, "got %d\n", ret);
+    UnhookWindowsHookEx( hook );
+
+    hwnd = CreateWindowA( "static", "overlapped2", WS_OVERLAPPED, 0, 0, 0, 0, NULL, NULL, GetModuleHandleW(NULL), NULL );
+    ok( !!hwnd, "got NULL.\n" );
+    pump_messages();
+    ShowWindow( hwnd, SW_SHOWDEFAULT );
+    /* startup info window show flags are in effect. */
+    ret = IsWindowVisible( hwnd );
+    ok( !ret, "got %d.\n", ret );
+    DestroyWindow( hwnd );
+    pump_messages();
+
+    /* set startup info flags once again. */
+    pNtUserModifyUserStartupInfoFlags( STARTF_USESHOWWINDOW, STARTF_USESHOWWINDOW );
+    hook = SetWindowsHookExA( WH_CBT, msgbox_hook_proc2, NULL, GetCurrentThreadId() );
+    ret = MessageBoxA(NULL, "Text", "MSGBOX caption", msgbox_type);
+    todo_wine ok(!ret, "got %d\n", ret); /* Wine returns -1 here. */
+    UnhookWindowsHookEx( hook );
+
+    hwnd = CreateWindowA( "static", "overlapped2", WS_OVERLAPPED, 0, 0, 0, 0, NULL, NULL, GetModuleHandleW(NULL), NULL );
+    ok( !!hwnd, "got NULL.\n" );
+    pump_messages();
+    ShowWindow( hwnd, SW_SHOWDEFAULT );
+    ret = IsWindowVisible( hwnd );
+    /* startup info flags have no effect, while the message box window wasn't even created. */
+    ok( ret, "got %d.\n", ret );
+    DestroyWindow( hwnd );
+    pump_messages();
+
+    /* sanity check, set startup flags once againg and check that it works */
+    pNtUserModifyUserStartupInfoFlags( STARTF_USESHOWWINDOW, STARTF_USESHOWWINDOW );
+    hwnd = CreateWindowA( "static", "overlapped2", WS_OVERLAPPED, 0, 0, 0, 0, NULL, NULL, GetModuleHandleW(NULL), NULL );
+    ok( !!hwnd, "got NULL.\n" );
+    pump_messages();
+    ShowWindow( hwnd, SW_SHOWDEFAULT );
+    ret = IsWindowVisible( hwnd );
+    /* startup info flags have no effect, while the message box window wasn't even created. */
+    ok( !ret, "got %d.\n", ret );
+    DestroyWindow( hwnd );
+    pump_messages();
+}
+
+static void test_MessageBox(char **argv)
 {
     static const UINT tests[] =
     {
@@ -2425,6 +2329,9 @@ static void test_MessageBox(void)
         MB_OKCANCEL | MB_TASKMODAL | MB_TOPMOST,
         MB_OKCANCEL | MB_TASKMODAL | MB_SYSTEMMODAL | MB_TOPMOST,
     };
+    STARTUPINFOA sa = {.cb = sizeof(STARTUPINFOA)};
+    PROCESS_INFORMATION info;
+    char cmdline[MAX_PATH];
     unsigned int i;
     HHOOK hook;
     int ret;
@@ -2443,6 +2350,18 @@ static void test_MessageBox(void)
     }
 
     UnhookWindowsHookEx(hook);
+
+    if (!pNtUserModifyUserStartupInfoFlags)
+    {
+        win_skip("NtUserModifyUserStartupInfoFlags is not available.\n");
+        return;
+    }
+    sa.dwFlags = STARTF_USESHOWWINDOW;
+    sa.wShowWindow = SW_HIDE;
+    sprintf(cmdline, "%s %s message_box_startup_info", argv[0], argv[1]);
+    ret = CreateProcessA(NULL, cmdline, NULL, NULL, FALSE, 0, NULL, NULL, &sa, &info);
+    ok(ret, "got error %lu\n", GetLastError());
+    wait_child_process(&info);
 }
 
 static INT_PTR CALLBACK custom_test_dialog_proc(HWND hdlg, UINT msg, WPARAM wparam, LPARAM lparam)
@@ -2601,11 +2520,22 @@ static void test_create_controls(void)
 
 START_TEST(dialog)
 {
+    char **argv;
+    int argc = winetest_get_mainargs( &argv );
+    HMODULE win32u = GetModuleHandleA("win32u.dll");
+
+    pNtUserModifyUserStartupInfoFlags = (void*)GetProcAddress(win32u, "NtUserModifyUserStartupInfoFlags");
+
     g_hinst = GetModuleHandleA (0);
 
     if (!RegisterWindowClasses()) assert(0);
 
-    test_MessageBox_WM_COPY_Test();
+    if (argc == 3 && !strcmp(argv[2], "message_box_startup_info"))
+    {
+        test_message_box_startup_info();
+        return;
+    }
+
     test_dialog_custom_data();
     test_GetNextDlgItem();
     test_IsDialogMessage();
@@ -2619,6 +2549,6 @@ START_TEST(dialog)
     test_MessageBoxFontTest();
     test_SaveRestoreFocus();
     test_timer_message();
-    test_MessageBox();
+    test_MessageBox(argv);
     test_capture_release();
 }

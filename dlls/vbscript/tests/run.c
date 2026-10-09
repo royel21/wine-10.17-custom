@@ -187,11 +187,6 @@ static const char *vt2a(VARIANT *v)
         sprintf(buf, "%s*", vt2a(V_BYREF(v)));
         return buf;
     }
-    else if(V_VT(v) == (VT_BYREF|VT_VARIANT|VT_ARRAY)) {
-        static char buf[64];
-        sprintf(buf, "%s*", vt2a(V_BYREF(v)));
-        return buf;
-    }
 
     switch(V_VT(v)) {
     case VT_EMPTY:
@@ -1110,6 +1105,45 @@ static IDispatchExVtbl collectionObjVtbl = {
 
 static IDispatchEx collectionObj = { &collectionObjVtbl };
 
+static HRESULT WINAPI indexedObj_InvokeEx(IDispatchEx *iface, DISPID id, LCID lcid, WORD wFlags, DISPPARAMS *pdp,
+        VARIANT *pvarRes, EXCEPINFO *pei, IServiceProvider *pspCaller)
+{
+    switch(id) {
+    case DISPID_VALUE:
+        ok(wFlags == (DISPATCH_PROPERTYGET|DISPATCH_METHOD), "wFlags = %x\n", wFlags);
+        ok(pdp != NULL, "pdp == NULL\n");
+        ok(pdp->cArgs == 1, "cArgs = %d\n", pdp->cArgs);
+        ok(pvarRes != NULL, "pvarRes == NULL\n");
+
+        V_VT(pvarRes) = VT_I2;
+        V_I2(pvarRes) = V_I2(pdp->rgvarg) * 2;
+        return S_OK;
+    }
+
+    ok(0, "unexpected call %ld\n", id);
+    return E_NOTIMPL;
+}
+
+static IDispatchExVtbl indexedObjVtbl = {
+    DispatchEx_QueryInterface,
+    DispatchEx_AddRef,
+    DispatchEx_Release,
+    DispatchEx_GetTypeInfoCount,
+    DispatchEx_GetTypeInfo,
+    DispatchEx_GetIDsOfNames,
+    DispatchEx_Invoke,
+    DispatchEx_GetDispID,
+    indexedObj_InvokeEx,
+    DispatchEx_DeleteMemberByName,
+    DispatchEx_DeleteMemberByDispID,
+    DispatchEx_GetMemberProperties,
+    DispatchEx_GetMemberName,
+    DispatchEx_GetNextDispID,
+    DispatchEx_GetNameSpaceParent
+};
+
+static IDispatchEx indexedObj = { &indexedObjVtbl };
+
 static ULONG refobj_ref;
 
 static ULONG WINAPI RefObj_AddRef(IDispatchEx *iface)
@@ -1940,10 +1974,16 @@ static HRESULT WINAPI ActiveScriptSite_GetItemInfo(IActiveScriptSite *iface, LPC
     ok(dwReturnMask == SCRIPTINFO_IUNKNOWN, "unexpected dwReturnMask %lx\n", dwReturnMask);
     ok(!ppti, "ppti != NULL\n");
 
-    if(lstrcmpW(pstrName, L"test"))
+    if(!lstrcmpW(pstrName, L"test")) {
+        *ppiunkItem = (IUnknown*)&Global;
+    }else if(!lstrcmpW(pstrName, L"indexedObj")) {
+        *ppiunkItem = (IUnknown*)&indexedObj;
+    }else {
         ok(0, "unexpected pstrName %s\n", wine_dbgstr_w(pstrName));
+        *ppiunkItem = NULL;
+        return E_FAIL;
+    }
 
-    *ppiunkItem = (IUnknown*)&Global;
     IUnknown_AddRef(*ppiunkItem);
     return S_OK;
 }
@@ -2065,6 +2105,10 @@ static IActiveScript *create_and_init_script(DWORD flags, BOOL start)
 
     hres = IActiveScript_AddNamedItem(engine, L"test",
             SCRIPTITEM_ISVISIBLE|SCRIPTITEM_ISSOURCE|flags);
+    ok(hres == S_OK, "AddNamedItem failed: %08lx\n", hres);
+
+    hres = IActiveScript_AddNamedItem(engine, L"indexedObj",
+            SCRIPTITEM_ISVISIBLE);
     ok(hres == S_OK, "AddNamedItem failed: %08lx\n", hres);
 
     if (start)
@@ -2736,7 +2780,7 @@ static void test_parse_errors(void)
         {
             /* invalid use of parentheses for call statement */
             L"strcomp(\"x\", \"y\")",
-            0, -17
+            0, 17
         },
         {
             L"\n\n\n  cint _\n   throwInt(&h80001234&)",
@@ -3445,10 +3489,26 @@ static void run_tests(void)
     CHECK_CALLED(global_success_d);
     CHECK_CALLED(global_success_i);
 
+    SET_EXPECT(OnScriptError);
+    hres = parse_script_wr(L"Const x = 1\nConst x = 2");
+    ok(FAILED(hres), "duplicated const didn't fail\n");
+    CHECK_CALLED(OnScriptError);
+
+    SET_EXPECT(OnScriptError);
+    hres = parse_script_wr(L"Const x = 1\nDim x");
+    ok(FAILED(hres), "const+dim didn't fail\n");
+    CHECK_CALLED(OnScriptError);
+
+    SET_EXPECT(OnScriptError);
+    hres = parse_script_wr(L"Dim x\nConst x = 1");
+    ok(FAILED(hres), "dim+const didn't fail\n");
+    CHECK_CALLED(OnScriptError);
+
     run_from_res("lang.vbs");
     run_from_res("api.vbs");
     run_from_res("regexp.vbs");
     run_from_res("error.vbs");
+    run_from_res("noexplicit.vbs");
 
     test_procedures();
     test_gc();

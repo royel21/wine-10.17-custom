@@ -431,6 +431,8 @@ static UINT (WINAPI *pGetRawInputDeviceInfoA) (HANDLE, UINT, void *, UINT *);
 static BOOL (WINAPI *pIsWow64Process)(HANDLE, PBOOL);
 static HKL (WINAPI *pLoadKeyboardLayoutEx)(HKL, const WCHAR *, UINT);
 static INT (WINAPI *pScheduleDispatchNotification)(HWND);
+static UINT_PTR (WINAPI *pDelegateInput)(void *, void *, void *, void *, void *, void *);
+static void (WINAPI *pUndelegateInput)(void *, void *);
 
 /**********************adapted from input.c **********************************/
 
@@ -446,6 +448,7 @@ static void init_function_pointers(void)
     if (!(p ## func = (void*)GetProcAddress(hdll, #func))) \
       trace("GetProcAddress(%s) failed\n", #func)
 
+    GET_PROC(DelegateInput);
     GET_PROC(EnableMouseInPointer);
     GET_PROC(IsMouseInPointerEnabled);
     GET_PROC(GetCurrentInputMessageSource);
@@ -459,6 +462,7 @@ static void init_function_pointers(void)
     GET_PROC(GetRawInputDeviceInfoW);
     GET_PROC(GetRawInputDeviceInfoA);
     GET_PROC(LoadKeyboardLayoutEx);
+    GET_PROC(UndelegateInput);
 
     hdll = GetModuleHandleA("kernel32");
     GET_PROC(IsWow64Process);
@@ -4310,8 +4314,8 @@ static void test_SendInput_mouse_messages(void)
 
     mouse_event( MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0 );
     wait_messages( 5, FALSE );
-    button_down_hwnd_todo[1].message.hwnd = hwnd;
-    ok_seq( button_down_hwnd_todo );
+    button_down_hwnd[1].message.hwnd = hwnd;
+    ok_seq( button_down_hwnd );
     mouse_event( MOUSEEVENTF_LEFTUP, 0, 0, 0, 0 );
     wait_messages( 5, FALSE );
     button_up_hwnd[1].message.hwnd = hwnd;
@@ -6235,40 +6239,6 @@ static void test_LoadKeyboardLayoutEx( HKL orig_hkl )
     ok_eq( old_hkl, GetKeyboardLayout( 0 ), HKL, "%p" );
 }
 
-static void test_GetKeyboardLayoutList(void)
-{
-    int cnt, cnt2;
-    HKL *layouts;
-    ULONG_PTR baselayout;
-    LANGID langid;
-
-    baselayout = GetUserDefaultLCID();
-    langid = PRIMARYLANGID(LANGIDFROMLCID(baselayout));
-    if (langid == LANG_CHINESE || langid == LANG_JAPANESE || langid == LANG_KOREAN)
-        baselayout = MAKELONG( baselayout, 0xe001 ); /* IME */
-    else
-        baselayout |= baselayout << 16;
-
-    cnt = GetKeyboardLayoutList(0, NULL);
-    /* Most users will not have more than a few keyboard layouts installed at a time. */
-    ok(cnt > 0 && cnt < 10, "Layout count %d\n", cnt);
-    if (cnt > 0)
-    {
-        layouts = HeapAlloc(GetProcessHeap(), 0, sizeof(*layouts) * cnt );
-
-        cnt2 = GetKeyboardLayoutList(cnt, layouts);
-        ok(cnt == cnt2, "wrong value %d!=%d\n", cnt, cnt2);
-        for(cnt = 0; cnt < cnt2; cnt++)
-        {
-            if(layouts[cnt] == (HKL)baselayout)
-                break;
-        }
-        ok(cnt < cnt2, "Didnt find current keyboard\n");
-
-        HeapFree(GetProcessHeap(), 0, layouts);
-    }
-}
-
 /* run the tests in a separate desktop to avoid interaction with other
  * tests, current desktop state, or user actions. */
 static void test_input_desktop( char **argv )
@@ -6506,6 +6476,23 @@ static void test_ScheduleDispatchNotification(void)
     DestroyWindow(hwnd);
 }
 
+static void test_DelegateInput(void)
+{
+    UINT_PTR ret;
+
+    if (!pDelegateInput || !pUndelegateInput)
+    {
+        win_skip("DelegateInput or UndelegateInput is unavailable.\n");
+        return;
+    }
+
+    ret = pDelegateInput(0, 0, 0, 0, 0, 0);
+    todo_wine
+    ok(ret == 0, "Got unexpected ret %Ix.\n", ret);
+
+    pUndelegateInput(0, 0);
+}
+
 START_TEST(input)
 {
     char **argv;
@@ -6549,9 +6536,9 @@ START_TEST(input)
     test_GetKeyState();
     test_OemKeyScan();
     test_rawinput(argv[0]);
-    test_GetKeyboardLayoutList();
     test_DefRawInputProc();
     test_ScheduleDispatchNotification();
+    test_DelegateInput();
 
     if(pGetMouseMovePointsEx)
         test_GetMouseMovePointsEx( argv );

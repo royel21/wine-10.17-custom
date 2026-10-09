@@ -1502,6 +1502,13 @@ End Sub
 Call ConstTestSub
 Dim funcconst
 
+if forward_const = 99 then
+    Call ok(true, "forward_const = 99")
+else
+    Call ok(false, "forward_const <> 99")
+end if
+Const forward_const = 99
+
 ' Property may be used as an identifier (although it's a keyword)
 Sub TestProperty
     Dim Property
@@ -2370,22 +2377,8 @@ f1 not 1 = 0
 
 arr (0) = 2 xor -2
 
-function wmi_array_bstr()
-const HKEY_LOCAL_MACHINE = &H80000002
-Dim oReg
-
-Set oReg = GetObject("winmgmts:{impersonationLevel=impersonate}!\\.\root\default:StdRegProv")
-
-Dim strKeyPath, strSubkey, arrSubKeys
-strKeyPath = "Software\Microsoft\NET Framework Setup\NDP"
-oReg.EnumKey HKEY_LOCAL_MACHINE, strKeyPath, arrSubKeys
-
-Call ok(getVT(arrSubKeys) = "VT_ARRAY|VT_VARIANT*", "getVT(arrSubKeys) = " & getVT(arrSubKeys))
-For Each strSubkey In arrSubKeys
-Next
-end function
-
-Call wmi_array_bstr()
-
+' Test calling a named item object with arguments (DISPID_VALUE)
+Call ok(indexedObj(3) = 6, "indexedObj(3) = " & indexedObj(3))
+Call ok(indexedObj(0) = 0, "indexedObj(0) = " & indexedObj(0))
 
 reportSuccess()

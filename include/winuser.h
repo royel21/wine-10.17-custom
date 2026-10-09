@@ -2121,7 +2121,7 @@ struct tagMONITORINFOEXW : public tagMONITORINFO
 
 struct tagMONITORINFOEXA
 {   /* the 4 first entries are the same as MONITORINFO */
-    DWORD	cbSize;
+    DWORD	cbSize;	
     RECT	rcMonitor;
     RECT	rcWork;
     DWORD	dwFlags;
@@ -3843,6 +3843,8 @@ typedef struct tagMENUGETOBJECTINFO
     void  *riid;
     void  *pvObj;
 } MENUGETOBJECTINFO, *PMENUGETOBJECTINFO;
+
+typedef BOOLEAN (WINAPI *PREGISTERCLASSNAMEW)(LPCWSTR);
 
 #if defined(_WINGDI_) && !defined(NOGDI)
 WINUSERAPI LONG        WINAPI ChangeDisplaySettingsA(LPDEVMODEA,DWORD);

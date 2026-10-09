@@ -1735,7 +1735,6 @@ WORD WINAPI CascadeChildWindows( HWND parent, UINT flags )
     return CascadeWindows( parent, flags, NULL, 0, NULL );
 }
 
-
 /**********************************************************************
  *              TileWindows (USER32.@)
  */
