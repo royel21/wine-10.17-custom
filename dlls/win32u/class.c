@@ -538,11 +538,7 @@ ATOM WINAPI NtUserRegisterClassExWOW( const WNDCLASSEXW *wc, UNICODE_STRING *nam
         atom = reply->atom;
     }
     SERVER_END_REQ;
-    if (!ret)
-    {
-        free( class );
-        return 0;
-    }
+    if (!ret) goto failed;
 
     if (!(shared = find_shared_session_object( locator.id, locator.offset )))
     {
@@ -554,18 +550,9 @@ ATOM WINAPI NtUserRegisterClassExWOW( const WNDCLASSEXW *wc, UNICODE_STRING *nam
             wine_server_call( req );
         }
         SERVER_END_REQ;
-        free( class );
-        return 0;
+        goto failed;
     }
 
-    /* Other non-null values must be set by caller */
-    if (wc->hIcon && !wc->hIconSm)
-        sm_icon = CopyImage( wc->hIcon, IMAGE_ICON,
-                             get_system_metrics( SM_CXSMICON ),
-                             get_system_metrics( SM_CYSMICON ),
-                             LR_COPYFROMRESOURCE );
-
-    user_lock();
     if (class->local) list_add_head( &class_list, &class->entry );
     else list_add_tail( &class_list, &class->entry );
 
@@ -584,6 +571,13 @@ ATOM WINAPI NtUserRegisterClassExWOW( const WNDCLASSEXW *wc, UNICODE_STRING *nam
     class->shared        = shared;
     release_class_ptr( class );
     return atom;
+
+failed:
+    user_unlock();
+    NtUserDestroyCursor( sm_icon, 0 );
+    free( class );
+    return 0;
+
 }
 
 /***********************************************************************
@@ -598,6 +592,8 @@ BOOL WINAPI NtUserUnregisterClass( UNICODE_STRING *name, HINSTANCE instance,
     /* create the desktop window to trigger builtin class registration */
     get_desktop_window();
 
+    user_lock();
+
     SERVER_START_REQ( destroy_class )
     {
         req->instance = wine_server_client_ptr( instance );
@@ -605,11 +601,14 @@ BOOL WINAPI NtUserUnregisterClass( UNICODE_STRING *name, HINSTANCE instance,
         if (!wine_server_call_err( req )) class = wine_server_get_ptr( reply->client_ptr );
     }
     SERVER_END_REQ;
-    if (!class) return FALSE;
+    if (!class)
+    {
+        user_unlock();
+        return FALSE;
+    }
 
     TRACE( "%p\n", class );
 
-    user_lock();
     if (class->dce) free_dce( class->dce, 0, &drawables );
     list_remove( &class->entry );
     if (class->hbrBackground > (HBRUSH)(COLOR_GRADIENTINACTIVECAPTION + 1))
