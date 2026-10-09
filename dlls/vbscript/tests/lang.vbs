@@ -106,6 +106,18 @@ Call ok(not(false = true = ""), "false = true = """" is true")
 Call ok(not (false = false <> false = false), "false = false <> false = false is true")
 Call ok(not ("" <> false = false), """"" <> false = false is true")
 
+Call ok(true <> Not true, "true <> Not true should be true")
+Call ok(false <> Not false, "false <> Not false should be true")
+Call ok(true = Not false, "true = Not false should be true")
+Call ok(Not false = true, "Not false = true should be true")
+Call ok(Not true <> true, "Not true <> true should be true")
+Call ok(Not true = false, "Not true = false should be true")
+Call ok(Not 1 > 2, "Not 1 > 2 should be true")
+Call ok(1 <> Not 0 = 0, "1 <> Not 0 = 0 should be true")
+Call ok(0 = Not 1 = 1, "0 = Not 1 = 1 should be true")
+Call ok(1 > Not 5 > 3, "1 > Not 5 > 3 should be true")
+Call ok(Not false And false = false, "Not false And false should be false")
+
 Call ok(getVT(false) = "VT_BOOL", "getVT(false) is not VT_BOOL")
 Call ok(getVT(true) = "VT_BOOL", "getVT(true) is not VT_BOOL")
 Call ok(getVT("") = "VT_BSTR", "getVT("""") is not VT_BSTR")
@@ -1695,6 +1707,25 @@ ok arr2(1,2) = 2, "arr2(1,2) = " & arr2(1,2)
 x = Array(Array(3))
 call ok(x(0)(0) = 3, "x(0)(0) = " & x(0)(0))
 
+Class ArrayReturnContainer
+    Public Default Property Get Item(key)
+        If key = "Key" Then
+            Item = Array("Value1", Array("SubValue1", "SubValue2"))
+        End If
+    End Property
+End Class
+
+Dim containerObj
+Set containerObj = New ArrayReturnContainer
+call ok(containerObj.Item("Key")(0) = "Value1", "containerObj.Item(Key)(0) = " & containerObj.Item("Key")(0))
+call ok(containerObj.Item("Key")(1)(0) = "SubValue1", "containerObj.Item(Key)(1)(0) = " & containerObj.Item("Key")(1)(0))
+call ok(containerObj.Item("Key")(1)(1) = "SubValue2", "containerObj.Item(Key)(1)(1) = " & containerObj.Item("Key")(1)(1))
+call ok(containerObj("Key")(0) = "Value1", "containerObj(Key)(0) = " & containerObj("Key")(0))
+call ok(containerObj("Key")(1)(0) = "SubValue1", "containerObj(Key)(1)(0) = " & containerObj("Key")(1)(0))
+
+call ok(Split("1;2", ";")(0) = "1", "Split(""1;2"", "";"")(0) = " & Split("1;2", ";")(0))
+call ok(Split("1;2", ";")(1) = "2", "Split(""1;2"", "";"")(1) = " & Split("1;2", ";")(1))
+
 function seta0(arr)
     arr(0) = 2
     seta0 = 1
@@ -1947,6 +1978,44 @@ dynarr2(0) = "x"
 redim preserve dynarr2(5)
 ok ubound(dynarr2) = 5, "ubound(dynarr2) = " & ubound(dynarr2)
 ok dynarr2(0) = "x", "dynarr2(0) after redim preserve = " & dynarr2(0)
+
+' Array dimension mismatch: should give error 9 (Subscript out of range)
+dim dimArr2d(3, 3)
+dimArr2d(0, 0) = "hello"
+on error resume next
+
+' 2D array accessed with 1 index
+err.clear
+y = dimArr2d(0)
+ok err.number = 9, "2D array 1 index: err.number = " & err.number
+
+' 1D array accessed with 2 indices
+dim dimArr1d(3)
+err.clear
+y = dimArr1d(0, 0)
+ok err.number = 9, "1D array 2 indices: err.number = " & err.number
+
+' 2D array accessed with 3 indices
+err.clear
+y = dimArr2d(0, 0, 0)
+ok err.number = 9, "2D array 3 indices: err.number = " & err.number
+
+' Assign to 2D array with 1 index
+err.clear
+dimArr2d(0) = "test"
+ok err.number = 9, "assign 2D array 1 index: err.number = " & err.number
+
+' Assign to 1D array with 2 indices
+err.clear
+dimArr1d(0, 0) = "test"
+ok err.number = 9, "assign 1D array 2 indices: err.number = " & err.number
+
+' Uninitialized dynamic array access
+dim dimDynArr()
+err.clear
+y = dimDynArr(0)
+ok err.number = 9, "uninitialized dynamic array access: err.number = " & err.number
+on error goto 0
 
 Class ArrClass
     Dim classarr(3)
@@ -2548,5 +2617,45 @@ Set getRefRef = GetRef(vbNullString)
 Call ok(Err.Number = 5, "GetRef vbNullString error is " & Err.Number)
 
 On Error Goto 0
+
+' Test calling a dispatch variable as statement (invokes default property)
+funcCalled = ""
+Set obj = New DefaultSubTest1
+obj 3
+Call ok(funcCalled = "init3", "dispatch var as statement: funcCalled = " & funcCalled)
+
+' Test calling a dispatch variable (default Function, no args) as statement
+funcCalled = ""
+Set obj = New DefaultSubTest2
+obj
+Call ok(funcCalled = "init", "dispatch var (default func) as statement: funcCalled = " & funcCalled)
+
+' Test calling non-dispatch variables as statement gives type mismatch (error 13)
+On Error Resume Next
+
+dim intCallVar
+intCallVar = 42
+Err.Clear
+intCallVar
+Call ok(Err.Number = 13, "int var as statement: err = " & Err.Number)
+
+dim strCallVar
+strCallVar = "hello"
+Err.Clear
+strCallVar
+Call ok(Err.Number = 13, "string var as statement: err = " & Err.Number)
+
+dim emptyCallVar
+Err.Clear
+emptyCallVar
+Call ok(Err.Number = 13, "empty var as statement: err = " & Err.Number)
+
+dim boolCallVar
+boolCallVar = True
+Err.Clear
+boolCallVar
+Call ok(Err.Number = 13, "bool var as statement: err = " & Err.Number)
+
+On Error GoTo 0
 
 reportSuccess()
