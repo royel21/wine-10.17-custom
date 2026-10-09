@@ -1547,6 +1547,7 @@ enable_winbrand
 enable_windows_applicationmodel
 enable_windows_devices_bluetooth
 enable_windows_devices_enumeration
+enable_windows_devices_radios
 enable_windows_devices_usb
 enable_windows_gaming_input
 enable_windows_gaming_ui_gamebar
@@ -7941,6 +7942,62 @@ printf "%s\n" "$res" >&6; }
           as_fn_append ${wine_arch}_CC " $res" ;;
     esac
 
+    if test "x$wine_arch" = xi386
+then :
+
+else $as_nop
+  as_wine_cv_seh_support=`printf "%s\n" "ac_cv_${wine_arch}_seh_support" | $as_tr_sh`
+
+               { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether $CC supports SEH directives" >&5
+printf %s "checking whether $CC supports SEH directives... " >&6; }
+if eval test \${$as_wine_cv_seh_support+y}
+then :
+  printf %s "(cached) " >&6
+else $as_nop
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+asm(".text\nac_test:\t.seh_proc ac_test\n\tnop\n\t.seh_stackalloc 16\n\t.seh_endprologue\n\t.seh_endproc");
+int
+main (void)
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  eval "$as_wine_cv_seh_support=yes"
+else $as_nop
+  eval "$as_wine_cv_seh_support=no"
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+fi
+eval ac_res=\$$as_wine_cv_seh_support
+	       { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
+printf "%s\n" "$ac_res" >&6; }
+               eval res=\$$as_wine_cv_seh_support
+
+               if test "x$res" = xyes
+then :
+
+else $as_nop
+  if test ${enable_archs+y}
+then :
+  as_fn_error $? "The $wine_arch PE cross-compiler doesn't support SEH directives.
+This is an error since --enable-archs=$wine_arch was requested." "$LINENO" 5
+fi
+                          continue
+fi
+fi
+
+    if test "x$wine_arch" = x$extra_arch
+then :
+
+else $as_nop
+  as_fn_append PE_ARCHS " $wine_arch"
+fi
+
     as_wine_cv_crosscxx_cxx17=`printf "%s\n" "ac_cv_${wine_arch}_crosscxx_cxx17" | $as_tr_sh`
 
     { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for $CXX option to enable C++17 features" >&5
@@ -8739,80 +8796,25 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
     case "x$res" in
       x) { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: none needed" >&5
-printf "%s\n" "none needed" >&6; } ;;
+printf "%s\n" "none needed" >&6; }
+         enable_cplusplus="$enable_cplusplus,$wine_arch" ;;
       xno) { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: unsupported" >&5
 printf "%s\n" "unsupported" >&6; }
-           if test ${enable_archs+y}
-then :
-  as_fn_error $? "$wine_arch PE cross-compiler supporting C++17 not found.
-This is an error since --enable-archs=$wine_arch was requested." "$LINENO" 5
-fi
-           continue
-           ;;
+           as_fn_append wine_warnings "|$wine_arch PE cross-compiler supporting C++17 not found, some modules won't be built." ;;
       x*) { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $res" >&5
 printf "%s\n" "$res" >&6; }
-          as_fn_append ${wine_arch}_CXX " $res" ;;
+          as_fn_append ${wine_arch}_CXX " $res"
+          enable_cplusplus="$enable_cplusplus,$wine_arch" ;;
     esac
 
-    if test "x$wine_arch" = xi386
+    if test "x$res" = xno
 then :
-
+  eval "${wine_arch}_CXX="
 else $as_nop
-  as_wine_cv_seh_support=`printf "%s\n" "ac_cv_${wine_arch}_seh_support" | $as_tr_sh`
-
-               { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether $CC supports SEH directives" >&5
-printf %s "checking whether $CC supports SEH directives... " >&6; }
-if eval test \${$as_wine_cv_seh_support+y}
-then :
-  printf %s "(cached) " >&6
-else $as_nop
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-asm(".text\nac_test:\t.seh_proc ac_test\n\tnop\n\t.seh_stackalloc 16\n\t.seh_endprologue\n\t.seh_endproc");
-int
-main (void)
-{
-
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"
-then :
-  eval "$as_wine_cv_seh_support=yes"
-else $as_nop
-  eval "$as_wine_cv_seh_support=no"
+  case "$target" in
+                 *mingw*|*-windows-gnu) enable_cppabi="$enable_cppabi,$wine_arch" ;;
+               esac
 fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
-fi
-eval ac_res=\$$as_wine_cv_seh_support
-	       { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
-printf "%s\n" "$ac_res" >&6; }
-               eval res=\$$as_wine_cv_seh_support
-
-               if test "x$res" = xyes
-then :
-
-else $as_nop
-  if test ${enable_archs+y}
-then :
-  as_fn_error $? "The $wine_arch PE cross-compiler doesn't support SEH directives.
-This is an error since --enable-archs=$wine_arch was requested." "$LINENO" 5
-fi
-                          continue
-fi
-fi
-
-    if test "x$wine_arch" = x$extra_arch
-then :
-
-else $as_nop
-  as_fn_append PE_ARCHS " $wine_arch"
-fi
-
-    case "$target" in
-      *mingw*|*-windows-gnu) enable_cppabi="$enable_cppabi,$wine_arch" ;;
-    esac
 
     { as_ac_var=`printf "%s\n" "ac_cv_${wine_arch}_cflags_-fno-strict-aliasing" | $as_tr_sh`
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether $CC supports -fno-strict-aliasing" >&5
@@ -14596,13 +14598,11 @@ then :
    if ${CXX_PE_CFLAGS:+false} :
 then :
   CXX_PE_CFLAGS=
-else case e in #(
-  e) enable_cpp=no ;;
-esac
+else $as_nop
+  enable_cpp=no
 fi
-else case e in #(
-  e) enable_cpp=no ;;
-esac
+else $as_nop
+  enable_cpp=no
 fi
 printf "%s\n" "$as_me:${as_lineno-$LINENO}: c++ cflags: $CXX_PE_CFLAGS" >&5
 printf "%s\n" "$as_me:${as_lineno-$LINENO}: c++ libs: $CXX_PE_LIBS" >&5
@@ -14613,13 +14613,11 @@ then :
    if ${CXXABI_PE_CFLAGS:+false} :
 then :
   CXXABI_PE_CFLAGS="-I\$(top_srcdir)/libs/c++abi/include"
-else case e in #(
-  e) enable_cppabi=no ;;
-esac
+else $as_nop
+  enable_cppabi=no
 fi
-else case e in #(
-  e) enable_cppabi=no ;;
-esac
+else $as_nop
+  enable_cppabi=no
 fi
 printf "%s\n" "$as_me:${as_lineno-$LINENO}: c++abi cflags: $CXXABI_PE_CFLAGS" >&5
 printf "%s\n" "$as_me:${as_lineno-$LINENO}: c++abi libs: $CXXABI_PE_LIBS" >&5
@@ -14675,13 +14673,11 @@ then :
    if ${ICUCOMMON_PE_CFLAGS:+false} :
 then :
   ICUCOMMON_PE_CFLAGS="-I\$(top_srcdir)/libs/icucommon"
-else case e in #(
-  e) enable_icucommon=no ;;
-esac
+else $as_nop
+  enable_icucommon=no
 fi
-else case e in #(
-  e) enable_icucommon=no ;;
-esac
+else $as_nop
+  enable_icucommon=no
 fi
 printf "%s\n" "$as_me:${as_lineno-$LINENO}: icucommon cflags: $ICUCOMMON_PE_CFLAGS" >&5
 printf "%s\n" "$as_me:${as_lineno-$LINENO}: icucommon libs: $ICUCOMMON_PE_LIBS" >&5
@@ -14692,13 +14688,11 @@ then :
    if ${ICUI18N_PE_CFLAGS:+false} :
 then :
   ICUI18N_PE_CFLAGS=
-else case e in #(
-  e) enable_icui18n=no ;;
-esac
+else $as_nop
+  enable_icui18n=no
 fi
-else case e in #(
-  e) enable_icui18n=no ;;
-esac
+else $as_nop
+  enable_icui18n=no
 fi
 printf "%s\n" "$as_me:${as_lineno-$LINENO}: icui18n cflags: $ICUI18N_PE_CFLAGS" >&5
 printf "%s\n" "$as_me:${as_lineno-$LINENO}: icui18n libs: $ICUI18N_PE_LIBS" >&5
@@ -14844,13 +14838,11 @@ then :
    if ${UNWIND_PE_CFLAGS:+false} :
 then :
   UNWIND_PE_CFLAGS="-I\$(top_srcdir)/libs/unwind/include"
-else case e in #(
-  e) enable_unwind=no ;;
-esac
+else $as_nop
+  enable_unwind=no
 fi
-else case e in #(
-  e) enable_unwind=no ;;
-esac
+else $as_nop
+  enable_unwind=no
 fi
 printf "%s\n" "$as_me:${as_lineno-$LINENO}: unwind cflags: $UNWIND_PE_CFLAGS" >&5
 printf "%s\n" "$as_me:${as_lineno-$LINENO}: unwind libs: $UNWIND_PE_LIBS" >&5
@@ -22293,8 +22285,7 @@ then :
 fi ;;
 esac
 
-enable_cppabi=${enable_cppabi:-no}
-enable_unwind=${enable_unwind:-$enable_cppabi}
+
 enable_vcruntime140_1=${enable_vcruntime140_1:-x86_64,arm64ec}
 
 if test -n "$PE_ARCHS"
@@ -22309,9 +22300,17 @@ else
     enable_wow64cpu=${enable_wow64cpu:-no}
     enable_xtajit64=${enable_xtajit64:-no}
     enable_compiler_rt=${enable_compiler_rt:-no}
-        enable_icu=${enable_icu:-no}
-    enable_dmsynth=${enable_dmsynth:-no}
 fi
+
+enable_cplusplus=${enable_cplusplus:-no}
+enable_cpp=${enable_cpp:-$enable_cplusplus}
+enable_cppabi=${enable_cppabi:-no}
+enable_unwind=${enable_unwind:-$enable_cppabi}
+enable_dmsynth=${enable_dmsynth:-$enable_cplusplus}
+enable_fluidsynth=${enable_fluidsynth:-$enable_cplusplus}
+enable_icu=${enable_icu:-$enable_cplusplus}
+enable_icucommon=${enable_icucommon:-$enable_cplusplus}
+enable_icui18n=${enable_icui18n:-$enable_cplusplus}
 
 enable_conhost=${enable_conhost:-$HOST_ARCH}
 enable_plugplay=${enable_plugplay:-$HOST_ARCH}
@@ -23219,6 +23218,8 @@ wine_fn_config_makefile dlls/windows.devices.bluetooth enable_windows_devices_bl
 wine_fn_config_makefile dlls/windows.devices.bluetooth/tests enable_tests
 wine_fn_config_makefile dlls/windows.devices.enumeration enable_windows_devices_enumeration
 wine_fn_config_makefile dlls/windows.devices.enumeration/tests enable_tests
+wine_fn_config_makefile dlls/windows.devices.radios enable_windows_devices_radios
+wine_fn_config_makefile dlls/windows.devices.radios/tests enable_tests
 wine_fn_config_makefile dlls/windows.devices.usb enable_windows_devices_usb
 wine_fn_config_makefile dlls/windows.devices.usb/tests enable_tests
 wine_fn_config_makefile dlls/windows.gaming.input enable_windows_gaming_input
@@ -23662,7 +23663,7 @@ programs/winetest/build.rc: dummy
 	@build=\"STRINGTABLE { 1 \\\"\`GIT_DIR=${wine_srcdir}.git git rev-parse HEAD 2>/dev/null\`\\\" }\" && (echo \$\$build | cmp -s - \$@) || echo \$\$build >\$@ || (rm -f \$@ && exit 1)
 dlls/wineandroid.drv/wine-debug.apk: dlls/wineandroid.drv/build.gradle ${wine_srcdir}dlls/wineandroid.drv/AndroidManifest.xml ${wine_srcdir}dlls/wineandroid.drv/WineActivity.java ${wine_srcdir}dlls/wineandroid.drv/wine.svg
 	cd dlls/wineandroid.drv && gradle -q -Psrcdir=$srcdir assembleDebug
-	mv dlls/wineandroid.drv/build/outputs/apk/wine-debug.apk \$@"
+	mv dlls/wineandroid.drv/build/outputs/apk/debug/wine-debug.apk \$@"
 
 
 EXTERNAL_SUBDIRS="libs/capstone libs/c++ libs/c++abi libs/faudio libs/fluidsynth libs/gsm libs/icucommon libs/icui18n libs/jpeg libs/jxr libs/lcms2 libs/ldap libs/mpg123 libs/musl libs/png libs/tiff libs/tomcrypt libs/unwind libs/vkd3d libs/xml2 libs/xslt libs/zlib libs/compiler-rt"
