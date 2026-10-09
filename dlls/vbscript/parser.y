@@ -63,11 +63,11 @@ static statement_t *new_const_statement(parser_ctx_t*,unsigned,const_decl_t*);
 static statement_t *new_select_statement(parser_ctx_t*,unsigned,expression_t*,case_clausule_t*);
 static statement_t *new_with_statement(parser_ctx_t*,unsigned,expression_t*,statement_t*);
 
-static dim_decl_t *new_dim_decl(parser_ctx_t*,const WCHAR*,unsigned,BOOL,dim_list_t*);
+static dim_decl_t *new_dim_decl(parser_ctx_t*,const WCHAR*,BOOL,dim_list_t*);
 static dim_list_t *new_dim(parser_ctx_t*,unsigned,dim_list_t*);
 static redim_decl_t *new_redim_decl(parser_ctx_t*,const WCHAR*,expression_t*);
 static elseif_decl_t *new_elseif_decl(parser_ctx_t*,unsigned,expression_t*,statement_t*);
-static function_decl_t *new_function_decl(parser_ctx_t*,const WCHAR*,function_type_t,unsigned,unsigned,arg_decl_t*,statement_t*);
+static function_decl_t *new_function_decl(parser_ctx_t*,const WCHAR*,function_type_t,unsigned,arg_decl_t*,statement_t*);
 static arg_decl_t *new_argument_decl(parser_ctx_t*,const WCHAR*,BOOL);
 static const_decl_t *new_const_decl(parser_ctx_t*,const WCHAR*,expression_t*);
 static case_clausule_t *new_case_clausule(parser_ctx_t*,expression_t*,statement_t*,case_clausule_t*);
@@ -233,11 +233,11 @@ SimpleStatement
                                               CHECK_ERROR; }
     | tDO StSep StatementsNl_opt tLOOP      { $$ = new_while_statement(ctx, @$, STAT_DOWHILE, NULL, $3); CHECK_ERROR; }
     | FunctionDecl                          { $$ = new_function_statement(ctx, @$, $1); CHECK_ERROR; }
-    | tEXIT tDO                             { $$ = new_statement(ctx, STAT_EXITDO, 0, @2); CHECK_ERROR; }
-    | tEXIT tFOR                            { $$ = new_statement(ctx, STAT_EXITFOR, 0, @2); CHECK_ERROR; }
-    | tEXIT tFUNCTION                       { $$ = new_statement(ctx, STAT_EXITFUNC, 0, @2); CHECK_ERROR; }
-    | tEXIT tPROPERTY                       { $$ = new_statement(ctx, STAT_EXITPROP, 0, @2); CHECK_ERROR; }
-    | tEXIT tSUB                            { $$ = new_statement(ctx, STAT_EXITSUB, 0, @2); CHECK_ERROR; }
+    | tEXIT tDO                             { $$ = new_statement(ctx, STAT_EXITDO, 0, @$); CHECK_ERROR; }
+    | tEXIT tFOR                            { $$ = new_statement(ctx, STAT_EXITFOR, 0, @$); CHECK_ERROR; }
+    | tEXIT tFUNCTION                       { $$ = new_statement(ctx, STAT_EXITFUNC, 0, @$); CHECK_ERROR; }
+    | tEXIT tPROPERTY                       { $$ = new_statement(ctx, STAT_EXITPROP, 0, @$); CHECK_ERROR; }
+    | tEXIT tSUB                            { $$ = new_statement(ctx, STAT_EXITSUB, 0, @$); CHECK_ERROR; }
     | tSET CallExpression '=' Expression    { $$ = new_set_statement(ctx, @$, $2, $4); CHECK_ERROR; }
     | tSTOP                                 { $$ = new_statement(ctx, STAT_STOP, 0, @$); CHECK_ERROR; }
     | tON tERROR tRESUME tNEXT              { $$ = new_onerror_statement(ctx, @$, TRUE); CHECK_ERROR; }
@@ -267,9 +267,9 @@ MemberDeclList
     | MemberDecl ',' MemberDeclList         { $1->next = $3; $$ = $1; }
 
 MemberDecl
-    : MemberIdentifier                      { $$ = new_dim_decl(ctx, $1, @1, FALSE, NULL); CHECK_ERROR; }
-    | MemberIdentifier '(' DimList ')'      { $$ = new_dim_decl(ctx, $1, @1, TRUE, $3); CHECK_ERROR; }
-    | MemberIdentifier tEMPTYBRACKETS       { $$ = new_dim_decl(ctx, $1, @1, TRUE, NULL); CHECK_ERROR; }
+    : MemberIdentifier                      { $$ = new_dim_decl(ctx, $1, FALSE, NULL); CHECK_ERROR; }
+    | MemberIdentifier '(' DimList ')'      { $$ = new_dim_decl(ctx, $1, TRUE, $3); CHECK_ERROR; }
+    | MemberIdentifier tEMPTYBRACKETS       { $$ = new_dim_decl(ctx, $1, TRUE, NULL); CHECK_ERROR; }
 
 ReDimDecl
     : tIdentifier '(' ArgumentList ')'      { $$ = new_redim_decl(ctx, $1, $3); CHECK_ERROR; }
@@ -284,9 +284,9 @@ DimDeclList
     | DimDecl ',' DimDeclList               { $1->next = $3; $$ = $1; }
 
 DimDecl
-    : Identifier                            { $$ = new_dim_decl(ctx, $1, @1, FALSE, NULL); CHECK_ERROR; }
-    | Identifier '(' DimList ')'            { $$ = new_dim_decl(ctx, $1, @1, TRUE, $3); CHECK_ERROR; }
-    | Identifier tEMPTYBRACKETS             { $$ = new_dim_decl(ctx, $1, @1, TRUE, NULL); CHECK_ERROR; }
+    : Identifier                            { $$ = new_dim_decl(ctx, $1, FALSE, NULL); CHECK_ERROR; }
+    | Identifier '(' DimList ')'            { $$ = new_dim_decl(ctx, $1, TRUE, $3); CHECK_ERROR; }
+    | Identifier tEMPTYBRACKETS             { $$ = new_dim_decl(ctx, $1, TRUE, NULL); CHECK_ERROR; }
 
 DimList
     : IntegerValue                          { $$ = new_dim(ctx, $1, NULL); }
@@ -495,21 +495,21 @@ ClassBody
 
 PropertyDecl
     : Storage_opt tPROPERTY tGET Identifier ArgumentsDecl_opt StSep BodyStatements tEND tPROPERTY
-                                    { $$ = new_function_decl(ctx, $4, FUNC_PROPGET, @2, $1, $5, $7); CHECK_ERROR; }
+                                    { $$ = new_function_decl(ctx, $4, FUNC_PROPGET, $1, $5, $7); CHECK_ERROR; }
     | Storage_opt tPROPERTY tLET Identifier '(' ArgumentDeclList ')' StSep BodyStatements tEND tPROPERTY
-                                    { $$ = new_function_decl(ctx, $4, FUNC_PROPLET, @2, $1, $6, $9); CHECK_ERROR; }
+                                    { $$ = new_function_decl(ctx, $4, FUNC_PROPLET, $1, $6, $9); CHECK_ERROR; }
     | Storage_opt tPROPERTY tSET Identifier '(' ArgumentDeclList ')' StSep BodyStatements tEND tPROPERTY
-                                    { $$ = new_function_decl(ctx, $4, FUNC_PROPSET, @2, $1, $6, $9); CHECK_ERROR; }
+                                    { $$ = new_function_decl(ctx, $4, FUNC_PROPSET, $1, $6, $9); CHECK_ERROR; }
 
 FunctionDecl
     : Storage_opt tSUB Identifier StSep BodyStatements tEND tSUB
-                                    { $$ = new_function_decl(ctx, $3, FUNC_SUB, @2, $1, NULL, $5); CHECK_ERROR; }
+                                    { $$ = new_function_decl(ctx, $3, FUNC_SUB, $1, NULL, $5); CHECK_ERROR; }
     | Storage_opt tSUB Identifier ArgumentsDecl Nl_opt BodyStatements tEND tSUB
-                                    { $$ = new_function_decl(ctx, $3, FUNC_SUB, @2, $1, $4, $6); CHECK_ERROR; }
+                                    { $$ = new_function_decl(ctx, $3, FUNC_SUB, $1, $4, $6); CHECK_ERROR; }
     | Storage_opt tFUNCTION Identifier StSep BodyStatements tEND tFUNCTION
-                                    { $$ = new_function_decl(ctx, $3, FUNC_FUNCTION, @2, $1, NULL, $5); CHECK_ERROR; }
+                                    { $$ = new_function_decl(ctx, $3, FUNC_FUNCTION, $1, NULL, $5); CHECK_ERROR; }
     | Storage_opt tFUNCTION Identifier ArgumentsDecl Nl_opt BodyStatements tEND tFUNCTION
-                                    { $$ = new_function_decl(ctx, $3, FUNC_FUNCTION, @2, $1, $4, $6); CHECK_ERROR; }
+                                    { $$ = new_function_decl(ctx, $3, FUNC_FUNCTION, $1, $4, $6); CHECK_ERROR; }
 
 Storage_opt
     : /* empty*/                    { $$ = 0; }
@@ -866,7 +866,7 @@ static statement_t *new_set_statement(parser_ctx_t *ctx, unsigned loc, expressio
     return &stat->stat;
 }
 
-static dim_decl_t *new_dim_decl(parser_ctx_t *ctx, const WCHAR *name, unsigned loc, BOOL is_array, dim_list_t *dims)
+static dim_decl_t *new_dim_decl(parser_ctx_t *ctx, const WCHAR *name, BOOL is_array, dim_list_t *dims)
 {
     dim_decl_t *decl;
 
@@ -875,7 +875,6 @@ static dim_decl_t *new_dim_decl(parser_ctx_t *ctx, const WCHAR *name, unsigned l
         return NULL;
 
     decl->name = name;
-    decl->loc = loc;
     decl->is_array = is_array;
     decl->dims = dims;
     decl->next = NULL;
@@ -1089,7 +1088,7 @@ static arg_decl_t *new_argument_decl(parser_ctx_t *ctx, const WCHAR *name, BOOL 
 }
 
 static function_decl_t *new_function_decl(parser_ctx_t *ctx, const WCHAR *name, function_type_t type,
-        unsigned loc, unsigned storage_flags, arg_decl_t *arg_decl, statement_t *body)
+        unsigned storage_flags, arg_decl_t *arg_decl, statement_t *body)
 {
     function_decl_t *decl;
     BOOL is_default = FALSE;
@@ -1114,7 +1113,6 @@ static function_decl_t *new_function_decl(parser_ctx_t *ctx, const WCHAR *name, 
     decl->is_default = is_default;
     decl->args = arg_decl;
     decl->body = body;
-    decl->loc = loc;
     decl->next = NULL;
     decl->next_prop_func = NULL;
     return decl;

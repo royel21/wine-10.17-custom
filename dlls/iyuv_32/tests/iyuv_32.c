@@ -269,7 +269,6 @@ static void test_formats(DWORD handler)
     out.biCompression = BI_RGB;
     out.biBitCount = 24;
     res = ICDecompressBegin(hic, &in, &out);
-    todo_wine
     ok(res == ICERR_OK, "Got %ld.\n", res);
 
     res = ICDecompressEnd(hic);
@@ -331,14 +330,9 @@ static void test_decompress(DWORD handler)
     ok(!!hic, "Failed to open codec.\n");
 
     res = ICDecompressBegin(hic, &i420_info, &rgb_info);
-    todo_wine
     ok(res == ICERR_OK, "Got %ld.\n", res);
 
-    if (res != ICERR_OK)
-        goto skip_decompression_tests;
-
     res = ICDecompress(hic, 0, &i420_info, i420_data, &rgb_info, rgb_data);
-    todo_wine
     ok(res == ICERR_OK, "Got %ld.\n", res);
     res = ICDecompressEnd(hic);
     ok(res == ICERR_OK, "Got %ld.\n", res);
@@ -353,10 +347,8 @@ static void test_decompress(DWORD handler)
     for (unsigned int i = 0; i < rgb_info.biSizeImage; ++i)
         diff += abs((int)rgb_data[i] - (int)expect_rgb_data[i]);
     diff = diff * 100 / 256 / rgb_info.biSizeImage;
-    todo_wine
     ok(diff == 0, "Got %lu%% difference.\n", diff);
 
-skip_decompression_tests:
     res = ICClose(hic);
     ok(res == ICERR_OK, "Got %ld.\n", res);
 }
@@ -458,10 +450,7 @@ START_TEST(iyuv_32)
     int i;
 
     hic = ICLocate(ICTYPE_VIDEO, FOURCC_I420, &in, NULL, ICMODE_DECOMPRESS);
-    todo_wine
     ok(!!hic, "Failed to locate iyuv codec\n");
-    if (!hic)
-        return;
     ICClose(hic);
 
     for (i = 0; i < ARRAY_SIZE(handler); i++)

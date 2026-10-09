@@ -102,18 +102,11 @@ static const struct {
     {L"xor",       tXOR}
 };
 
-/* VBScript identifiers are ASCII-only: [A-Za-z0-9_]. Windows rejects all
- * non-ASCII characters (Latin-1, Cyrillic, CJK) at the lexer level with
- * error 1032 "Invalid character". */
 static inline BOOL is_identifier_char(WCHAR c)
 {
-    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+    return iswalnum(c) || c == '_';
 }
 
-/* Compare the current parse position against a keyword using ASCII-only
- * case-insensitive matching. Keywords are all lowercase ASCII, so we only
- * need to lowercase [A-Z] in the source. Returns 0 on match, <0 or >0
- * for ordering (used by the binary search in check_keywords). */
 static int check_keyword(parser_ctx_t *ctx, const WCHAR *word, const WCHAR **lval)
 {
     const WCHAR *p1 = ctx->ptr;
@@ -121,8 +114,7 @@ static int check_keyword(parser_ctx_t *ctx, const WCHAR *word, const WCHAR **lva
     WCHAR c;
 
     while(p1 < ctx->end && *p2) {
-        c = *p1;
-        if(c >= 'A' && c <= 'Z') c += 'a' - 'A';
+        c = towlower(*p1);
         if(c != *p2)
             return c - *p2;
         p1++;
@@ -391,7 +383,7 @@ static int parse_hex_literal(parser_ctx_t *ctx, LONG *ret)
 
 static void skip_spaces(parser_ctx_t *ctx)
 {
-    while(*ctx->ptr == ' ' || *ctx->ptr == '\t' || *ctx->ptr == '\v' || *ctx->ptr == '\f')
+    while(*ctx->ptr == ' ' || *ctx->ptr == '\t')
         ctx->ptr++;
 }
 
@@ -419,7 +411,7 @@ static int parse_next_token(void *lval, unsigned *loc, parser_ctx_t *ctx)
     if('0' <= c && c <= '9')
         return parse_numeric_literal(ctx, lval);
 
-    if((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+    if(iswalpha(c)) {
         int ret = 0;
         if(ctx->last_token != '.' && ctx->last_token != tDOT)
             ret = check_keywords(ctx, lval);

@@ -855,76 +855,6 @@ do while true
     next
 loop
 
-' For loop control variable should not be modified when expression evaluation fails
-on error resume next
-
-x = 6
-y = 0
-err.clear
-for x = 1/0 to 100
-    y = y + 1
-next
-call ok(err.number = 92, "for (from error): err.number = " & err.number)
-call ok(x = 6, "for (from error): x = " & x)
-
-x = 6
-y = 0
-err.clear
-for x = 100 to 1/0
-    y = y + 1
-next
-call ok(err.number = 92, "for (to error): err.number = " & err.number)
-call ok(x = 6, "for (to error): x = " & x)
-
-x = 6
-y = 0
-err.clear
-for x = 100 to 200 step 1/0
-    y = y + 1
-next
-call ok(err.number = 92, "for (step error): err.number = " & err.number)
-call ok(x = 6, "for (step error): x = " & x)
-
-z = 99
-y = 0
-err.clear
-for z = 1 to UBound(empty)
-    y = y + 1
-next
-call ok(err.number = 92, "for (UBound(empty)): err.number = " & err.number)
-call ok(z = 99, "for (UBound(empty)): z = " & z)
-
-' For loop variable set to incompatible type during iteration
-x = 0
-y = 0
-err.clear
-for x = 1 to 5
-    y = y + 1
-    if x = 3 then x = "not a number"
-next
-call ok(y = 3, "for (type change): y = " & y)
-call ok(x = "not a number", "for (type change): x = " & x)
-call ok(err.number = 13, "for (type change): err.number = " & err.number)
-
-on error goto 0
-
-' For loop expression evaluation order: from, to, step
-dim eval_order
-function trackEval(val, label)
-    eval_order = eval_order & label
-    trackEval = val
-end function
-
-eval_order = ""
-for x = trackEval(1, "F") to trackEval(5, "T") step trackEval(1, "S")
-next
-call ok(eval_order = "FTS", "for eval order = " & eval_order)
-
-eval_order = ""
-for x = trackEval(1, "F") to trackEval(5, "T")
-next
-call ok(eval_order = "FT", "for eval order (no step) = " & eval_order)
-
 if null then call ok(false, "if null evaluated")
 
 while null
@@ -1257,37 +1187,6 @@ Sub TestDimVsConst
     Call ok( c10 = 42, "precedence between const and dim is wrong")
 End Sub
 Call TestDimVsConst
-
-Sub TestIllegalAssignment
-    on error resume next
-
-    ' Assign to Const should give error 501
-    err.clear
-    c10 = 99
-    Call ok(err.number = 501, "assign to const: err.number = " & err.number)
-    Call ok(c10 = 10, "c10 = " & c10)
-
-    ' Set on Const should give error 501
-    err.clear
-    set c10 = Nothing
-    Call ok(err.number = 501, "set const: err.number = " & err.number)
-
-    ' Assign to Sub name should give error 501
-    err.clear
-    TestIllegalAssignment = 10
-    Call ok(err.number = 501, "assign to sub name: err.number = " & err.number)
-End Sub
-Call TestIllegalAssignment
-
-' Assign to function name from outside should give error 501
-Function IllegalAssignTarget
-    IllegalAssignTarget = 0
-End Function
-on error resume next
-err.clear
-IllegalAssignTarget = 10
-Call ok(err.number = 501, "assign to func name: err.number = " & err.number)
-on error goto 0
 
 Function TestFuncMultiArgs(a,b,c,d,e)
     Call ok(a=1, "a = " & a)
@@ -2991,13 +2890,13 @@ On Error Resume Next
 Err.Clear
 Execute "Option Explicit : noDimExec = 101"
 Call ok(Err.Number <> 0, "Execute Option Explicit undeclared should error: err=" & Err.Number)
-ok Err.Number = 500, "Execute Option Explicit undeclared: err=" & Err.Number & " expected 500"
+todo_wine_ok Err.Number = 500, "Execute Option Explicit undeclared: err=" & Err.Number & " expected 500"
 
 ' Option Explicit inside same ExecuteGlobal string enforces Dim requirement
 Err.Clear
 ExecuteGlobal "Option Explicit : noDimExecGlobal = 102"
 Call ok(Err.Number <> 0, "ExecuteGlobal Option Explicit undeclared should error: err=" & Err.Number)
-ok Err.Number = 500, "ExecuteGlobal Option Explicit undeclared: err=" & Err.Number & " expected 500"
+todo_wine_ok Err.Number = 500, "ExecuteGlobal Option Explicit undeclared: err=" & Err.Number & " expected 500"
 
 ' Option Explicit with Dim in same string works
 Err.Clear

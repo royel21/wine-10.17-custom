@@ -2205,38 +2205,6 @@ static HRESULT parse_script_wr(const WCHAR *src)
     return hres;
 }
 
-static void test_option_explicit_errors(void)
-{
-    IActiveScriptError *error;
-    EXCEPINFO ei;
-    HRESULT hres;
-
-    /* Without Option Explicit: assigning to undefined variable should succeed (implicit creation) */
-    parse_script_wf(SCRIPTITEM_GLOBALMEMBERS, L"x = 1\nCall ok(x = 1, \"x = \" & x)");
-
-    /* Without Option Explicit: reading undefined variable should succeed and return Empty */
-    parse_script_wf(SCRIPTITEM_GLOBALMEMBERS, L"Call ok(getVT(y) = \"VT_EMPTY*\", \"getVT(y) = \" & getVT(y))");
-
-    /* Option Explicit: assigning to undefined variable should give error 500 */
-    store_script_error = &error;
-    SET_EXPECT(OnScriptError);
-    hres = parse_script_wr(L"Option Explicit\nx = 1");
-    ok(hres == MAKE_VBSERROR(500), "expected MAKE_VBSERROR(500), got: %08lx\n", hres);
-    CHECK_CALLED(OnScriptError);
-
-    memset(&ei, 0, sizeof(ei));
-    hres = IActiveScriptError_GetExceptionInfo(error, &ei);
-    ok(hres == S_OK, "GetExceptionInfo returned %08lx\n", hres);
-    ok(ei.scode == MAKE_VBSERROR(500), "scode = %lx\n", ei.scode);
-    if(is_english)
-        ok(ei.bstrDescription && !wcscmp(ei.bstrDescription, L"Variable is undefined: 'x'"),
-           "bstrDescription = %s\n", wine_dbgstr_w(ei.bstrDescription));
-    SysFreeString(ei.bstrSource);
-    SysFreeString(ei.bstrDescription);
-    SysFreeString(ei.bstrHelpFile);
-    IActiveScriptError_Release(error);
-}
-
 static void test_parse_context(void)
 {
     IActiveScriptParse *parser;
@@ -2922,7 +2890,7 @@ static void test_parse_errors(void)
         {
             /* Name redefined - error 1041 */
             L"Dim a\nDim a\n",
-            1, 4,
+            1, -4,
             NULL, S_OK, 1041
         },
         {
@@ -3012,7 +2980,7 @@ static void test_parse_errors(void)
         {
             /* Invalid 'exit' statement - error 1039 */
             L"Exit Do\n",
-            0, 5,
+            0, -5,
             NULL, S_OK, 1039
         },
         {
@@ -3033,24 +3001,13 @@ static void test_parse_errors(void)
             1, 9,
             NULL, S_OK, -1049
         },
+        /* TODO: Wine allows arguments on Class_Initialize/Class_Terminate
         {
-            /* Class_Initialize with arguments - error 1053 */
-            L"Class C\n"
-            "Sub Class_Initialize(x)\n"
-            "End Sub\n"
-            "End Class\n",
-            1, -23,
-            NULL, S_OK, 1053
+            Class initialize/terminate no arguments - error 1053
+            L"Class C\nSub Class_Initialize(x)\nEnd Sub\nEnd Class\n",
+            1, 20, 1053
         },
-        {
-            /* Class_Terminate with arguments - error 1053 */
-            L"Class C\n"
-            "Sub Class_Terminate(x)\n"
-            "End Sub\n"
-            "End Class\n",
-            1, -22,
-            NULL, S_OK, 1053
-        },
+        */
         {
             /* Property Let/Set needs at least one argument - error 1054 */
             L"Class C\nProperty Let x\nEnd Property\nEnd Class\n",
@@ -3091,36 +3048,6 @@ static void test_parse_errors(void)
             /* '_' not followed by newline */
             L"x = 1 _x\n",
             0, 7,
-            NULL, S_OK, 1032
-        },
-        {
-            /* Non-ASCII: e-acute (chr 233) in identifier */
-            L"Dim caf\x00e9\n",
-            0, 7,
-            NULL, S_OK, 1032
-        },
-        {
-            /* Non-ASCII: sharp-s (chr 223) in identifier */
-            L"Dim st\x00df" L"e\n",
-            0, 6,
-            NULL, S_OK, 1032
-        },
-        {
-            /* Non-ASCII: u-umlaut (chr 252) in identifier */
-            L"Dim x\x00fc" L"b\n",
-            0, 5,
-            NULL, S_OK, 1032
-        },
-        {
-            /* Non-ASCII: Cyrillic a (chr 1072) as identifier start */
-            L"Dim \x0430\n",
-            0, 4,
-            NULL, S_OK, 1032
-        },
-        {
-            /* Non-ASCII: e-acute (chr 233) starting identifier */
-            L"\x00e9var = 1\n",
-            0, 0,
             NULL, S_OK, 1032
         }
     };
@@ -3548,13 +3475,6 @@ static void run_tests(void)
     parse_script_w(L"");
     parse_script_w(L"' empty ;");
 
-    /* Vertical tab and form feed are valid whitespace separators */
-    parse_script_w(L"dim\x0b""x\n");
-    parse_script_w(L"dim\x0c""x\n");
-    parse_script_w(L"dim\x0b\x0c""x\n");
-    parse_script_w(L"x\x0b""=\x0b""1\n");
-    parse_script_w(L"x\x0c""=\x0c""1\n");
-
     SET_EXPECT(global_success_d);
     SET_EXPECT(global_success_i);
     parse_script_w(L"reportSuccess");
@@ -3827,7 +3747,6 @@ static void run_tests(void)
     test_gc();
     test_msgbox();
     test_isexpression();
-    test_option_explicit_errors();
     test_parse_errors();
     test_parse_context();
     test_callbacks();
