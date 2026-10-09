@@ -1,8 +1,7 @@
 TESTDLL   = ntdll.dll
-IMPORTS   = user32 ole32 advapi32
+IMPORTS   = user32 advapi32
 
 SOURCES = \
-    alpc.c \
 	atom.c \
 	change.c \
 	directory.c \

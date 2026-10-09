@@ -42,7 +42,7 @@ static NTSTATUS (WINAPI *pRtlWow64GetSharedInfoProcess)(HANDLE,BOOLEAN*,WOW64INF
 static NTSTATUS (WINAPI *pRtlWow64GetThreadContext)(HANDLE,WOW64_CONTEXT*);
 static NTSTATUS (WINAPI *pRtlWow64IsWowGuestMachineSupported)(USHORT,BOOLEAN*);
 static NTSTATUS (WINAPI *pNtMapViewOfSectionEx)(HANDLE,HANDLE,PVOID*,const LARGE_INTEGER*,SIZE_T*,ULONG,ULONG,MEM_EXTENDED_PARAMETER*,ULONG);
-static NTSTATUS (WINAPI *pNtSetLdtEntries)(ULONG,LDT_ENTRY,ULONG,LDT_ENTRY);
+static NTSTATUS (WINAPI *pNtSetLdtEntries)(ULONG,ULONG,ULONG,ULONG,ULONG,ULONG);
 #ifdef _WIN64
 static NTSTATUS (WINAPI *pKiUserExceptionDispatcher)(EXCEPTION_RECORD*,CONTEXT*);
 static NTSTATUS (WINAPI *pRtlWow64GetCpuAreaInfo)(WOW64_CPURESERVED*,ULONG,WOW64_CPU_AREA_INFO*);
@@ -153,8 +153,11 @@ static void init(void)
     {
         SYSTEM_SUPPORTED_PROCESSOR_ARCHITECTURES_INFORMATION machines[8];
         HANDLE process = GetCurrentProcess();
-        NTSTATUS status = pNtQuerySystemInformationEx( SystemSupportedProcessorArchitectures, &process,
+        NTSTATUS status = pNtQuerySystemInformationEx( SystemSupportedProcessorArchitectures2, &process,
                                                        sizeof(process), machines, sizeof(machines), NULL );
+        if (status)
+            status = pNtQuerySystemInformationEx( SystemSupportedProcessorArchitectures, &process,
+                                                  sizeof(process), machines, sizeof(machines), NULL );
         if (!status)
             for (int i = 0; machines[i].Machine; i++)
                 trace( "machine %04x kernel %u user %u native %u process %u wow64 %u\n",
@@ -203,14 +206,18 @@ static BOOL create_process_machine( char *cmdline, DWORD flags, USHORT machine, 
     return ret;
 }
 
-static void test_process_architecture( HANDLE process, USHORT expect_machine, USHORT expect_native )
+static void test_process_architecture( SYSTEM_INFORMATION_CLASS class, HANDLE process, USHORT expect_machine, USHORT expect_native )
 {
     SYSTEM_SUPPORTED_PROCESSOR_ARCHITECTURES_INFORMATION machines[8];
     NTSTATUS status;
     ULONG i, len;
 
+    if (class == SystemSupportedProcessorArchitectures &&
+        native_machine == IMAGE_FILE_MACHINE_ARM64 && expect_machine == IMAGE_FILE_MACHINE_AMD64)
+        expect_machine = IMAGE_FILE_MACHINE_ARM64;
+
     len = 0xdead;
-    status = pNtQuerySystemInformationEx( SystemSupportedProcessorArchitectures, &process, sizeof(process),
+    status = pNtQuerySystemInformationEx( class, &process, sizeof(process),
                                           machines, sizeof(machines), &len );
     ok( !status, "failed %lx\n", status );
     ok( !(len & 3), "wrong len %lx\n", len );
@@ -230,11 +237,15 @@ static void test_process_architecture( HANDLE process, USHORT expect_machine, US
         if (machines[i].WoW64Container)
             ok( is_machine_32bit( machines[i].Machine ) && !is_machine_32bit( native_machine ),
                 "wrong wow64 %x\n", machines[i].Machine);
+
+        if (class == SystemSupportedProcessorArchitectures && native_machine == IMAGE_FILE_MACHINE_ARM64)
+            ok( machines[i].Machine != IMAGE_FILE_MACHINE_AMD64,
+                "SystemSupportedProcessorArchitectures returned AMD64\n");
     }
     ok( !*(DWORD *)&machines[i], "missing terminating null\n" );
 
     len = i * sizeof(machines[0]);
-    status = pNtQuerySystemInformationEx( SystemSupportedProcessorArchitectures, &process, sizeof(process),
+    status = pNtQuerySystemInformationEx( class, &process, sizeof(process),
                                           machines, len, &len );
     ok( status == STATUS_BUFFER_TOO_SMALL, "failed %lx\n", status );
     ok( len == (i + 1) * sizeof(machines[0]), "wrong len %lu\n", len );
@@ -244,7 +255,8 @@ static void test_process_architecture( HANDLE process, USHORT expect_machine, US
         USHORT current = 0xdead, native = 0xbeef;
         status = pRtlWow64GetProcessMachines( process, &current, &native );
         ok( !status, "failed %lx\n", status );
-        if (expect_machine == expect_native)
+        if (expect_machine != IMAGE_FILE_MACHINE_I386 &&
+            expect_machine != IMAGE_FILE_MACHINE_ARMNT)
             ok( current == 0, "wrong current machine %x / %x\n", current, expect_machine );
         else
             ok( current == expect_machine, "wrong current machine %x / %x\n", current, expect_machine );
@@ -304,7 +316,7 @@ static void test_process_machine( HANDLE process, HANDLE thread,
     }
 }
 
-static void test_query_architectures(void)
+static void test_query_architectures(SYSTEM_INFORMATION_CLASS class)
 {
     static char cmd_sysnative[] = "C:\\windows\\sysnative\\cmd.exe /c exit";
     static char cmd_system32[] = "C:\\windows\\system32\\cmd.exe /c exit";
@@ -315,6 +327,7 @@ static void test_query_architectures(void)
     NTSTATUS status;
     HANDLE process;
     ULONG i, len;
+    USHORT machine;
 #ifdef __arm64ec__
     BOOL is_arm64ec = TRUE;
 #else
@@ -324,49 +337,50 @@ static void test_query_architectures(void)
     if (!pNtQuerySystemInformationEx) return;
 
     process = GetCurrentProcess();
-    status = pNtQuerySystemInformationEx( SystemSupportedProcessorArchitectures, &process, sizeof(process),
+    status = pNtQuerySystemInformationEx( class, &process, sizeof(process),
                                           machines, sizeof(machines), &len );
     if (status == STATUS_INVALID_INFO_CLASS)
     {
-        win_skip( "SystemSupportedProcessorArchitectures not supported\n" );
+        win_skip( "SystemSupportedProcessorArchitectures%s not supported\n",
+                  class == SystemSupportedProcessorArchitectures2 ? "2" : "" );
         return;
     }
     ok( !status, "failed %lx\n", status );
 
     process = (HANDLE)0xdeadbeef;
-    status = pNtQuerySystemInformationEx( SystemSupportedProcessorArchitectures, &process, sizeof(process),
+    status = pNtQuerySystemInformationEx( class, &process, sizeof(process),
                                           machines, sizeof(machines), &len );
     ok( status == STATUS_INVALID_HANDLE, "failed %lx\n", status );
     process = (HANDLE)0xdeadbeef;
-    status = pNtQuerySystemInformationEx( SystemSupportedProcessorArchitectures, &process, 3,
+    status = pNtQuerySystemInformationEx( class, &process, 3,
                                           machines, sizeof(machines), &len );
     ok( status == STATUS_INVALID_PARAMETER || broken(status == STATUS_INVALID_HANDLE),
         "failed %lx\n", status );
     process = GetCurrentProcess();
-    status = pNtQuerySystemInformationEx( SystemSupportedProcessorArchitectures, &process, 3,
+    status = pNtQuerySystemInformationEx( class, &process, 3,
                                           machines, sizeof(machines), &len );
     ok( status == STATUS_INVALID_PARAMETER || broken( status == STATUS_SUCCESS),
         "failed %lx\n", status );
-    status = pNtQuerySystemInformationEx( SystemSupportedProcessorArchitectures, NULL, 0,
+    status = pNtQuerySystemInformationEx( class, NULL, 0,
                                           machines, sizeof(machines), &len );
     ok( status == STATUS_INVALID_PARAMETER, "failed %lx\n", status );
 
     winetest_push_context( "current" );
-    test_process_architecture( GetCurrentProcess(), is_win64 ? native_machine : current_machine,
+    test_process_architecture( class, GetCurrentProcess(), current_machine,
                                native_machine );
     test_process_machine( GetCurrentProcess(), GetCurrentThread(), current_machine,
                           is_arm64ec ? native_machine : current_machine );
     winetest_pop_context();
 
     winetest_push_context( "zero" );
-    test_process_architecture( 0, 0, native_machine );
+    test_process_architecture( class, 0, 0, native_machine );
     winetest_pop_context();
 
-    if (CreateProcessA( NULL, is_win64 ? cmd_system32 : cmd_sysnative, NULL, NULL,
-                        FALSE, CREATE_SUSPENDED, NULL, NULL, &si, &pi ))
+    machine = (is_win64 && native_machine == IMAGE_FILE_MACHINE_ARM64) ? current_machine : IMAGE_FILE_MACHINE_AMD64;
+    if (create_process_machine( is_win64 ? cmd_system32 : cmd_sysnative, CREATE_SUSPENDED, machine, &pi ))
     {
         winetest_push_context( "system32" );
-        test_process_architecture( pi.hProcess, native_machine, native_machine );
+        test_process_architecture( class, pi.hProcess, machine, native_machine );
         test_process_machine( pi.hProcess, pi.hThread,
                               is_win64 ? current_machine : native_machine, native_machine );
         TerminateProcess( pi.hProcess, 0 );
@@ -378,7 +392,7 @@ static void test_query_architectures(void)
                         FALSE, CREATE_SUSPENDED, NULL, NULL, &si, &pi ))
     {
         winetest_push_context( "syswow64" );
-        test_process_architecture( pi.hProcess, IMAGE_FILE_MACHINE_I386, native_machine );
+        test_process_architecture( class, pi.hProcess, IMAGE_FILE_MACHINE_I386, native_machine );
         test_process_machine( pi.hProcess, pi.hThread, IMAGE_FILE_MACHINE_I386, IMAGE_FILE_MACHINE_I386 );
         TerminateProcess( pi.hProcess, 0 );
         CloseHandle( pi.hProcess );
@@ -392,7 +406,7 @@ static void test_query_architectures(void)
         if (create_process_machine( cmd_system32, CREATE_SUSPENDED, machine, &pi ))
         {
             winetest_push_context( "%04x", machine );
-            test_process_architecture( pi.hProcess, native_machine, native_machine );
+            test_process_architecture( class, pi.hProcess, machine, native_machine );
             test_process_machine( pi.hProcess, pi.hThread, machine, native_machine );
             TerminateProcess( pi.hProcess, 0 );
             CloseHandle( pi.hProcess );
@@ -1174,7 +1188,7 @@ static void test_selectors(void)
     THREAD_DESCRIPTOR_INFORMATION info;
     NTSTATUS status;
     ULONG base, limit, sel, retlen;
-    LDT_ENTRY ds_entry = { 0 };
+    union { LDT_ENTRY entry; ULONG ul[2]; } ds_entry = { .ul[0] = 0 };
     I386_CONTEXT context = { CONTEXT_I386_CONTROL | CONTEXT_I386_SEGMENTS };
 
 #ifdef _WIN64
@@ -1273,7 +1287,7 @@ static void test_selectors(void)
             ok( !info.Entry.HighWord.Bits.Sys, "wrong sys\n" );
             ok( info.Entry.HighWord.Bits.Default_Big, "wrong big\n" );
             ok( info.Entry.HighWord.Bits.Granularity, "wrong granularity\n" );
-            ds_entry = info.Entry;
+            ds_entry.entry = info.Entry;
         }
         else if (sel == context.SegFs)  /* TEB selector */
         {
@@ -1312,12 +1326,12 @@ static void test_selectors(void)
         }
     }
 
-    status = pNtSetLdtEntries( 0, ds_entry, 0, ds_entry );
+    status = pNtSetLdtEntries( 0, ds_entry.ul[0], ds_entry.ul[1], 0, ds_entry.ul[0], ds_entry.ul[1] );
     if (status != STATUS_NOT_IMPLEMENTED)
     {
         ok( !status, "NtSetLdtEntries failed: %08lx\n", status );
 
-        status = pNtSetLdtEntries( 0x000f, ds_entry, 0x001f, ds_entry );
+        status = pNtSetLdtEntries( 0x000f, ds_entry.ul[0], ds_entry.ul[1], 0x001f, ds_entry.ul[0], ds_entry.ul[1] );
         ok( !status, "NtSetLdtEntries failed: %08lx\n", status );
 
         info.Selector = 0x000f;
@@ -2520,10 +2534,10 @@ static void test_nt_wow64(void)
                                                       MEM_RESERVE | MEM_COMMIT, PAGE_READONLY );
             ok( !status, "NtWow64AllocateVirtualMemory64 failed %lx\n", status );
             status = pNtWow64WriteVirtualMemory64( process, ptr, str, sizeof(str), &res );
-            todo_wine
+            todo_wine_if(status == STATUS_SUCCESS)
             ok( status == STATUS_PARTIAL_COPY || broken( status == STATUS_ACCESS_VIOLATION ),
                 "NtWow64WriteVirtualMemory64 failed %lx\n", status );
-            todo_wine
+            todo_wine_if(status == STATUS_SUCCESS)
             ok( !res || broken(res) /* win10 1709 */, "wrong size %s\n", wine_dbgstr_longlong(res) );
         }
         ptr = 0x9876543210ull;
@@ -3212,7 +3226,8 @@ static void test_arm64ec(void)
 START_TEST(wow64)
 {
     init();
-    test_query_architectures();
+    test_query_architectures(SystemSupportedProcessorArchitectures);
+    test_query_architectures(SystemSupportedProcessorArchitectures2);
     test_peb_teb();
     test_selectors();
     test_image_mappings();
