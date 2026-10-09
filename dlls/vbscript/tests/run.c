@@ -2890,7 +2890,7 @@ static void test_parse_errors(void)
         {
             /* Name redefined - error 1041 */
             L"Dim a\nDim a\n",
-            1, -4,
+            1, 4,
             NULL, S_OK, 1041
         },
         {
@@ -2980,7 +2980,7 @@ static void test_parse_errors(void)
         {
             /* Invalid 'exit' statement - error 1039 */
             L"Exit Do\n",
-            0, -5,
+            0, 5,
             NULL, S_OK, 1039
         },
         {
@@ -3048,6 +3048,36 @@ static void test_parse_errors(void)
             /* '_' not followed by newline */
             L"x = 1 _x\n",
             0, 7,
+            NULL, S_OK, 1032
+        },
+        {
+            /* Non-ASCII: e-acute (chr 233) in identifier */
+            L"Dim caf\x00e9\n",
+            0, 7,
+            NULL, S_OK, 1032
+        },
+        {
+            /* Non-ASCII: sharp-s (chr 223) in identifier */
+            L"Dim st\x00df" L"e\n",
+            0, 6,
+            NULL, S_OK, 1032
+        },
+        {
+            /* Non-ASCII: u-umlaut (chr 252) in identifier */
+            L"Dim x\x00fc" L"b\n",
+            0, 5,
+            NULL, S_OK, 1032
+        },
+        {
+            /* Non-ASCII: Cyrillic a (chr 1072) as identifier start */
+            L"Dim \x0430\n",
+            0, 4,
+            NULL, S_OK, 1032
+        },
+        {
+            /* Non-ASCII: e-acute (chr 233) starting identifier */
+            L"\x00e9var = 1\n",
+            0, 0,
             NULL, S_OK, 1032
         }
     };
@@ -3474,6 +3504,13 @@ static void run_tests(void)
 
     parse_script_w(L"");
     parse_script_w(L"' empty ;");
+
+    /* Vertical tab and form feed are valid whitespace separators */
+    parse_script_w(L"dim\x0b""x\n");
+    parse_script_w(L"dim\x0c""x\n");
+    parse_script_w(L"dim\x0b\x0c""x\n");
+    parse_script_w(L"x\x0b""=\x0b""1\n");
+    parse_script_w(L"x\x0c""=\x0c""1\n");
 
     SET_EXPECT(global_success_d);
     SET_EXPECT(global_success_i);

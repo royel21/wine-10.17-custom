@@ -3404,6 +3404,19 @@ static SQLRETURN get_stmt_option_win32( struct statement *stmt, SQLUSMALLINT opt
 {
     if (stmt->hdr.win32_funcs->SQLGetStmtOption)
         return stmt->hdr.win32_funcs->SQLGetStmtOption( stmt->hdr.win32_handle, option, value );
+
+    if (stmt->hdr.win32_funcs->SQLGetStmtAttrW)
+    {
+        switch (option)
+        {
+            case SQL_QUERY_TIMEOUT:
+            case SQL_MAX_LENGTH:
+                return stmt->hdr.win32_funcs->SQLGetStmtAttrW( stmt->hdr.win32_handle, option, value, 0, NULL );
+            default:
+                FIXME("Unsupported option %d.\n", option);
+        }
+    }
+
     return SQL_ERROR;
 }
 
@@ -4281,6 +4294,19 @@ static SQLRETURN set_stmt_option_win32( struct statement *stmt, SQLUSMALLINT opt
 {
     if (stmt->hdr.win32_funcs->SQLSetStmtOption)
         return stmt->hdr.win32_funcs->SQLSetStmtOption( stmt->hdr.win32_handle, option, value );
+
+    if (stmt->hdr.win32_funcs->SQLSetStmtAttrW)
+    {
+        switch (option)
+        {
+            case SQL_QUERY_TIMEOUT:
+            case SQL_MAX_LENGTH:
+                return stmt->hdr.win32_funcs->SQLSetStmtAttrW( stmt->hdr.win32_handle, option, (SQLPOINTER)value, 0 );
+            default:
+                FIXME("Unsupported option %d.\n", option);
+        }
+    }
+
     return SQL_ERROR;
 }
 
@@ -4532,6 +4558,13 @@ static SQLRETURN transact_win32( struct environment *env, struct connection *con
     if (win32_funcs->SQLTransact)
         return win32_funcs->SQLTransact( env ? env->hdr.win32_handle : NULL, con ? con->hdr.win32_handle : NULL,
                                          completion );
+
+    if (win32_funcs->SQLEndTran)
+    {
+        if (con) return win32_funcs->SQLEndTran( SQL_HANDLE_DBC, con->hdr.win32_handle, completion );
+        return win32_funcs->SQLEndTran( SQL_HANDLE_ENV, env->hdr.win32_handle, completion );
+    }
+
     return SQL_ERROR;
 }
 
