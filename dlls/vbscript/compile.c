@@ -402,7 +402,14 @@ static HRESULT compile_error(script_ctx_t *ctx, compile_ctx_t *compiler, HRESULT
     ctx->ei.scode = error;
     ctx->ei.bstrSource = get_vbscript_string(VBS_COMPILE_ERROR);
     map_vbs_exception(&ctx->ei);
-    return report_script_error(ctx, compiler->code, compiler->loc, TRUE);
+
+    if(!ctx->error_loc_code) {
+        grab_vbscode(compiler->code);
+        ctx->error_loc_code = compiler->code;
+        ctx->error_loc_offset = compiler->loc;
+    }
+
+    return SCRIPT_E_RECORDED;
 }
 
 static expression_t *lookup_const_decls(compile_ctx_t *ctx, const WCHAR *name, BOOL lookup_global)
@@ -1194,6 +1201,21 @@ static HRESULT compile_redim_statement(compile_ctx_t *ctx, redim_statement_t *st
     return S_OK;
 }
 
+static HRESULT compile_erase_statement(compile_ctx_t *ctx, erase_statement_t *stat)
+{
+    HRESULT hres;
+
+    hres = push_instr_bstr(ctx, OP_erase, stat->identifier);
+    if(FAILED(hres))
+        return hres;
+
+    if(!emit_catch(ctx, 0))
+        return E_OUTOFMEMORY;
+
+
+    return S_OK;
+}
+
 static HRESULT compile_const_statement(compile_ctx_t *ctx, const_statement_t *stat)
 {
     const_decl_t *decl, *next_decl = stat->decls;
@@ -1514,6 +1536,9 @@ static HRESULT compile_statement(compile_ctx_t *ctx, statement_ctx_t *stat_ctx, 
             break;
         case STAT_ONERROR:
             hres = compile_onerror_statement(ctx, (onerror_statement_t*)stat);
+            break;
+        case STAT_ERASE:
+            hres = compile_erase_statement(ctx, (erase_statement_t*)stat);
             break;
         case STAT_REDIM:
             hres = compile_redim_statement(ctx, (redim_statement_t*)stat);
@@ -2083,7 +2108,7 @@ static void release_compiler(compile_ctx_t *ctx)
 }
 
 HRESULT compile_script(script_ctx_t *script, const WCHAR *src, const WCHAR *item_name, const WCHAR *delimiter,
-                       DWORD_PTR cookie, unsigned start_line, DWORD flags, vbscode_t **ret)
+                       DWORD_PTR cookie, unsigned start_line, DWORD flags, BOOL skip_collisions, vbscode_t **ret)
 {
     function_decl_t *func_decl;
     named_item_t *item = NULL;
@@ -2155,7 +2180,7 @@ HRESULT compile_script(script_ctx_t *script, const WCHAR *src, const WCHAR *item
     }
 
     hres = check_script_collisions(&ctx, script);
-    if(FAILED(hres)) {
+    if(FAILED(hres) && !skip_collisions) {
         hres = compile_error(script, &ctx, hres);
         release_compiler(&ctx);
         return hres;
@@ -2182,7 +2207,7 @@ HRESULT compile_procedure(script_ctx_t *script, const WCHAR *src, const WCHAR *i
     HRESULT hres;
 
     hres = compile_script(script, src, item_name, delimiter, cookie, start_line,
-                          flags & ~SCRIPTTEXT_ISPERSISTENT, &code);
+                          flags & ~SCRIPTTEXT_ISPERSISTENT, FALSE, &code);
     if(FAILED(hres))
         return hres;
 
