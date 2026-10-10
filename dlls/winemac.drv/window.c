@@ -1172,6 +1172,7 @@ struct macdrv_client_surface *macdrv_client_surface_create(HWND hwnd)
  */
 void macdrv_SetDesktopWindow(HWND hwnd)
 {
+    static pthread_once_t app_icon_once = PTHREAD_ONCE_INIT;
     unsigned int width, height;
 
     TRACE("%p\n", hwnd);
@@ -1206,7 +1207,7 @@ void macdrv_SetDesktopWindow(HWND hwnd)
         SERVER_END_REQ;
     }
 
-    set_app_icon();
+    pthread_once(&app_icon_once, set_app_icon);
 }
 
 #define WM_WINE_NOTIFY_ACTIVITY WM_USER
@@ -1731,7 +1732,7 @@ void macdrv_window_frame_changed(HWND hwnd, const macdrv_event *event)
         flags |= SWP_NOSENDCHANGING;
     if (!(flags & SWP_NOSIZE) || !(flags & SWP_NOMOVE))
     {
-        int send_sizemove = !event->window_frame_changed.in_resize && !being_dragged && !event->window_frame_changed.skip_size_move_loop;
+        bool send_sizemove = !event->window_frame_changed.in_resize && !being_dragged && !event->window_frame_changed.skip_size_move_loop;
         if (send_sizemove)
             send_message(hwnd, WM_ENTERSIZEMOVE, 0, 0);
         NtUserSetRawWindowPos(hwnd, rect, flags, FALSE);

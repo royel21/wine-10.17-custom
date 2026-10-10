@@ -9336,10 +9336,10 @@ static void test_MFInitAMMediaTypeFromMFMediaType(void)
     hr = MFInitAMMediaTypeFromMFMediaType(media_type, FORMAT_MFVideoFormat, &am_type);
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     hr = MFInitMediaTypeFromAMMediaType(other_type, &am_type);
-    todo_wine ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     hr = IMFMediaType_GetAllocatedBlob(other_type, &MF_MT_MINIMUM_DISPLAY_APERTURE, (BYTE **)&area, &value32);
-    todo_wine ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
-    if (hr == S_OK) CoTaskMemFree(area);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    CoTaskMemFree(area);
     IMFMediaType_DeleteAllItems(other_type);
     CoTaskMemFree(am_type.pbFormat);
 
@@ -12334,7 +12334,6 @@ static void test_MFInitMediaTypeFromVideoInfoHeader(void)
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     ok(IsEqualGUID(&guid, &GUID_NULL), "Unexpected guid %s.\n", debugstr_guid(&guid));
     hr = IMFMediaType_GetUINT64(media_type, &MF_MT_FRAME_SIZE, &value64);
-    todo_wine
     ok(hr == MF_E_ATTRIBUTENOTFOUND, "Unexpected hr %#lx.\n", hr);
 
     vih.bmiHeader.biWidth = 16;
@@ -12679,7 +12678,6 @@ static void test_MFInitMediaTypeFromVideoInfoHeader2(void)
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     ok(IsEqualGUID(&guid, &GUID_NULL), "Unexpected guid %s.\n", debugstr_guid(&guid));
     hr = IMFMediaType_GetUINT64(media_type, &MF_MT_FRAME_SIZE, &value64);
-    todo_wine
     ok(hr == MF_E_ATTRIBUTENOTFOUND, "Unexpected hr %#lx.\n", hr);
 
     vih.bmiHeader.biWidth = 16;
@@ -13047,7 +13045,6 @@ static void test_MFInitMediaTypeFromMPEG1VideoInfo(void)
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     ok(IsEqualGUID(&guid, &GUID_NULL), "Unexpected guid %s.\n", debugstr_guid(&guid));
     hr = IMFMediaType_GetUINT64(media_type, &MF_MT_FRAME_SIZE, &value64);
-    todo_wine
     ok(hr == MF_E_ATTRIBUTENOTFOUND, "Unexpected hr %#lx.\n", hr);
 
     vih.hdr.bmiHeader.biWidth = 16;
@@ -13159,7 +13156,6 @@ static void test_MFInitMediaTypeFromMPEG2VideoInfo(void)
     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
     ok(IsEqualGUID(&guid, &GUID_NULL), "Unexpected guid %s.\n", debugstr_guid(&guid));
     hr = IMFMediaType_GetUINT64(media_type, &MF_MT_FRAME_SIZE, &value64);
-    todo_wine
     ok(hr == MF_E_ATTRIBUTENOTFOUND, "Unexpected hr %#lx.\n", hr);
 
     vih.hdr.bmiHeader.biWidth = 16;

@@ -2685,7 +2685,7 @@ CFArrayRef macdrv_create_input_source_list(void)
 
 bool macdrv_select_input_source(TISInputSourceRef input_source)
 {
-    __block bool ret = FALSE;
+    __block bool ret = false;
 
     OnMainThread(^{
         ret = (TISSelectInputSource(input_source) == noErr);
@@ -2703,7 +2703,7 @@ void macdrv_set_cocoa_retina_mode(bool new_mode)
 
 bool macdrv_is_any_wine_window_visible(void)
 {
-    __block bool ret = FALSE;
+    __block bool ret = false;
 
     OnMainThread(^{
         ret = [[WineApplicationController sharedController] isAnyWineWindowVisible];

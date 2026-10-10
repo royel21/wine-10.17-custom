@@ -41,7 +41,6 @@
 extern BOOL allow_vsync;
 extern BOOL allow_set_gamma;
 extern BOOL allow_software_rendering;
-extern BOOL force_backing_store;
 
 extern UINT64 app_icon_callback;
 extern UINT64 app_quit_request_callback;
@@ -106,7 +105,7 @@ struct macdrv_thread_data
     macdrv_window               capture_window;
     CFDataRef                   keyboard_layout_uchr;
     CGEventSourceKeyboardType   keyboard_type;
-    int                         iso_keyboard;
+    bool                        iso_keyboard;
     CGEventFlags                last_modifiers;
     UInt32                      dead_key_state;
     HKL                         active_keyboard_layout;
@@ -159,7 +158,7 @@ extern BOOL macdrv_SetCursorPos(INT x, INT y);
 extern BOOL macdrv_RegisterHotKey(HWND hwnd, UINT mod_flags, UINT vkey);
 extern void macdrv_UnregisterHotKey(HWND hwnd, UINT modifiers, UINT vkey);
 extern SHORT macdrv_VkKeyScanEx(WCHAR wChar, HKL hkl);
-extern UINT macdrv_ImeProcessKey(HIMC himc, UINT wparam, UINT lparam, const BYTE *state);
+extern UINT macdrv_ImeToAsciiEx(UINT vkey, UINT vsc, const BYTE *state, HIMC himc);
 extern UINT macdrv_MapVirtualKeyEx(UINT wCode, UINT wMapType, HKL hkl);
 extern INT macdrv_ToUnicodeEx(UINT virtKey, UINT scanCode, const BYTE *lpKeyState,
                               LPWSTR bufW, int bufW_size, UINT flags, HKL hkl);
