@@ -178,9 +178,11 @@ static HRESULT WINAPI domdoctype_get_nodeType(IXMLDOMDocumentType *iface, DOMNod
 
 static HRESULT WINAPI domdoctype_get_parentNode(IXMLDOMDocumentType *iface, IXMLDOMNode **parent)
 {
-    FIXME("%p, %p: stub\n", iface, parent);
+    domdoctype *doctype = impl_from_IXMLDOMDocumentType(iface);
 
-    return E_NOTIMPL;
+    TRACE("%p, %p.\n", iface, parent);
+
+    return node_get_parent(doctype->node, parent);
 }
 
 static HRESULT WINAPI domdoctype_get_childNodes(IXMLDOMDocumentType *iface, IXMLDOMNodeList **list)
@@ -266,9 +268,11 @@ static HRESULT WINAPI domdoctype_hasChildNodes(IXMLDOMDocumentType *iface, VARIA
 
 static HRESULT WINAPI domdoctype_get_ownerDocument(IXMLDOMDocumentType *iface, IXMLDOMDocument **doc)
 {
-    FIXME("%p, %p: stub\n", iface, doc);
+    domdoctype *doctype = impl_from_IXMLDOMDocumentType(iface);
 
-    return E_NOTIMPL;
+    TRACE("%p, %p.\n", iface, doc);
+
+    return node_get_owner_document(doctype->node, doc);
 }
 
 static HRESULT WINAPI domdoctype_cloneNode(IXMLDOMDocumentType *iface, VARIANT_BOOL deep, IXMLDOMNode **node)
@@ -280,9 +284,9 @@ static HRESULT WINAPI domdoctype_cloneNode(IXMLDOMDocumentType *iface, VARIANT_B
 
 static HRESULT WINAPI domdoctype_get_nodeTypeString(IXMLDOMDocumentType *iface, BSTR *p)
 {
-    FIXME("%p, %p: stub\n", iface, p);
+    TRACE("%p, %p.\n", iface, p);
 
-    return E_NOTIMPL;
+    return return_bstr(L"documenttype", p);
 }
 
 static HRESULT WINAPI domdoctype_get_text(IXMLDOMDocumentType *iface, BSTR *p)

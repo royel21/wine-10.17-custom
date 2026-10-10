@@ -8045,6 +8045,7 @@ static void test_get_ownerDocument(void)
     IXMLDOMDocument2 *doc, *doc_owner;
     IXMLDOMNode *node;
     IXMLDOMSchemaCollection *cache;
+    IXMLDOMDocumentType *doctype;
     VARIANT_BOOL b;
     VARIANT var;
     IXMLDOMElement *element;
@@ -8178,12 +8179,26 @@ static void test_get_ownerDocument(void)
     IXMLDOMAttribute_Release(attr);
     IXMLDOMNodeList_Release(node_list);
 
-    IXMLDOMSchemaCollection_Release(cache);
-    IXMLDOMDocument_Release(doc1);
     IXMLDOMDocument_Release(doc2);
     IXMLDOMDocument_Release(doc3);
     IXMLDOMDocument2_Release(doc);
     IXMLDOMDocument2_Release(doc_owner);
+
+    /* DTD node */
+    hr = IXMLDOMDocument_loadXML(doc1, _bstr_(szEmailXML), NULL);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    hr = IXMLDOMDocument_get_doctype(doc1, &doctype);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IXMLDOMDocumentType_get_ownerDocument(doctype, NULL);
+    ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
+    hr = IXMLDOMDocumentType_get_ownerDocument(doctype, &doc2);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    IXMLDOMDocumentType_Release(doctype);
+    IXMLDOMDocument_Release(doc2);
+
+    IXMLDOMSchemaCollection_Release(cache);
+    IXMLDOMDocument_Release(doc1);
     free_bstrs();
 }
 
@@ -10266,6 +10281,7 @@ static const get_node_typestring_t get_node_typestring[] = {
 static void test_get_nodeTypeString(void)
 {
     const get_node_typestring_t *entry = get_node_typestring;
+    IXMLDOMDocumentType *doctype;
     IXMLDOMDocument *doc;
     HRESULT hr;
     BSTR str;
@@ -10299,6 +10315,19 @@ static void test_get_nodeTypeString(void)
 
         entry++;
     }
+
+    hr = IXMLDOMDocument_loadXML(doc, _bstr_(szEmailXML), NULL);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    hr = IXMLDOMDocument_get_doctype(doc, &doctype);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IXMLDOMDocumentType_get_nodeTypeString(doctype, NULL);
+    ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
+    hr = IXMLDOMDocumentType_get_nodeTypeString(doctype, &str);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(!wcscmp(str, L"documenttype"), "Unexpected string %s.\n", debugstr_w(str));
+    SysFreeString(str);
+    IXMLDOMDocumentType_Release(doctype);
 
     IXMLDOMDocument_Release(doc);
     free_bstrs();
@@ -14618,9 +14647,11 @@ static DWORD WINAPI new_thread(void *arg)
 
 static void test_get_parentNode(void)
 {
+    IXMLDOMDocumentType *doctype;
     IXMLDOMNode *node, *child;
     IXMLDOMAttribute *attr;
     IXMLDOMElement *e, *e2;
+    DOMNodeType node_type;
     IXMLDOMDocument *doc;
     VARIANT_BOOL b;
     HRESULT hr;
@@ -14660,7 +14691,24 @@ static void test_get_parentNode(void)
     IXMLDOMElement_Release(e2);
     IXMLDOMElement_Release(e);
 
+    /* DTD parent */
+    hr = IXMLDOMDocument_loadXML(doc, _bstr_(szEmailXML), NULL);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+
+    hr = IXMLDOMDocument_get_doctype(doc, &doctype);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IXMLDOMDocumentType_get_parentNode(doctype, NULL);
+    ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
+    hr = IXMLDOMDocumentType_get_parentNode(doctype, &node);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    hr = IXMLDOMNode_get_nodeType(node, &node_type);
+    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+    ok(node_type == NODE_DOCUMENT, "Unexpected node type %d.\n", node_type);
+    IXMLDOMNode_Release(node);
+    IXMLDOMDocumentType_Release(doctype);
+
     IXMLDOMDocument_Release(doc);
+    free_bstrs();
 }
 
 static void test_removeAttributeNode(void)
