@@ -3330,8 +3330,6 @@ struct cancel_async_request
 struct cancel_async_reply
 {
     struct reply_header __header;
-    obj_handle_t cancel_handle;
-    char __pad_12[4];
 };
 
 
