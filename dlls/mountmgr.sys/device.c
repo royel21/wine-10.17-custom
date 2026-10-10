@@ -177,36 +177,6 @@ static void get_filesystem_serial( struct volume *volume )
     volume->serial = strtoul( buffer, NULL, 16 );
 }
 
-/* get the flags for the volume by looking at the type of underlying filesystem */
-static DWORD get_filesystem_flags( struct volume *volume )
-{
-    char fstypename[256];
-    ULONG size = sizeof(fstypename);
-    struct get_volume_filesystem_params params = { volume->device->unix_mount, fstypename, &size };
-
-    if (!volume->device->unix_mount) return 0;
-    if (MOUNTMGR_CALL( get_volume_filesystem, &params )) return 0;
-
-    if (!strcmp("apfs", fstypename) ||
-        !strcmp("nfs", fstypename) ||
-        !strcmp("cifs", fstypename) ||
-        !strcmp("ncpfs", fstypename) ||
-        !strcmp("tmpfs", fstypename) ||
-        !strcmp("cramfs", fstypename) ||
-        !strcmp("devfs", fstypename) ||
-        !strcmp("procfs", fstypename) ||
-        !strcmp("ext2", fstypename) ||
-        !strcmp("ext3", fstypename) ||
-        !strcmp("ext4", fstypename) ||
-        !strcmp("hfs", fstypename) ||
-        !strcmp("hpfs", fstypename) ||
-        !strcmp("ntfs", fstypename))
-    {
-        return FILE_SUPPORTS_REPARSE_POINTS;
-    }
-    return 0;
-}
-
 
 /******************************************************************
  *		VOLUME_FindCdRomDataBestVoldesc
@@ -1051,8 +1021,8 @@ static NTSTATUS set_volume_info( struct volume *volume, struct dos_drive *drive,
         id = disk_device->unix_mount;
         id_len = strlen( disk_device->unix_mount ) + 1;
     }
-    if (volume->mount) set_mount_point_id( volume->mount, id, id_len, -1 );
-    if (drive && drive->mount) set_mount_point_id( drive->mount, id, id_len, drive->drive );
+    if (volume->mount) set_mount_point_id( volume->mount, id, id_len );
+    if (drive && drive->mount) set_mount_point_id( drive->mount, id, id_len );
 
     return STATUS_SUCCESS;
 }
@@ -1649,6 +1619,30 @@ static NTSTATUS query_property( struct disk_device *device, IRP *irp )
         }
         break;
     }
+    case StorageDeviceTrimProperty:
+    {
+        DEVICE_TRIM_DESCRIPTOR *d = irp->AssociatedIrp.SystemBuffer;
+
+        if (irpsp->Parameters.DeviceIoControl.OutputBufferLength < sizeof(STORAGE_DESCRIPTOR_HEADER))
+            status = STATUS_INVALID_PARAMETER;
+        else
+        {
+            if (irpsp->Parameters.DeviceIoControl.OutputBufferLength < sizeof(*d))
+            {
+                d->Version = d->Size = sizeof(*d);
+                irp->IoStatus.Information = sizeof(STORAGE_DESCRIPTOR_HEADER);
+            }
+            else
+            {
+                FIXME( "Returning TRUE for StorageDeviceTrimProperty.\n" );
+                d->Version = d->Size = sizeof(*d);
+                d->TrimEnabled = TRUE;
+                irp->IoStatus.Information = sizeof(*d);
+            }
+            status = STATUS_SUCCESS;
+        }
+        break;
+    }
 
     default:
         FIXME( "Unsupported property %#x\n", query->PropertyId );
@@ -1762,8 +1756,7 @@ static NTSTATUS WINAPI harddisk_query_volume( DEVICE_OBJECT *device, IRP *irp )
             break;
         default:
             fsname = L"NTFS";
-            info->FileSystemAttributes = FILE_CASE_PRESERVED_NAMES | FILE_PERSISTENT_ACLS
-                                         | get_filesystem_flags( volume );
+            info->FileSystemAttributes = FILE_CASE_PRESERVED_NAMES | FILE_PERSISTENT_ACLS | FILE_SUPPORTS_REPARSE_POINTS;
             info->MaximumComponentNameLength = 255;
             break;
         }
@@ -1985,7 +1978,7 @@ static BOOL create_port_device( DRIVER_OBJECT *driver, int n, const char *unix_p
     DEVICE_OBJECT *dev_obj;
     NTSTATUS status;
     const WCHAR *windows_ports_key_name;
-    struct set_dosdev_symlink_params params = { dosdevices_path, unix_path, driver == serial_driver };
+    struct set_dosdev_symlink_params params = { dosdevices_path, unix_path };
 
     /* create DOS device */
     if (MOUNTMGR_CALL( set_dosdev_symlink, &params )) return FALSE;
@@ -2035,7 +2028,6 @@ static BOOL create_port_device( DRIVER_OBJECT *driver, int n, const char *unix_p
     if (!*windows_ports_key)
         RegCreateKeyExW( HKEY_LOCAL_MACHINE, windows_ports_key_name, 0, NULL, REG_OPTION_VOLATILE,
                          KEY_ALL_ACCESS, NULL, windows_ports_key, NULL );
-
 
     swprintf( reg_value, ARRAY_SIZE(reg_value), reg_value_format, n );
     RegSetValueExW( *windows_ports_key, nt_name.Buffer, 0, REG_SZ,
