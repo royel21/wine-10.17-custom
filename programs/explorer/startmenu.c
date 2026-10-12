@@ -100,7 +100,7 @@ static void exec_item(struct menu_item* item)
 
     ZeroMemory(&sei, sizeof(sei));
     sei.cbSize = sizeof(sei);
-    sei.fMask = SEE_MASK_IDLIST;
+    sei.fMask = SEE_MASK_INVOKEIDLIST;
     sei.nShow = SW_SHOWNORMAL;
     sei.lpIDList = abs_pidl;
 
