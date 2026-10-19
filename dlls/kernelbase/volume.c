@@ -153,51 +153,6 @@ BOOL WINAPI DECLSPEC_HOTPATCH GetVolumeInformationW( LPCWSTR root, LPWSTR label,
     unsigned int i;
     BOOL ret = FALSE;
 
-        if (root && label && label_len >= 2 &&
-        root[0] &&
-        root[1] == ':')
-    {
-        HKEY key;
-        WCHAR value_name[3];
-        WCHAR reg_label[MAX_PATH];
-        DWORD type;
-        DWORD size = sizeof(reg_label);
-
-        value_name[0] = towupper(root[0]);
-        value_name[1] = ':';
-        value_name[2] = 0;
-
-        if (!RegOpenKeyExW(
-                HKEY_LOCAL_MACHINE,
-                L"Software\\Wine\\Labels",
-                0,
-                KEY_QUERY_VALUE,
-                &key ))
-        {
-            if (!RegQueryValueExW(
-                    key,
-                    value_name,
-                    NULL,
-                    &type,
-                    (BYTE *)reg_label,
-                    &size ) &&
-                type == REG_SZ)
-            {
-                lstrcpynW( label, reg_label, label_len );
-
-                if (serial) *serial = 0;
-                if (filename_len) *filename_len = MAX_PATH;
-                if (flags) *flags = FILE_CASE_PRESERVED_NAMES;
-                if (fsname && fsname_len)
-                    lstrcpynW( fsname, L"WINE", fsname_len );
-
-                RegCloseKey( key );
-                return TRUE;
-            }
-            RegCloseKey( key );
-        }
-    }
-
     if (!root) root = L"\\";
     if (!RtlDosPathNameToNtPathName_U( root, &nt_name, NULL, NULL ))
     {

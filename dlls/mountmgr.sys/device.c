@@ -100,7 +100,6 @@ static struct list volumes_list = LIST_INIT(volumes_list);
 
 static DRIVER_OBJECT *harddisk_driver;
 static DRIVER_OBJECT *serial_driver;
-static DRIVER_OBJECT *parallel_driver;
 
 static CRITICAL_SECTION device_section;
 static CRITICAL_SECTION_DEBUG critsect_debug =
@@ -862,7 +861,6 @@ static BOOL get_volume_device_info( struct volume *volume )
     CDROM_TOC toc;
     DWORD size;
     BYTE superblock[SUPERBLOCK_SIZE];
-
     if (!unix_device)
         return FALSE;
 
@@ -1428,6 +1426,39 @@ static struct volume *find_volume_by_unixdev( ULONGLONG unix_dev )
     return NULL;
 }
 
+static void get_volume_label(const struct volume *volume, char letter){
+    HKEY key;
+        WCHAR value_name[3];
+        WCHAR reg_label[MAX_PATH];
+        const int label_len = 256;
+        DWORD type;
+        DWORD size = sizeof(reg_label);
+        value_name[0] = letter;
+        value_name[1] = ':';
+        value_name[2] = 0;
+
+        if (!RegOpenKeyExW(
+                HKEY_LOCAL_MACHINE,
+                L"Software\\Wine\\Labels",
+                0,
+                KEY_QUERY_VALUE,
+                &key ))
+        {
+            if (!RegQueryValueExW(
+                    key,
+                   value_name,
+                    NULL,
+                    &type,
+                    (BYTE *)reg_label,
+                    &size ) &&
+                type == REG_SZ)
+            {
+                lstrcpynW( volume->label, reg_label, label_len );
+            }
+            RegCloseKey( key );
+        }
+}
+
 /* implementation of IOCTL_MOUNTMGR_QUERY_UNIX_DRIVE */
 NTSTATUS query_unix_drive( void *buff, SIZE_T insize, SIZE_T outsize, IO_STATUS_BLOCK *iosb )
 {
@@ -1450,8 +1481,39 @@ NTSTATUS query_unix_drive( void *buff, SIZE_T insize, SIZE_T outsize, IO_STATUS_
         volume = find_volume_by_letter( letter - 'a' );
     else
         volume = find_volume_by_unixdev( input->unix_dev );
+
     if (volume)
     {
+        HKEY key;
+        WCHAR value_name[3];
+        WCHAR reg_label[MAX_PATH];
+        const int label_len = 256;
+        DWORD type;
+        DWORD size = sizeof(reg_label);
+        value_name[0] = 'X';
+        value_name[1] = ':';
+        value_name[2] = 0;
+
+        if (!RegOpenKeyExW(
+                HKEY_LOCAL_MACHINE,
+                L"Software\\Wine\\Labels",
+                0,
+                KEY_QUERY_VALUE,
+                &key ))
+        {
+            if (!RegQueryValueExW(
+                    key,
+                    L"X:",
+                    NULL,
+                    &type,
+                    (BYTE *)reg_label,
+                    &size ) &&
+                type == REG_SZ)
+            {
+                lstrcpynW( volume->label, reg_label, label_len );
+            }
+            RegCloseKey( key );
+        }
         device_type = volume->device->type;
         fs_type = get_mountmgr_fs_type( volume->fs_type );
         serial = volume->serial;
@@ -1514,8 +1576,8 @@ NTSTATUS query_unix_drive( void *buff, SIZE_T insize, SIZE_T outsize, IO_STATUS_
         ptr += strlen(ptr) + 1;
     }
 
-    TRACE( "returning %c: dev %s mount %s type %lu\n",
-           letter, debugstr_a(device), debugstr_a(mount_point), type );
+    TRACE( "returning %c: label:%s dev %s mount %s type %lu\n",
+           letter, debugstr_w(label), debugstr_a(device), debugstr_a(mount_point), type );
 
     iosb->Information = ptr - (char *)output;
     if (size > outsize) status = STATUS_BUFFER_OVERFLOW;
@@ -2125,9 +2187,6 @@ NTSTATUS WINAPI parallel_driver_entry( DRIVER_OBJECT *driver, UNICODE_STRING *pa
 {
     char devices[4096];
     struct detect_ports_params params = { devices, sizeof(devices) };
-
-    parallel_driver = driver;
-    /* TODO: fill in driver->MajorFunction */
 
     MOUNTMGR_CALL( detect_parallel_ports, &params );
     create_port_devices( driver, devices );
