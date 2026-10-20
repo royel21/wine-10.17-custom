@@ -293,17 +293,10 @@ static DWORD modGetDevCaps(LPMIDIOUTCAPSW lpCaps, DWORD_PTR size)
 
 static DWORD modReset(void)
 {
-    int ch;
-
-    for (ch = 0; ch < 16; ch++)
-    {
-        modData(0x007BB0 | ch); /* CC123 All Notes Off */
-        modData(0x0078B0 | ch); /* CC120 All Sound Off */
-    }
-
     midiOutDev.runningStatus = 0;
     return MMSYSERR_NOERROR;
 }
+
 static DWORD WINAPI MidThreadProc(void *param)
 {
     int res;
