@@ -1,5 +1,6 @@
 MODULE    = mcicda.dll
-IMPORTS   = winmm user32
+IMPORTS   = advapi32 winmm user32
 
 SOURCES = \
-	mcicda.c
+	mcicda.c \
+    parser.c
