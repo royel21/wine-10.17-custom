@@ -1,5 +1,6 @@
 #include "parser.h"
 #include "stdio.h"
+#include <stdlib.h>
 
 #include "wine/debug.h"
 
@@ -130,6 +131,158 @@ static bool parseCue(const wchar_t* cuePath, VirtualCD* cd) {
     return cd->trackCount > 0;
 }
 
+
+static inline wchar_t* getFileExtension(wchar_t* path) {
+    wchar_t* ext = wcsrchr(path, L'.');
+    return ext && *ext++ != L'\0' ? ext : NULL;
+}
+
+static bool parseCCD(const wchar_t* ccdPath, VirtualCD* cd)
+{
+    wchar_t value[64];
+    DWORD leadoutLBA = 0;
+    wchar_t* ext = NULL;
+    int i;
+
+    memset(cd, 0, sizeof(*cd));
+
+    wcscpy(cd->cuePath, ccdPath);
+    wcscpy(cd->binPath, ccdPath);
+
+    ext = wcsrchr(cd->binPath, L'.');
+    if (!ext)
+        return false;
+
+    wcscpy(ext, L".img");
+
+    if (GetFileAttributesW(cd->binPath) == INVALID_FILE_ATTRIBUTES)
+        return false;
+
+    /* Parse TRACK sections */
+    for (i = 1; i <= MAX_CD_TRACKS; i++)
+    {
+        wchar_t section[32];
+        int mode;
+        CDTrack* trk = NULL;
+
+        swprintf(section, 32, L"TRACK %d", i);
+
+        GetPrivateProfileStringW(section, L"MODE", L"", value, ARRAYSIZE(value), ccdPath);
+
+        if (!value[0])
+            break;
+
+        mode = _wtoi(value);
+
+        trk = &cd->tracks[cd->trackCount++];
+
+        memset(trk, 0, sizeof(*trk));
+
+        trk->trackNumber = i;
+        trk->sectorSize = 2352;
+
+        if (mode == 0)
+        {
+            trk->isAudio = TRUE;
+            strcpy(trk->mode, "AUDIO");
+        }
+        else
+        {
+            trk->isAudio = FALSE;
+
+            if (mode == 1)
+                strcpy(trk->mode, "MODE1/2352");
+            else if (mode == 2)
+                strcpy(trk->mode, "MODE2/2352");
+            else
+                strcpy(trk->mode, "UNKNOWN");
+        }
+
+        GetPrivateProfileStringW(section, L"INDEX 1", L"0", value, ARRAYSIZE(value), ccdPath);
+
+        trk->index1 = _wtol(value);
+    }
+
+    if (!cd->trackCount)
+        return false;
+
+    /* Parse TOC entries */
+    for (i = 0; i < 256; i++)
+    {
+        wchar_t section[32];
+        long point;
+        long plba;
+
+        swprintf(section, 32, L"Entry %d", i);
+
+        GetPrivateProfileStringW(section, L"Point", L"", value, ARRAYSIZE(value), ccdPath);
+
+        if (!value[0])
+            continue;
+
+        point = wcstol(value, NULL, 0);
+
+        GetPrivateProfileStringW(section, L"PLBA", L"", value, ARRAYSIZE(value), ccdPath);
+
+        if (!value[0])
+            continue;
+
+        plba = _wtol(value);
+
+        if (point >= 1 && point <= cd->trackCount)
+        {
+            cd->tracks[point - 1].startLBA = plba;
+        }
+        else if (point == 0xA2)
+        {
+            leadoutLBA = plba;
+        }
+    }
+
+    if (!leadoutLBA)
+        return false;
+
+    /* Calculate end LBAs */
+    for (i = 0; i < cd->trackCount - 1; i++)
+    {
+        cd->tracks[i].endLBA =
+            cd->tracks[i + 1].startLBA;
+    }
+
+    cd->tracks[cd->trackCount - 1].endLBA =
+        leadoutLBA;
+
+    /* Calculate IMG offsets */
+    ULONGLONG offset = 0;
+
+    for (i = 0; i < cd->trackCount; i++)
+    {
+        CDTrack* trk = &cd->tracks[i];
+
+        trk->fileOffset = offset;
+
+        offset +=
+            (ULONGLONG)(trk->endLBA - trk->startLBA)
+            * 2352;
+
+        TRACE(
+            "parseCCD Track %02d mode=%s start=%ld end=%ld offset=%I64u\n",
+            trk->trackNumber,
+            trk->mode,
+            trk->startLBA,
+            trk->endLBA,
+            trk->fileOffset);
+    }
+
+    TRACE(
+        "parseCCD Loaded %d tracks leadout=%lu img=%s\n",
+        cd->trackCount,
+        leadoutLBA,
+        wine_dbgstr_w(cd->binPath));
+
+    return true;
+}
+
 static bool finalizeTracks(VirtualCD* cd)
 {
     FILE* fp;
@@ -193,17 +346,26 @@ static bool finalizeTracks(VirtualCD* cd)
     return true;
 }
 
-bool LoadCurrentDisc(VirtualCD* cd) {
-    wchar_t cuePath[MAX_PATH];
 
-    if (!getCurrentCuePath(cuePath, MAX_PATH)) {
+bool LoadCurrentDisc(VirtualCD* cd) {
+    wchar_t path[MAX_PATH];
+    wchar_t* ext;
+
+    if (!getCurrentCuePath(path, MAX_PATH)) {
         return false;
     }
 
-    TRACE("cuePath=%ls\n", cuePath);
+    ext = getFileExtension(path);
 
-    if (!parseCue(cuePath, cd)) {
-        return false;
+    TRACE("cuePath=%ls\n", path);
+
+    if (!_wcsicmp(ext, L".cue"))
+    {
+        parseCue(path, cd);
+    }
+    else if (!_wcsicmp(ext, L".ccd"))
+    {
+        parseCCD(path, cd);
     }
 
     if (!finalizeTracks(cd)) {
