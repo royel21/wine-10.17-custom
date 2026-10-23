@@ -131,12 +131,6 @@ static bool parseCue(const wchar_t* cuePath, VirtualCD* cd) {
     return cd->trackCount > 0;
 }
 
-
-static inline wchar_t* getFileExtension(wchar_t* path) {
-    wchar_t* ext = wcsrchr(path, L'.');
-    return ext && *ext++ != L'\0' ? ext : NULL;
-}
-
 static bool parseCCD(const wchar_t* ccdPath, VirtualCD* cd)
 {
     wchar_t value[64];
@@ -155,24 +149,31 @@ static bool parseCCD(const wchar_t* ccdPath, VirtualCD* cd)
 
     wcscpy(ext, L".img");
 
-    if (GetFileAttributesW(cd->binPath) == INVALID_FILE_ATTRIBUTES)
-        return false;
+    {
+        DWORD attr = GetFileAttributesW(cd->binPath);
+
+        if (attr == INVALID_FILE_ATTRIBUTES ||
+            (attr & FILE_ATTRIBUTE_DIRECTORY))
+            return false;
+    }
 
     /* Parse TRACK sections */
     for (i = 1; i <= MAX_CD_TRACKS; i++)
     {
         wchar_t section[32];
         int mode;
-        CDTrack* trk = NULL;
+        CDTrack* trk;
 
-        swprintf(section, 32, L"TRACK %d", i);
+        swprintf(section, ARRAY_SIZE(section), L"TRACK %d", i);
 
-        GetPrivateProfileStringW(section, L"MODE", L"", value, ARRAYSIZE(value), ccdPath);
+        mode = GetPrivateProfileIntW(
+            section,
+            L"MODE",
+            -1,
+            ccdPath);
 
-        if (!value[0])
+        if (mode == -1)
             break;
-
-        mode = _wtoi(value);
 
         trk = &cd->tracks[cd->trackCount++];
 
@@ -186,21 +187,33 @@ static bool parseCCD(const wchar_t* ccdPath, VirtualCD* cd)
             trk->isAudio = TRUE;
             strcpy(trk->mode, "AUDIO");
         }
+        else if (mode == 1)
+        {
+            trk->isAudio = FALSE;
+            strcpy(trk->mode, "MODE1/2352");
+        }
+        else if (mode == 2)
+        {
+            trk->isAudio = FALSE;
+            strcpy(trk->mode, "MODE2/2352");
+        }
         else
         {
             trk->isAudio = FALSE;
-
-            if (mode == 1)
-                strcpy(trk->mode, "MODE1/2352");
-            else if (mode == 2)
-                strcpy(trk->mode, "MODE2/2352");
-            else
-                strcpy(trk->mode, "UNKNOWN");
+            strcpy(trk->mode, "UNKNOWN");
         }
 
-        GetPrivateProfileStringW(section, L"INDEX 1", L"0", value, ARRAYSIZE(value), ccdPath);
+        trk->index0 = GetPrivateProfileIntW(
+            section,
+            L"INDEX 0",
+            -1,
+            ccdPath);
 
-        trk->index1 = _wtol(value);
+        trk->index1 = GetPrivateProfileIntW(
+            section,
+            L"INDEX 1",
+            0,
+            ccdPath);
     }
 
     if (!cd->trackCount)
@@ -210,26 +223,32 @@ static bool parseCCD(const wchar_t* ccdPath, VirtualCD* cd)
     for (i = 0; i < 256; i++)
     {
         wchar_t section[32];
-        long point;
+        unsigned point;
         long plba;
 
-        swprintf(section, 32, L"Entry %d", i);
+        swprintf(section, ARRAY_SIZE(section), L"Entry %d", i);
 
-        GetPrivateProfileStringW(section, L"Point", L"", value, ARRAYSIZE(value), ccdPath);
+        GetPrivateProfileStringW(
+            section,
+            L"Point",
+            L"",
+            value,
+            ARRAY_SIZE(value),
+            ccdPath);
 
         if (!value[0])
             continue;
 
-        point = wcstol(value, NULL, 0);
-
-        GetPrivateProfileStringW(section, L"PLBA", L"", value, ARRAYSIZE(value), ccdPath);
-
-        if (!value[0])
+        if (swscanf(value, L"%x", &point) != 1)
             continue;
 
-        plba = _wtol(value);
+        plba = GetPrivateProfileIntW(
+            section,
+            L"PLBA",
+            0,
+            ccdPath);
 
-        if (point >= 1 && point <= cd->trackCount)
+        if (point >= 1 && point <= (unsigned)cd->trackCount)
         {
             cd->tracks[point - 1].startLBA = plba;
         }
@@ -239,7 +258,7 @@ static bool parseCCD(const wchar_t* ccdPath, VirtualCD* cd)
         }
     }
 
-    if (!leadoutLBA)
+    if (leadoutLBA <= (DWORD)cd->tracks[0].startLBA)
         return false;
 
     /* Calculate end LBAs */
@@ -249,24 +268,17 @@ static bool parseCCD(const wchar_t* ccdPath, VirtualCD* cd)
             cd->tracks[i + 1].startLBA;
     }
 
-    cd->tracks[cd->trackCount - 1].endLBA =
-        leadoutLBA;
+    cd->tracks[cd->trackCount - 1].endLBA = leadoutLBA;
 
     /* Calculate IMG offsets */
-    ULONGLONG offset = 0;
-
     for (i = 0; i < cd->trackCount; i++)
     {
         CDTrack* trk = &cd->tracks[i];
 
-        trk->fileOffset = offset;
-
-        offset +=
-            (ULONGLONG)(trk->endLBA - trk->startLBA)
-            * 2352;
+        trk->fileOffset = (ULONGLONG)trk->startLBA * 2352;
 
         TRACE(
-            "parseCCD Track %02d mode=%s start=%ld end=%ld offset=%I64u\n",
+            "CCD Track %02d mode=%s start=%ld end=%ld offset=%I64u\n",
             trk->trackNumber,
             trk->mode,
             trk->startLBA,
@@ -346,6 +358,10 @@ static bool finalizeTracks(VirtualCD* cd)
     return true;
 }
 
+static inline wchar_t* getFileExtension(wchar_t* path) {
+    wchar_t* ext = wcsrchr(path, L'.');
+    return ext && *ext++ != L'\0' ? ext : NULL;
+}
 
 bool LoadCurrentDisc(VirtualCD* cd) {
     wchar_t path[MAX_PATH];
