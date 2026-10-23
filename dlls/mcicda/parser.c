@@ -357,7 +357,7 @@ bool LoadCurrentDisc(VirtualCD* cd) {
 
     ext = getFileExtension(path);
 
-    TRACE("cuePath=%ls\n", path);
+    TRACE("CDImagePath=%ls\n", path);
 
     if (!_wcsicmp(ext, L".cue"))
     {
