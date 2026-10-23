@@ -121,30 +121,52 @@ static BOOL device_io(HANDLE dev, DWORD code, void* inbuffer, DWORD insize, void
     return ret;
 }
 
-
 static BOOL MCICDA_VirtualRawRead(WINE_MCICDAUDIO* wmcda, RAW_READ_INFO* info, void* buffer, DWORD* bytesRead)
 {
     FILE* fp;
-
-    long sector;
+    DWORD lba;
+    int i;
 
     if (!MCICDA_IsVirtualDisc(wmcda))
         return FALSE;
 
     fp = _wfopen(wmcda->disc->binPath, L"rb");
-
     if (!fp)
         return FALSE;
 
-    sector = (long)(info->DiskOffset.QuadPart / 2048);
+    /* Convert byte offset to logical sector */
+    lba = (DWORD)(info->DiskOffset.QuadPart >> 11);
+    TRACE("DiskOffset=%I64d LBA=%u\n", info->DiskOffset.QuadPart, lba);
 
-    fseek(fp, sector * 2352, SEEK_SET);
+    for (i = 0; i < wmcda->disc->trackCount; i++)
+    {
+        CDTrack* trk = &wmcda->disc->tracks[i];
 
-    *bytesRead = fread(buffer, 2352, info->SectorCount, fp) * 2352;
+        if (lba >= trk->startLBA && lba < trk->endLBA)
+        {
+            DWORD relSector;
+            ULONGLONG filePos;
+
+            relSector = lba - trk->startLBA;
+
+            filePos = trk->fileOffset + ((ULONGLONG)relSector * trk->sectorSize);
+
+            TRACE( "VirtualRawRead LBA=%u Track=%d Rel=%u FilePos=%I64u\n",
+                    lba, trk->trackNumber, relSector, filePos);
+
+            _fseeki64(fp, filePos, SEEK_SET);
+
+            *bytesRead = fread(buffer, 2352, info->SectorCount, fp) * 2352;
+
+            fclose(fp);
+            return TRUE;
+        }
+    }
+
+    WARN("No track found for LBA %u\n", lba);
 
     fclose(fp);
-
-    return TRUE;
+    return FALSE;
 }
 
 static DWORD CALLBACK MCICDA_playLoop(void* ptr)

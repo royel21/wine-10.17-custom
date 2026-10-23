@@ -82,7 +82,6 @@ static bool parseCue(const wchar_t* cuePath, VirtualCD* cd) {
 
         if (sscanf(line, " FILE \"%259[^\"]\" BINARY", fileName) == 1) {
             buildBinPath(cuePath, fileName, cd->binPath);
-
             continue;
         }
 
@@ -131,12 +130,11 @@ static bool parseCue(const wchar_t* cuePath, VirtualCD* cd) {
     return cd->trackCount > 0;
 }
 
-static bool finalizeTracks(VirtualCD* cd) {
+static bool finalizeTracks(VirtualCD* cd)
+{
     FILE* fp;
-
     long fileSize;
     long totalSectors;
-
     int i;
 
     fp = _wfopen(cd->binPath, L"rb");
@@ -144,18 +142,53 @@ static bool finalizeTracks(VirtualCD* cd) {
         return false;
 
     fseek(fp, 0, SEEK_END);
-
     fileSize = ftell(fp);
-
     fclose(fp);
 
     totalSectors = fileSize / 2352;
 
-    for (i = 0; i < cd->trackCount - 1; i++) {
-        cd->tracks[i].endLBA = cd->tracks[i + 1].startLBA;
+    TRACE("BIN size=%ld bytes\n", fileSize);
+    TRACE("totalSectors=%ld\n", totalSectors);
+
+    /* build track ranges */
+    for (i = 0; i < cd->trackCount - 1; i++)
+    {
+        cd->tracks[i].endLBA =
+            cd->tracks[i + 1].startLBA;
     }
 
-    cd->tracks[cd->trackCount - 1].endLBA = totalSectors;
+    /* last track ends at image end */
+    cd->tracks[cd->trackCount - 1].endLBA =
+        totalSectors;
+
+    /* calculate physical file offsets */
+    {
+        ULONGLONG offset = 0;
+
+        for (i = 0; i < cd->trackCount; i++)
+        {
+            CDTrack* trk = &cd->tracks[i];
+
+            trk->fileOffset = offset;
+
+            if (!_stricmp(trk->mode, "MODE1/2048"))
+                trk->sectorSize = 2048;
+            else if (!_stricmp(trk->mode, "AUDIO"))
+                trk->sectorSize = 2352;
+            else
+                trk->sectorSize = 2352;
+
+            if (i < cd->trackCount - 1)
+            {
+                DWORD sectors =
+                    trk->endLBA - trk->startLBA;
+
+                offset +=
+                    (ULONGLONG)sectors *
+                    trk->sectorSize;
+            }
+        }
+    }
 
     return true;
 }
@@ -167,7 +200,6 @@ bool LoadCurrentDisc(VirtualCD* cd) {
         return false;
     }
 
-    WARN("cuePath=%ls\n", cuePath);
     TRACE("cuePath=%ls\n", cuePath);
 
     if (!parseCue(cuePath, cd)) {

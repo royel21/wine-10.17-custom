@@ -20,6 +20,9 @@ typedef struct {
   long startLBA;
   long endLBA;
 
+  ULONGLONG fileOffset;
+  DWORD sectorSize;
+
 } CDTrack;
 
 typedef struct {
