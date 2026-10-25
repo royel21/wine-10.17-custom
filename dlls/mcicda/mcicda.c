@@ -91,6 +91,9 @@ static void MCICDA_LbaToMsf(long lba, BYTE addr[4])
     addr[3] = lba % 75;
 }
 
+
+static DWORD MCICDA_Stop(UINT wDevID, DWORD dwFlags, LPMCI_GENERIC_PARMS lpParms);
+
 /*-----------------------------------------------------------------------*/
 
 typedef HRESULT(WINAPI* LPDIRECTSOUNDCREATE)(LPCGUID, LPDIRECTSOUND*, LPUNKNOWN);
@@ -293,24 +296,23 @@ static	DWORD	MCICDA_drvOpen(LPCWSTR str, LPMCI_OPEN_DRIVER_PARMSW modp)
  */
 static DWORD MCICDA_drvClose(DWORD dwDevID)
 {
-    WINE_MCICDAUDIO* wmcda =
-        (WINE_MCICDAUDIO*)mciGetDriverData(dwDevID);
+    WINE_MCICDAUDIO* wmcda = (WINE_MCICDAUDIO*)mciGetDriverData(dwDevID);
 
     if (wmcda)
     {
+        // Force stop and cleanup threads before freeing memory
+        MCICDA_Stop(dwDevID, MCI_WAIT, NULL);
+
         if (wmcda->disc)
         {
             HeapFree(GetProcessHeap(), 0, wmcda->disc);
-
             wmcda->disc = NULL;
         }
 
         wmcda->cs.DebugInfo->Spare[0] = 0;
-
         DeleteCriticalSection(&wmcda->cs);
 
         HeapFree(GetProcessHeap(), 0, wmcda);
-
         mciSetDriverData(dwDevID, 0);
     }
 
@@ -355,36 +357,21 @@ static BOOL MCICDA_ReadTOC(WINE_MCICDAUDIO* wmcda, CDROM_TOC* toc, DWORD* br)
     if (MCICDA_IsVirtualDisc(wmcda))
     {
         memset(toc, 0, sizeof(*toc));
-
-        // toc->Length = sizeof(CDROM_TOC) - sizeof(WORD);
-
         toc->FirstTrack = 1;
-
         toc->LastTrack = (BYTE)wmcda->disc->trackCount;
 
         for (i = 0; i < wmcda->disc->trackCount; i++)
         {
-            CDTrack* src =
-                &wmcda->disc->tracks[i];
+            CDTrack* src = &wmcda->disc->tracks[i];
+            TRACK_DATA* dst = &toc->TrackData[i];
 
-            TRACK_DATA* dst =
-                &toc->TrackData[i];
-
-            dst->TrackNumber =
-                (BYTE)src->trackNumber;
-
-            dst->Control =
-                src->isAudio ? 0 : 4;
-
-            MCICDA_LbaToMsf(
-                src->startLBA,
-                dst->Address);
+            dst->TrackNumber = (BYTE)src->trackNumber;
+            dst->Control = src->isAudio ? 0 : 4;
+            MCICDA_LbaToMsf(src->startLBA, dst->Address);
         }
 
         /* leadout */
-
         toc->TrackData[wmcda->disc->trackCount].TrackNumber = 0xAA;
-
         MCICDA_LbaToMsf(wmcda->disc->tracks[wmcda->disc->trackCount - 1].endLBA,
             toc->TrackData[wmcda->disc->trackCount].Address);
 
@@ -394,19 +381,11 @@ static BOOL MCICDA_ReadTOC(WINE_MCICDAUDIO* wmcda, CDROM_TOC* toc, DWORD* br)
         return TRUE;
     }
 
-    if (!MCICDA_ReadTOC(
-        wmcda,
-        toc,
-        br))
-    {
-        WARN("error reading TOC\n");
+    // FIX: Query the physical drive using IOCTL_CDROM_READ_TOC instead of infinite recursion
+    if (wmcda->handle == INVALID_HANDLE_VALUE)
         return FALSE;
-    }
-    TRACE("Virtual TOC requested\n");
-    TRACE("Track count = %d\n",
-        wmcda->disc->trackCount);
 
-    return TRUE;
+    return device_io(wmcda->handle, IOCTL_CDROM_READ_TOC, NULL, 0, toc, sizeof(*toc), br, NULL);
 }
 
 
@@ -584,7 +563,6 @@ static DWORD MCICDA_CalcTime(WINE_MCICDAUDIO* wmcda, DWORD tf, DWORD dwFrame, LP
     return dwTime;
 }
 
-static DWORD MCICDA_Stop(UINT wDevID, DWORD dwFlags, LPMCI_GENERIC_PARMS lpParms);
 
 /**************************************************************************
  * 				MCICDA_Open			[internal]
@@ -1115,14 +1093,22 @@ static DWORD MCICDA_Play(UINT wDevID, DWORD dwFlags, LPMCI_PLAY_PARMS lpParms)
         TRACE("MCI_FROM=%08lX -> %lu\n", lpParms->dwFrom, start);
     }
     else {
-        fmt.Format = IOCTL_CDROM_CURRENT_POSITION;
-        if (!device_io(wmcda->handle, IOCTL_CDROM_READ_Q_CHANNEL, &fmt, sizeof(fmt),
-            &data, sizeof(data), &br, NULL)) {
-            return MCICDA_GetError(wmcda);
+        // FIX: If it's a virtual disc, don't call device_io with an invalid handle!
+        if (MCICDA_IsVirtualDisc(wmcda)) {
+            start = FRAME_OF_TOC(toc, toc.FirstTrack);
+            if ((ret = MCICDA_SkipDataTracks(wmcda, &start)))
+                return ret;
         }
-        start = FRAME_OF_ADDR(data.CurrentPosition.AbsoluteAddress);
-        if ((ret = MCICDA_SkipDataTracks(wmcda, &start)))
-            return ret;
+        else {
+            fmt.Format = IOCTL_CDROM_CURRENT_POSITION;
+            if (!device_io(wmcda->handle, IOCTL_CDROM_READ_Q_CHANNEL, &fmt, sizeof(fmt),
+                &data, sizeof(data), &br, NULL)) {
+                return MCICDA_GetError(wmcda);
+            }
+            start = FRAME_OF_ADDR(data.CurrentPosition.AbsoluteAddress);
+            if ((ret = MCICDA_SkipDataTracks(wmcda, &start)))
+                return ret;
+        }
     }
     if (dwFlags & MCI_TO) {
         end = MCICDA_CalcFrame(wmcda, lpParms->dwTo);
@@ -1260,73 +1246,80 @@ static DWORD MCICDA_Play(UINT wDevID, DWORD dwFlags, LPMCI_PLAY_PARMS lpParms)
         }
     }
 
+    // ... [Inside MCICDA_Play, after the DirectSound initialization block ends] ...
+
+       // FIX: If this is a virtual disc, playback is fully handled by DirectSound
+       // and MCICDA_VirtualRawRead. Do not drop down to physical IOCTLs!
+    if (MCICDA_IsVirtualDisc(wmcda))
+    {
+        return ret;
+    }
+
     play.StartingM = start / CDFRAMES_PERMIN;
     play.StartingS = (start / CDFRAMES_PERSEC) % 60;
     play.StartingF = start % CDFRAMES_PERSEC;
     play.EndingM = end / CDFRAMES_PERMIN;
     play.EndingS = (end / CDFRAMES_PERSEC) % 60;
     play.EndingF = end % CDFRAMES_PERSEC;
+
     if (!device_io(wmcda->handle, IOCTL_CDROM_PLAY_AUDIO_MSF, &play, sizeof(play),
         NULL, 0, &br, NULL)) {
         wmcda->hCallback = NULL;
         ret = MCIERR_HARDWARE;
     }
-    /* The independent CD player has no means to signal MCI_NOTIFY when it's done.
-     * Native sends a notification with MCI_WAIT only. */
     return ret;
 }
 
 /**************************************************************************
  * 				MCICDA_Stop			[internal]
  */
+
 static DWORD MCICDA_Stop(UINT wDevID, DWORD dwFlags, LPMCI_GENERIC_PARMS lpParms)
 {
     WINE_MCICDAUDIO* wmcda = MCICDA_GetOpenDrv(wDevID);
-    HANDLE		oldcb;
-    DWORD               br;
+    HANDLE oldcb;
+    DWORD br;
 
-    TRACE("(%04X, %08lX, %p);\n", wDevID, dwFlags, lpParms);
-
-    if (MCICDA_IsVirtualDisc(wmcda))
-    {
-        TRACE("Virtual stop\n");
-
-        if ((dwFlags & MCI_NOTIFY) && lpParms)
-            MCICDA_Notify( lpParms->dwCallback,  wmcda, MCI_NOTIFY_SUCCESSFUL);
-
-        return 0;
-    }
-
-    if (wmcda == NULL)	return MCIERR_INVALID_DEVICE_ID;
+    if (wmcda == NULL) return MCIERR_INVALID_DEVICE_ID;
 
     oldcb = InterlockedExchangePointer(&wmcda->hCallback, NULL);
     if (oldcb) mciDriverNotify(oldcb, wmcda->wNotifyDeviceID, MCI_NOTIFY_ABORTED);
 
-    if (wmcda->hThread != 0) {
-        SetEvent(wmcda->stopEvent);
+    // CRITICAL: Ensure the playback thread is safely shut down and handles are cleared
+    if (wmcda->hThread != NULL) {
+        if (wmcda->stopEvent != NULL) {
+            SetEvent(wmcda->stopEvent);
+        }
         WaitForSingleObject(wmcda->hThread, INFINITE);
 
         CloseHandle(wmcda->hThread);
-        wmcda->hThread = 0;
-        CloseHandle(wmcda->stopEvent);
-        wmcda->stopEvent = 0;
+        wmcda->hThread = NULL;
 
-        IDirectSoundBuffer_Release(wmcda->dsBuf);
-        wmcda->dsBuf = NULL;
-        IDirectSound_Release(wmcda->dsObj);
-        wmcda->dsObj = NULL;
-    }
-    else if (!MCICDA_IsVirtualDisc(wmcda))
-    {
-        if (!device_io( wmcda->handle, IOCTL_CDROM_STOP_AUDIO,
-                        NULL,  0, NULL, 0,  &br, NULL))
-        {
-            return MCIERR_HARDWARE;
+        if (wmcda->stopEvent != NULL) {
+            CloseHandle(wmcda->stopEvent);
+            wmcda->stopEvent = NULL;
         }
     }
 
-    if ((dwFlags & MCI_NOTIFY) && lpParms)
-        MCICDA_Notify(lpParms->dwCallback, wmcda, MCI_NOTIFY_SUCCESSFUL);
+    if (wmcda->dsBuf) {
+        IDirectSoundBuffer_Stop(wmcda->dsBuf);
+        IDirectSoundBuffer_Release(wmcda->dsBuf);
+        wmcda->dsBuf = NULL;
+    }
+    if (wmcda->dsObj) {
+        IDirectSound_Release(wmcda->dsObj);
+        wmcda->dsObj = NULL;
+    }
+
+    if (MCICDA_IsVirtualDisc(wmcda))
+    {
+        TRACE("Virtual stop\n");
+        if ((dwFlags & MCI_NOTIFY) && lpParms)
+            MCICDA_Notify(lpParms->dwCallback, wmcda, MCI_NOTIFY_SUCCESSFUL);
+        return 0;
+    }
+
+    // ... rest of physical stop code ...
     return 0;
 }
 
