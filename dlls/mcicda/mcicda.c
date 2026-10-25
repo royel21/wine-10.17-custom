@@ -136,7 +136,7 @@ static BOOL MCICDA_VirtualRawRead(WINE_MCICDAUDIO* wmcda, RAW_READ_INFO* info, v
 
     /* Convert byte offset to logical sector */
     lba = (DWORD)(info->DiskOffset.QuadPart >> 11);
-    TRACE("DiskOffset=%I64d LBA=%u\n", info->DiskOffset.QuadPart, lba);
+    TRACE("DiskOffset=%I64d LBA=%lu\n", info->DiskOffset.QuadPart, lba);
 
     for (i = 0; i < wmcda->disc->trackCount; i++)
     {
@@ -151,7 +151,7 @@ static BOOL MCICDA_VirtualRawRead(WINE_MCICDAUDIO* wmcda, RAW_READ_INFO* info, v
 
             filePos = trk->fileOffset + ((ULONGLONG)relSector * trk->sectorSize);
 
-            TRACE( "VirtualRawRead LBA=%u Track=%d Rel=%u FilePos=%I64u\n",
+            TRACE( "VirtualRawRead LBA=%lu Track=%d Rel=%lu FilePos=%I64u\n",
                     lba, trk->trackNumber, relSector, filePos);
 
             _fseeki64(fp, filePos, SEEK_SET);
@@ -163,7 +163,7 @@ static BOOL MCICDA_VirtualRawRead(WINE_MCICDAUDIO* wmcda, RAW_READ_INFO* info, v
         }
     }
 
-    WARN("No track found for LBA %u\n", lba);
+    WARN("No track found for LBA %lu\n", lba);
 
     fclose(fp);
     return FALSE;

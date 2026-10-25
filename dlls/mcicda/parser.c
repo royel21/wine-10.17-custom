@@ -363,23 +363,25 @@ static inline wchar_t* getFileExtension(wchar_t* path) {
     return ext && *ext++ != L'\0' ? ext : NULL;
 }
 
+static inline bool hasEx(wchar_t* path, const wchar_t* targetExt) {
+    wchar_t* ext = getFileExtension(path);
+    return ext && wcsicmp(ext, targetExt) == 0;
+}
+
 bool LoadCurrentDisc(VirtualCD* cd) {
     wchar_t path[MAX_PATH];
-    wchar_t* ext;
 
     if (!getCurrentCuePath(path, MAX_PATH)) {
         return false;
     }
 
-    ext = getFileExtension(path);
-
     TRACE("CDImagePath=%ls\n", path);
 
-    if (!_wcsicmp(ext, L".cue"))
+    if (hasEx(path, L"cue"))
     {
         parseCue(path, cd);
     }
-    else if (!_wcsicmp(ext, L".ccd"))
+    else  if (hasEx(path, L"ccd"))
     {
         parseCCD(path, cd);
     }
