@@ -20,7 +20,6 @@ static long msfToLBA(const char* msf) {
 
 static bool getCurrentCuePath(wchar_t* buffer, DWORD bufferChars) {
     HKEY hKey;
-
     DWORD type;
     LONG result;
     DWORD size = bufferChars * sizeof(wchar_t);
@@ -30,14 +29,9 @@ static bool getCurrentCuePath(wchar_t* buffer, DWORD bufferChars) {
     }
 
     result = RegQueryValueExW(hKey, L"", NULL, &type, (BYTE*)buffer, &size);
-
     RegCloseKey(hKey);
 
-
-    if (result != ERROR_SUCCESS)
-        return false;
-
-    if (type != REG_SZ)
+    if (result != ERROR_SUCCESS || type != REG_SZ)
         return false;
 
     return true;
@@ -48,12 +42,9 @@ static void buildBinPath(const wchar_t* cuePath, const char* binFile, wchar_t* o
     wchar_t wBin[MAX_PATH];
 
     wcscpy(outPath, cuePath);
-
     slash = wcsrchr(outPath, L'\\');
-
     if (!slash)
         slash = wcsrchr(outPath, L'/');
-
 
     MultiByteToWideChar(CP_ACP, 0, binFile, -1, wBin, MAX_PATH);
 
@@ -65,13 +56,10 @@ static void buildBinPath(const wchar_t* cuePath, const char* binFile, wchar_t* o
 
 static bool parseCue(const wchar_t* cuePath, VirtualCD* cd) {
     FILE* fp;
-
     char line[512];
-
     CDTrack* current = NULL;
 
     memset(cd, 0, sizeof(*cd));
-
     wcscpy(cd->cuePath, cuePath);
 
     fp = _wfopen(cuePath, L"rt");
@@ -95,14 +83,19 @@ static bool parseCue(const wchar_t* cuePath, VirtualCD* cd) {
                     break;
 
                 current = &cd->tracks[cd->trackCount++];
-
                 memset(current, 0, sizeof(*current));
 
                 current->trackNumber = trackNum;
-
                 strcpy(current->mode, mode);
-
                 current->isAudio = !_stricmp(mode, "AUDIO");
+
+                // Set default sector sizes based on mode
+                if (!_stricmp(mode, "MODE1/2048")) {
+                    current->sectorSize = 2048;
+                }
+                else {
+                    current->sectorSize = 2352; // AUDIO, MODE1/2352, MODE2/2352, etc.
+                }
 
                 continue;
             }
@@ -127,19 +120,16 @@ static bool parseCue(const wchar_t* cuePath, VirtualCD* cd) {
     }
 
     fclose(fp);
-
     return cd->trackCount > 0;
 }
 
-static bool parseCCD(const wchar_t* ccdPath, VirtualCD* cd)
-{
+static bool parseCCD(const wchar_t* ccdPath, VirtualCD* cd) {
     wchar_t value[64];
     DWORD leadoutLBA = 0;
     wchar_t* ext = NULL;
     int i;
 
     memset(cd, 0, sizeof(*cd));
-
     wcscpy(cd->cuePath, ccdPath);
     wcscpy(cd->binPath, ccdPath);
 
@@ -151,90 +141,58 @@ static bool parseCCD(const wchar_t* ccdPath, VirtualCD* cd)
 
     {
         DWORD attr = GetFileAttributesW(cd->binPath);
-
-        if (attr == INVALID_FILE_ATTRIBUTES ||
-            (attr & FILE_ATTRIBUTE_DIRECTORY))
+        if (attr == INVALID_FILE_ATTRIBUTES || (attr & FILE_ATTRIBUTE_DIRECTORY))
             return false;
     }
 
-    /* Parse TRACK sections */
-    for (i = 1; i <= MAX_CD_TRACKS; i++)
-    {
+    for (i = 1; i <= MAX_CD_TRACKS; i++) {
         wchar_t section[32];
         int mode;
         CDTrack* trk;
 
         swprintf(section, ARRAY_SIZE(section), L"TRACK %d", i);
-
-        mode = GetPrivateProfileIntW(
-            section,
-            L"MODE",
-            -1,
-            ccdPath);
+        mode = GetPrivateProfileIntW(section, L"MODE", -1, ccdPath);
 
         if (mode == -1)
             break;
 
         trk = &cd->tracks[cd->trackCount++];
-
         memset(trk, 0, sizeof(*trk));
 
         trk->trackNumber = i;
         trk->sectorSize = 2352;
 
-        if (mode == 0)
-        {
+        if (mode == 0) {
             trk->isAudio = TRUE;
             strcpy(trk->mode, "AUDIO");
         }
-        else if (mode == 1)
-        {
+        else if (mode == 1) {
             trk->isAudio = FALSE;
             strcpy(trk->mode, "MODE1/2352");
         }
-        else if (mode == 2)
-        {
+        else if (mode == 2) {
             trk->isAudio = FALSE;
             strcpy(trk->mode, "MODE2/2352");
         }
-        else
-        {
+        else {
             trk->isAudio = FALSE;
             strcpy(trk->mode, "UNKNOWN");
         }
 
-        trk->index0 = GetPrivateProfileIntW(
-            section,
-            L"INDEX 0",
-            -1,
-            ccdPath);
-
-        trk->index1 = GetPrivateProfileIntW(
-            section,
-            L"INDEX 1",
-            0,
-            ccdPath);
+        trk->index0 = GetPrivateProfileIntW(section, L"INDEX 0", -1, ccdPath);
+        trk->index1 = GetPrivateProfileIntW(section, L"INDEX 1", 0, ccdPath);
     }
 
     if (!cd->trackCount)
         return false;
 
-    /* Parse TOC entries */
-    for (i = 0; i < 256; i++)
-    {
+    for (i = 0; i < 256; i++) {
         wchar_t section[32];
         unsigned point;
         long plba;
 
         swprintf(section, ARRAY_SIZE(section), L"Entry %d", i);
-
-        GetPrivateProfileStringW(
-            section,
-            L"Point",
-            L"",
-            value,
-            ARRAY_SIZE(value),
-            ccdPath);
+        GetPrivateProfileStringW(section, L"Point", L"", value, ARRAY_SIZE(value), ccdPath);
 
         if (!value[0])
             continue;
@@ -242,18 +200,12 @@ static bool parseCCD(const wchar_t* ccdPath, VirtualCD* cd)
         if (swscanf(value, L"%x", &point) != 1)
             continue;
 
-        plba = GetPrivateProfileIntW(
-            section,
-            L"PLBA",
-            0,
-            ccdPath);
+        plba = GetPrivateProfileIntW(section, L"PLBA", 0, ccdPath);
 
-        if (point >= 1 && point <= (unsigned)cd->trackCount)
-        {
+        if (point >= 1 && point <= (unsigned)cd->trackCount) {
             cd->tracks[point - 1].startLBA = plba;
         }
-        else if (point == 0xA2)
-        {
+        else if (point == 0xA2) {
             leadoutLBA = plba;
         }
     }
@@ -261,42 +213,20 @@ static bool parseCCD(const wchar_t* ccdPath, VirtualCD* cd)
     if (leadoutLBA <= (DWORD)cd->tracks[0].startLBA)
         return false;
 
-    /* Calculate end LBAs */
-    for (i = 0; i < cd->trackCount - 1; i++)
-    {
-        cd->tracks[i].endLBA =
-            cd->tracks[i + 1].startLBA;
+    for (i = 0; i < cd->trackCount - 1; i++) {
+        cd->tracks[i].endLBA = cd->tracks[i + 1].startLBA;
     }
-
     cd->tracks[cd->trackCount - 1].endLBA = leadoutLBA;
 
-    /* Calculate IMG offsets */
-    for (i = 0; i < cd->trackCount; i++)
-    {
+    for (i = 0; i < cd->trackCount; i++) {
         CDTrack* trk = &cd->tracks[i];
-
         trk->fileOffset = (ULONGLONG)trk->startLBA * 2352;
-
-        TRACE(
-            "CCD Track %02d mode=%s start=%ld end=%ld offset=%I64u\n",
-            trk->trackNumber,
-            trk->mode,
-            trk->startLBA,
-            trk->endLBA,
-            trk->fileOffset);
     }
-
-    TRACE(
-        "parseCCD Loaded %d tracks leadout=%lu img=%s\n",
-        cd->trackCount,
-        leadoutLBA,
-        wine_dbgstr_w(cd->binPath));
 
     return true;
 }
 
-static bool finalizeTracks(VirtualCD* cd)
-{
+static bool finalizeTracks(VirtualCD* cd) {
     FILE* fp;
     long fileSize;
     long totalSectors;
@@ -310,48 +240,52 @@ static bool finalizeTracks(VirtualCD* cd)
     fileSize = ftell(fp);
     fclose(fp);
 
+    // Standard total sectors calculation based on 2352 byte raw blocks or generic estimation
     totalSectors = fileSize / 2352;
 
     TRACE("BIN size=%ld bytes\n", fileSize);
     TRACE("totalSectors=%ld\n", totalSectors);
 
-    /* build track ranges */
-    for (i = 0; i < cd->trackCount - 1; i++)
-    {
-        cd->tracks[i].endLBA =
-            cd->tracks[i + 1].startLBA;
+    /* Build track end LBAs safely */
+    for (i = 0; i < cd->trackCount - 1; i++) {
+        if (cd->tracks[i + 1].startLBA > cd->tracks[i].startLBA) {
+            cd->tracks[i].endLBA = cd->tracks[i + 1].startLBA;
+        }
+        else {
+            // Fallback if startLBA isn't sequentially populated right
+            cd->tracks[i].endLBA = cd->tracks[i].startLBA + 300;
+        }
     }
 
-    /* last track ends at image end */
-    cd->tracks[cd->trackCount - 1].endLBA =
-        totalSectors;
+    // Ensure last track bounds don't cause an overflow
+    if (cd->trackCount > 0) {
+        cd->tracks[cd->trackCount - 1].endLBA = totalSectors;
+    }
 
-    /* calculate physical file offsets */
+    /* Calculate physical file offsets precisely */
     {
         ULONGLONG offset = 0;
 
-        for (i = 0; i < cd->trackCount; i++)
-        {
+        for (i = 0; i < cd->trackCount; i++) {
             CDTrack* trk = &cd->tracks[i];
 
             trk->fileOffset = offset;
 
-            if (!_stricmp(trk->mode, "MODE1/2048"))
-                trk->sectorSize = 2048;
-            else if (!_stricmp(trk->mode, "AUDIO"))
-                trk->sectorSize = 2352;
-            else
-                trk->sectorSize = 2352;
-
-            if (i < cd->trackCount - 1)
-            {
-                DWORD sectors =
-                    trk->endLBA - trk->startLBA;
-
-                offset +=
-                    (ULONGLONG)sectors *
-                    trk->sectorSize;
+            DWORD sectors = 0;
+            if (i < cd->trackCount - 1) {
+                sectors = cd->tracks[i + 1].startLBA - trk->startLBA;
             }
+            else {
+                sectors = totalSectors - trk->startLBA;
+            }
+
+            // Safety guard against negative or corrupted sector spreads
+            if ((int)sectors < 0) sectors = 0;
+
+            offset += (ULONGLONG)sectors * trk->sectorSize;
+
+            TRACE("Track %02d mode=%s start=%ld end=%ld sectors=%u offset=%I64u\n",
+                trk->trackNumber, trk->mode, trk->startLBA, trk->endLBA, sectors, trk->fileOffset);
         }
     }
 
@@ -377,15 +311,19 @@ bool LoadCurrentDisc(VirtualCD* cd) {
 
     TRACE("CDImagePath=%ls\n", path);
 
-    if (hasEx(path, L"cue"))
-    {
-        parseCue(path, cd);
+    if (hasEx(path, L"cue")) {
+        if (!parseCue(path, cd))
+            return false;
     }
-    else  if (hasEx(path, L"ccd"))
-    {
-        parseCCD(path, cd);
+    else if (hasEx(path, L"ccd")) {
+        if (!parseCCD(path, cd))
+            return false;
+    }
+    else {
+        return false;
     }
 
+    // Finalize tracks exactly ONCE to compute sizes, ranges, and byte offsets properly
     if (!finalizeTracks(cd)) {
         return false;
     }
