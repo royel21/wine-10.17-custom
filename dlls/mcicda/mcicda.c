@@ -196,8 +196,7 @@ static DWORD CALLBACK MCICDA_playLoop(void* ptr)
     fragLen = caps.dwBufferBytes / CDDA_FRAG_COUNT;
     curPos = lastPos = 0;
     endPos = ~0u;
-    while (SUCCEEDED(hr) && endPos != lastPos &&
-        WaitForSingleObject(wmcda->stopEvent, 0) != WAIT_OBJECT_0) {
+    while (SUCCEEDED(hr) && endPos != lastPos && WaitForSingleObject(wmcda->stopEvent, 0) != WAIT_OBJECT_0) {
         hr = IDirectSoundBuffer_GetCurrentPosition(wmcda->dsBuf, &curPos, NULL);
         if ((curPos - lastPos + caps.dwBufferBytes) % caps.dwBufferBytes < fragLen) {
             Sleep(1);
@@ -249,18 +248,33 @@ static DWORD CALLBACK MCICDA_playLoop(void* ptr)
 
         lastPos += fragLen;
         lastPos %= caps.dwBufferBytes;
-        wmcda->start += rdInfo.SectorCount;
 
+        EnterCriticalSection(&wmcda->cs);
+        wmcda->start += rdInfo.SectorCount;
+        wmcda->currentFrame = wmcda->start;
+
+        // --- ADD THIS CHECK: Handle End-of-Playback ---
+        if (wmcda->start >= wmcda->end) {
+            TRACE("Reached end of playback track/range (%lu >= %lu)\n", wmcda->start, wmcda->end);
+            wmcda->playing = FALSE;
+            LeaveCriticalSection(&wmcda->cs);
+
+            // Break out of the playback loop cleanly
+            break;
+        }
         LeaveCriticalSection(&wmcda->cs);
     }
+
     IDirectSoundBuffer_Stop(wmcda->dsBuf);
     SetEvent(wmcda->stopEvent);
 
-    /* A design bug in native: the independent CD player called by the
-     * MCI has no means to signal end of playing, therefore the MCI
-     * notification is left hanging.  MCI_NOTIFY_SUPERSEDED will be
-     * signaled by the next command that has MCI_NOTIFY set (or
-     * MCI_NOTIFY_ABORTED for MCI_PLAY). */
+    // Trigger notification if a callback is pending
+    {
+        HANDLE oldcb = InterlockedExchangePointer(&wmcda->hCallback, NULL);
+        if (oldcb) {
+            mciDriverNotify(oldcb, wmcda->wNotifyDeviceID, MCI_NOTIFY_SUCCESSFUL);
+        }
+    }
 
     return 0;
 }
@@ -967,12 +981,11 @@ static BOOL MCICDA_ReadQChannel(WINE_MCICDAUDIO* wmcda, SUB_Q_CHANNEL_DATA* data
     if (!MCICDA_IsVirtualDisc(wmcda))
         return FALSE;
 
+    EnterCriticalSection(&wmcda->cs);
     frame = wmcda->currentFrame;
+    LeaveCriticalSection(&wmcda->cs);
 
-    track =
-        MCICDA_FindTrackFromFrame(
-            wmcda,
-            frame);
+    track = MCICDA_FindTrackFromFrame(wmcda, frame);
 
     data->CurrentPosition.FormatCode =
         IOCTL_CDROM_CURRENT_POSITION;
@@ -1070,17 +1083,21 @@ static DWORD MCICDA_Status(UINT wDevID, DWORD dwFlags, LPMCI_STATUS_PARMS lpParm
                 TRACE("MCI_TRACK #%lu LENGTH=??? !\n", lpParms->dwTrack);
                 if (lpParms->dwTrack < toc.FirstTrack || lpParms->dwTrack > toc.LastTrack)
                     return MCIERR_OUTOFRANGE;
-                lpParms->dwReturn = FRAME_OF_TOC(toc, lpParms->dwTrack + 1) -
-                    FRAME_OF_TOC(toc, lpParms->dwTrack);
-                /* Windows returns one frame less than the total track length for the
-                   last track on the CD.  See CDDB HOWTO.  Verified on Win95OSR2. */
-                if (lpParms->dwTrack == toc.LastTrack)
-                    lpParms->dwReturn--;
+
+                // FIX: If it's a data track (like track 1 with Control & 4), handle safely
+                if (toc.TrackData[lpParms->dwTrack - toc.FirstTrack].Control & 4) {
+                    // Data track length can be calculated up to its end LBA or match the file size sectors
+                    lpParms->dwReturn = wmcda->disc->tracks[lpParms->dwTrack - toc.FirstTrack].endLBA -
+                        wmcda->disc->tracks[lpParms->dwTrack - toc.FirstTrack].startLBA;
+                }
+                else {
+                    lpParms->dwReturn = FRAME_OF_TOC(toc, lpParms->dwTrack + 1) -
+                        FRAME_OF_TOC(toc, lpParms->dwTrack);
+                    if (lpParms->dwTrack == toc.LastTrack)
+                        lpParms->dwReturn--;
+                }
             }
             else {
-                /* Sum of the lengths of all of the tracks.  Inherits the
-                   'off by one frame' behavior from the length of the last track.
-                   See above comment. */
                 lpParms->dwReturn = FRAME_OF_TOC(toc, toc.LastTrack + 1) -
                     FRAME_OF_TOC(toc, toc.FirstTrack) - 1;
             }
@@ -1394,8 +1411,14 @@ static DWORD MCICDA_Play(UINT wDevID, DWORD dwFlags, LPMCI_PLAY_PARMS lpParms)
                 wmcda->currentFrame = wmcda->start;
                 wmcda->stopEvent = CreateEventA(NULL, TRUE, FALSE, NULL);
             }
-            if (wmcda->stopEvent != 0)
+            if (wmcda->stopEvent != 0) {
+                // --- ADD THESE LINES HERE ---
+                EnterCriticalSection(&wmcda->cs);
+                wmcda->playing = TRUE;
+                wmcda->paused = FALSE;
+                LeaveCriticalSection(&wmcda->cs);
                 wmcda->hThread = CreateThread(NULL, 0, MCICDA_playLoop, wmcda, 0, &br);
+            }
             if (wmcda->hThread != 0) {
                 hr = IDirectSoundBuffer_Play(wmcda->dsBuf, 0, 0, DSBPLAY_LOOPING);
                 if (SUCCEEDED(hr)) {
