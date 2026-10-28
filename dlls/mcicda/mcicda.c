@@ -370,9 +370,6 @@ static BOOL MCICDA_ReadTOC(WINE_MCICDAUDIO* wmcda, CDROM_TOC* toc, DWORD* br)
 
     /* leadout */
     TRACK_DATA* leadout = &toc->TrackData[wmcda->disc->trackCount];
-    leadout->TrackNumber = 0xAA;
-    leadout->Control = 0;
-    leadout->Adr = 1;
 
     TRACE("MCICDA_ReadTOC called virtual=%d\n",
         MCICDA_IsVirtualDisc(wmcda));
@@ -383,6 +380,9 @@ static BOOL MCICDA_ReadTOC(WINE_MCICDAUDIO* wmcda, CDROM_TOC* toc, DWORD* br)
         memset(toc, 0, sizeof(*toc));
         toc->FirstTrack = 1;
         toc->LastTrack = (BYTE)wmcda->disc->trackCount;
+        leadout->TrackNumber = 0xAA;
+        leadout->Control = 0;
+        leadout->Adr = 1;
 
         for (i = 0; i < wmcda->disc->trackCount; i++)
         {
@@ -401,9 +401,7 @@ static BOOL MCICDA_ReadTOC(WINE_MCICDAUDIO* wmcda, CDROM_TOC* toc, DWORD* br)
         if (br)
             *br = sizeof(*toc);
 
-        TRACE("TOC First=%u Last=%u\n",
-            toc->FirstTrack,
-            toc->LastTrack);
+        TRACE("TOC First=%u Last=%u\n", toc->FirstTrack, toc->LastTrack);
 
         return TRUE;
     }
@@ -550,6 +548,7 @@ static DWORD MCICDA_CalcFrame(WINE_MCICDAUDIO* wmcda, DWORD dwTime)
             addr[3] + MCI_TMSF_FRAME(dwTime);
         break;
     }
+    TRACE("CalcFrame format=%lu value=%08lx\n", wmcda->dwTimeFormat, dwTime);
     return dwFrame;
 }
 
@@ -647,6 +646,8 @@ static DWORD MCICDA_Open(UINT wDevID, DWORD dwFlags, LPMCI_OPEN_PARMSW lpOpenPar
         wmcda->fShareable = dwFlags & MCI_OPEN_SHAREABLE;
     }
 
+    wmcda->dwTimeFormat = MCI_FORMAT_MSF;
+
     wmcda->disc = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(VirtualCD));
 
     if (wmcda->disc)
@@ -716,7 +717,6 @@ static DWORD MCICDA_Open(UINT wDevID, DWORD dwFlags, LPMCI_OPEN_PARMSW lpOpenPar
     }
 
     wmcda->wNotifyDeviceID = dwDeviceID;
-    wmcda->dwTimeFormat = MCI_FORMAT_TMSF;
 
     /* now, open the handle */
     root[0] = root[1] = '\\'; root[2] = '.'; root[3] = '\\'; root[4] = drive; root[5] = ':'; root[6] = '\0';
@@ -1023,16 +1023,12 @@ static DWORD MCICDA_Status(UINT wDevID, DWORD dwFlags, LPMCI_STATUS_PARMS lpParm
             fmt.Format = IOCTL_CDROM_CURRENT_POSITION;
             if (MCICDA_IsVirtualDisc(wmcda))
             {
-                if (!MCICDA_ReadQChannel(
-                    wmcda,
-                    &data,
-                    &br))
+                if (!MCICDA_ReadQChannel(wmcda, &data, &br))
                 {
                     return MCICDA_GetError(wmcda);
                 }
             }
-            else if (!device_io(wmcda->handle, IOCTL_CDROM_READ_Q_CHANNEL, &fmt, sizeof(fmt),
-                &data, sizeof(data), &br, NULL))
+            else if (!device_io(wmcda->handle, IOCTL_CDROM_READ_Q_CHANNEL, &fmt, sizeof(fmt), &data, sizeof(data), &br, NULL))
             {
                 return MCICDA_GetError(wmcda);
                 /* alt. data.CurrentPosition.TrackNumber = 1; -- what native yields */
@@ -1078,8 +1074,7 @@ static DWORD MCICDA_Status(UINT wDevID, DWORD dwFlags, LPMCI_STATUS_PARMS lpParm
         case MCI_STATUS_MEDIA_PRESENT:
             if (MCICDA_IsVirtualDisc(wmcda))
             {
-                lpParms->dwReturn =
-                    MAKEMCIRESOURCE(TRUE, MCI_TRUE);
+                lpParms->dwReturn = MAKEMCIRESOURCE(TRUE, MCI_TRUE);
 
                 ret = MCI_RESOURCE_RETURNED;
                 break;
@@ -1122,10 +1117,7 @@ static DWORD MCICDA_Status(UINT wDevID, DWORD dwFlags, LPMCI_STATUS_PARMS lpParm
                 fmt.Format = IOCTL_CDROM_CURRENT_POSITION;
                 if (MCICDA_IsVirtualDisc(wmcda))
                 {
-                    if (!MCICDA_ReadQChannel(
-                        wmcda,
-                        &data,
-                        &br))
+                    if (!MCICDA_ReadQChannel(wmcda, &data, &br))
                     {
                         return MCICDA_GetError(wmcda);
                     }
@@ -1270,15 +1262,17 @@ static DWORD MCICDA_Play(UINT wDevID, DWORD dwFlags, LPMCI_PLAY_PARMS lpParms)
                 return ret;
         }
     }
-    if (dwFlags & MCI_TO) {
-        end = MCICDA_CalcFrame(wmcda, lpParms->dwTo);
 
-        TRACE("before SkipDataTracks start=%lu end=%lu\n",
-            start, end);
+    TRACE("Play: format=%lu from=%08lx to=%08lx\n", wmcda->dwTimeFormat, lpParms->dwFrom, lpParms->dwTo);
+
+    if (dwFlags & MCI_TO) {
+        TRACE("raw dwTo=%08lx format=%lu\n", lpParms->dwTo, wmcda->dwTimeFormat);
+        end = MCICDA_CalcFrame(wmcda, lpParms->dwTo);
 
         ret = MCICDA_SkipDataTracks(wmcda, &end);
 
         TRACE("after SkipDataTracks ret=%lu end=%lu\n", ret, end);
+
 
         if (ret)
         {
