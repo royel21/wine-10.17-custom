@@ -250,10 +250,17 @@ static DWORD CALLBACK MCICDA_playLoop(void* ptr)
         lastPos += fragLen;
         lastPos %= caps.dwBufferBytes;
         wmcda->start += rdInfo.SectorCount;
+        wmcda->currentFrame = wmcda->start; // <-- Fix: Update current frame for Q-channel reporting
 
         LeaveCriticalSection(&wmcda->cs);
     }
     IDirectSoundBuffer_Stop(wmcda->dsBuf);
+
+    EnterCriticalSection(&wmcda->cs);
+    wmcda->playing = FALSE;
+    wmcda->paused = FALSE;
+    LeaveCriticalSection(&wmcda->cs);
+
     SetEvent(wmcda->stopEvent);
 
     /* A design bug in native: the independent CD player called by the
@@ -398,10 +405,6 @@ static BOOL MCICDA_ReadTOC(WINE_MCICDAUDIO* wmcda, CDROM_TOC* toc, DWORD* br)
             toc->FirstTrack,
             toc->LastTrack);
 
-        for (i = 0; i < wmcda->disc->trackCount; i++)
-        {
-            TRACK_DATA* t = &toc->TrackData[i];
-        }
         return TRUE;
     }
 
@@ -511,7 +514,8 @@ static DWORD MCICDA_CalcFrame(WINE_MCICDAUDIO* wmcda, DWORD dwTime)
     DWORD       br;
     BYTE* addr;
 
-    TRACE("(%p, %08lX, %lu);\n", wmcda, wmcda->dwTimeFormat, dwTime);
+    // TRACE("(%p, %08lX, %lu);\n", wmcda, wmcda->dwTimeFormat, dwTime);
+    TRACE("timeFormat=%lu val=%08lx\n", wmcda->dwTimeFormat, dwTime);
 
     switch (wmcda->dwTimeFormat) {
     case MCI_FORMAT_MILLISECONDS:
@@ -712,7 +716,7 @@ static DWORD MCICDA_Open(UINT wDevID, DWORD dwFlags, LPMCI_OPEN_PARMSW lpOpenPar
     }
 
     wmcda->wNotifyDeviceID = dwDeviceID;
-    wmcda->dwTimeFormat = MCI_FORMAT_MSF;
+    wmcda->dwTimeFormat = MCI_FORMAT_TMSF;
 
     /* now, open the handle */
     root[0] = root[1] = '\\'; root[2] = '.'; root[3] = '\\'; root[4] = drive; root[5] = ':'; root[6] = '\0';
@@ -1268,9 +1272,19 @@ static DWORD MCICDA_Play(UINT wDevID, DWORD dwFlags, LPMCI_PLAY_PARMS lpParms)
     }
     if (dwFlags & MCI_TO) {
         end = MCICDA_CalcFrame(wmcda, lpParms->dwTo);
-        if ((ret = MCICDA_SkipDataTracks(wmcda, &end)))
+
+        TRACE("before SkipDataTracks start=%lu end=%lu\n",
+            start, end);
+
+        ret = MCICDA_SkipDataTracks(wmcda, &end);
+
+        TRACE("after SkipDataTracks ret=%lu end=%lu\n", ret, end);
+
+        if (ret)
+        {
+            TRACE("RETURNING ret=%lu\n", ret);
             return ret;
-        TRACE("MCI_TO=%08lX -> %lu\n", lpParms->dwTo, end);
+        }
     }
     else {
         end = FRAME_OF_TOC(toc, toc.LastTrack + 1) - 1;
@@ -1317,9 +1331,16 @@ static DWORD MCICDA_Play(UINT wDevID, DWORD dwFlags, LPMCI_PLAY_PARMS lpParms)
         if (SUCCEEDED(hr)) {
             IDirectSound_SetCooperativeLevel(wmcda->dsObj, GetDesktopWindow(), DSSCL_PRIORITY);
 
-            /* The "raw" frame is relative to the start of the first track */
-            wmcda->start = start - FRAME_OF_TOC(toc, toc.FirstTrack);
-            wmcda->end = end - FRAME_OF_TOC(toc, toc.FirstTrack);
+            if (MCICDA_IsVirtualDisc(wmcda)) {
+                wmcda->start = start;
+                wmcda->end = end;
+            }
+            else {
+                /* The "raw" frame is relative to the start of the first track */
+                wmcda->start = start - FRAME_OF_TOC(toc, toc.FirstTrack);
+                wmcda->end = end - FRAME_OF_TOC(toc, toc.FirstTrack);
+            }
+
 
             memset(&format, 0, sizeof(format));
             format.wFormatTag = WAVE_FORMAT_PCM;
@@ -1373,6 +1394,8 @@ static DWORD MCICDA_Play(UINT wDevID, DWORD dwFlags, LPMCI_PLAY_PARMS lpParms)
             if (wmcda->hThread != 0) {
                 hr = IDirectSoundBuffer_Play(wmcda->dsBuf, 0, 0, DSBPLAY_LOOPING);
                 if (SUCCEEDED(hr)) {
+                    wmcda->playing = TRUE;
+                    wmcda->paused = FALSE;
                     /* FIXME: implement MCI_WAIT and send notification only in that case */
                     if (0) {
                         oldcb = InterlockedExchangePointer(&wmcda->hCallback, NULL);
@@ -1469,11 +1492,16 @@ static DWORD MCICDA_Stop(UINT wDevID, DWORD dwFlags, LPMCI_GENERIC_PARMS lpParms
 
     if (MCICDA_IsVirtualDisc(wmcda))
     {
+        wmcda->playing = FALSE;
+        wmcda->paused = FALSE;
         TRACE("Virtual stop\n");
         if ((dwFlags & MCI_NOTIFY) && lpParms)
             MCICDA_Notify(lpParms->dwCallback, wmcda, MCI_NOTIFY_SUCCESSFUL);
         return 0;
     }
+
+    wmcda->playing = FALSE;
+    wmcda->paused = FALSE;
 
     // ... rest of physical stop code ...
     return 0;
@@ -1508,6 +1536,12 @@ static DWORD MCICDA_Pause(UINT wDevID, DWORD dwFlags, LPMCI_GENERIC_PARMS lpParm
 
     if ((dwFlags & MCI_NOTIFY) && lpParms)
         MCICDA_Notify(lpParms->dwCallback, wmcda, MCI_NOTIFY_SUCCESSFUL);
+
+    if (wmcda->playing)
+    {
+        wmcda->playing = FALSE;
+        wmcda->paused = TRUE;
+    }
     return 0;
 }
 
@@ -1537,6 +1571,9 @@ static DWORD MCICDA_Resume(UINT wDevID, DWORD dwFlags, LPMCI_GENERIC_PARMS lpPar
 
     if ((dwFlags & MCI_NOTIFY) && lpParms)
         MCICDA_Notify(lpParms->dwCallback, wmcda, MCI_NOTIFY_SUCCESSFUL);
+
+    wmcda->playing = TRUE;
+    wmcda->paused = FALSE;
     return 0;
 }
 
@@ -1616,7 +1653,6 @@ static DWORD MCICDA_Seek(UINT wDevID, DWORD dwFlags, LPMCI_SEEK_PARMS lpParms)
 static DWORD	MCICDA_SetDoor(UINT wDevID, BOOL open)
 {
     WINE_MCICDAUDIO* wmcda = MCICDA_GetOpenDrv(wDevID);
-    DWORD               br;
 
     // TRACE("(%04x, %s) !\n", wDevID, (open) ? "OPEN" : "CLOSE");
 
