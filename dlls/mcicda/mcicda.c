@@ -71,6 +71,13 @@ typedef struct {
 
     CRITICAL_SECTION cs;
     VirtualCD* disc;
+
+    DWORD currentFrame;
+    DWORD startFrame;
+    DWORD endFrame;
+
+    BOOL playing;
+    BOOL paused;
 } WINE_MCICDAUDIO;
 
 
@@ -354,6 +361,16 @@ static BOOL MCICDA_ReadTOC(WINE_MCICDAUDIO* wmcda, CDROM_TOC* toc, DWORD* br)
 {
     int i;
 
+    /* leadout */
+    TRACK_DATA* leadout = &toc->TrackData[wmcda->disc->trackCount];
+    leadout->TrackNumber = 0xAA;
+    leadout->Control = 0;
+    leadout->Adr = 1;
+
+    TRACE("MCICDA_ReadTOC called virtual=%d\n",
+        MCICDA_IsVirtualDisc(wmcda));
+
+
     if (MCICDA_IsVirtualDisc(wmcda))
     {
         memset(toc, 0, sizeof(*toc));
@@ -367,17 +384,24 @@ static BOOL MCICDA_ReadTOC(WINE_MCICDAUDIO* wmcda, CDROM_TOC* toc, DWORD* br)
 
             dst->TrackNumber = (BYTE)src->trackNumber;
             dst->Control = src->isAudio ? 0 : 4;
-            MCICDA_LbaToMsf(src->startLBA, dst->Address);
+            dst->Adr = 1; // Standard Q-channel sub-channel mode
+            MCICDA_LbaToMsf(src->startLBA + 150, dst->Address);
         }
 
-        /* leadout */
-        toc->TrackData[wmcda->disc->trackCount].TrackNumber = 0xAA;
-        MCICDA_LbaToMsf(wmcda->disc->tracks[wmcda->disc->trackCount - 1].endLBA,
-            toc->TrackData[wmcda->disc->trackCount].Address);
+
+        MCICDA_LbaToMsf(wmcda->disc->tracks[wmcda->disc->trackCount - 1].endLBA + 150, leadout->Address);
 
         if (br)
             *br = sizeof(*toc);
 
+        TRACE("TOC First=%u Last=%u\n",
+            toc->FirstTrack,
+            toc->LastTrack);
+
+        for (i = 0; i < wmcda->disc->trackCount; i++)
+        {
+            TRACK_DATA* t = &toc->TrackData[i];
+        }
         return TRUE;
     }
 
@@ -388,6 +412,7 @@ static BOOL MCICDA_ReadTOC(WINE_MCICDAUDIO* wmcda, CDROM_TOC* toc, DWORD* br)
     return device_io(wmcda->handle, IOCTL_CDROM_READ_TOC, NULL, 0, toc, sizeof(*toc), br, NULL);
 }
 
+static BOOL MCICDA_ReadQChannel(WINE_MCICDAUDIO* wmcda, SUB_Q_CHANNEL_DATA* data, DWORD* br);
 
 /**************************************************************************
  * 				MCICDA_GetStatus		[internal]
@@ -398,6 +423,29 @@ static	DWORD    MCICDA_GetStatus(WINE_MCICDAUDIO* wmcda)
     SUB_Q_CHANNEL_DATA          data;
     DWORD                       br;
     DWORD                       mode = MCI_MODE_NOT_READY;
+
+    if (MCICDA_IsVirtualDisc(wmcda))
+    {
+        SUB_Q_CHANNEL_DATA data;
+        DWORD br;
+
+        if (!MCICDA_ReadQChannel(wmcda, &data, &br))
+        {
+            return MCI_MODE_NOT_READY;
+        }
+
+        switch (data.CurrentPosition.Header.AudioStatus)
+        {
+        case AUDIO_STATUS_IN_PROGRESS:
+            return MCI_MODE_PLAY;
+
+        case AUDIO_STATUS_PAUSED:
+            return MCI_MODE_PAUSE;
+
+        default:
+            return MCI_MODE_STOP;
+        }
+    }
 
     fmt.Format = IOCTL_CDROM_CURRENT_POSITION;
     if (wmcda->hThread != 0) {
@@ -612,6 +660,10 @@ static DWORD MCICDA_Open(UINT wDevID, DWORD dwFlags, LPMCI_OPEN_PARMSW lpOpenPar
             }
 
             return 0;
+        }
+        else
+        {
+            TRACE("LoadCurrentDisc failed\n");
         }
 
         HeapFree(GetProcessHeap(), 0, wmcda->disc);
@@ -850,6 +902,8 @@ static DWORD MCICDA_Info(UINT wDevID, DWORD dwFlags, LPMCI_INFO_PARMSW lpParms)
         res = CDROM_Audio_GetSerial(&toc);
         swprintf(buffer, ARRAY_SIZE(buffer), L"%lu", res);
         str = buffer;
+
+        TRACE("Serial=%lu %ls\n", res, buffer);
     }
     else {
         WARN("Don't know this info command (%lu)\n", dwFlags);
@@ -866,9 +920,81 @@ static DWORD MCICDA_Info(UINT wDevID, DWORD dwFlags, LPMCI_INFO_PARMSW lpParms)
     }
     if (MMSYSERR_NOERROR == ret && (dwFlags & MCI_NOTIFY))
         MCICDA_Notify(lpParms->dwCallback, wmcda, MCI_NOTIFY_SUCCESSFUL);
+
+
     return ret;
 }
 
+
+static int MCICDA_FindTrackFromFrame(WINE_MCICDAUDIO* wmcda, DWORD frame)
+{
+    int i;
+
+    for (i = 0; i < wmcda->disc->trackCount; i++)
+    {
+        if (frame >= wmcda->disc->tracks[i].startLBA &&
+            frame < wmcda->disc->tracks[i].endLBA)
+        {
+            return i;
+        }
+    }
+
+    return wmcda->disc->trackCount - 1;
+}
+
+static BOOL MCICDA_ReadQChannel(WINE_MCICDAUDIO* wmcda, SUB_Q_CHANNEL_DATA* data, DWORD* br)
+{
+    DWORD frame;
+    int track;
+
+    memset(data, 0, sizeof(*data));
+
+    if (!MCICDA_IsVirtualDisc(wmcda))
+        return FALSE;
+
+    frame = wmcda->currentFrame;
+
+    track =
+        MCICDA_FindTrackFromFrame(
+            wmcda,
+            frame);
+
+    data->CurrentPosition.FormatCode =
+        IOCTL_CDROM_CURRENT_POSITION;
+
+    data->CurrentPosition.TrackNumber =
+        (BYTE)wmcda->disc->tracks[track].trackNumber;
+
+    if (wmcda->paused)
+    {
+        data->CurrentPosition.Header.AudioStatus =
+            AUDIO_STATUS_PAUSED;
+    }
+    else if (wmcda->playing)
+    {
+        data->CurrentPosition.Header.AudioStatus =
+            AUDIO_STATUS_IN_PROGRESS;
+    }
+    else
+    {
+        data->CurrentPosition.Header.AudioStatus =
+            AUDIO_STATUS_PLAY_COMPLETE;
+    }
+
+    MCICDA_LbaToMsf(
+        frame,
+        data->CurrentPosition.AbsoluteAddress);
+
+    MCICDA_LbaToMsf(
+        frame -
+        wmcda->disc->tracks[track].startLBA,
+        data->CurrentPosition.TrackRelativeAddress);
+
+    if (br)
+        *br = sizeof(*data);
+
+    return TRUE;
+}
 /**************************************************************************
  * 				MCICDA_Status			[internal]
  */
@@ -891,7 +1017,17 @@ static DWORD MCICDA_Status(UINT wDevID, DWORD dwFlags, LPMCI_STATUS_PARMS lpParm
         switch (lpParms->dwItem) {
         case MCI_STATUS_CURRENT_TRACK:
             fmt.Format = IOCTL_CDROM_CURRENT_POSITION;
-            if (!device_io(wmcda->handle, IOCTL_CDROM_READ_Q_CHANNEL, &fmt, sizeof(fmt),
+            if (MCICDA_IsVirtualDisc(wmcda))
+            {
+                if (!MCICDA_ReadQChannel(
+                    wmcda,
+                    &data,
+                    &br))
+                {
+                    return MCICDA_GetError(wmcda);
+                }
+            }
+            else if (!device_io(wmcda->handle, IOCTL_CDROM_READ_Q_CHANNEL, &fmt, sizeof(fmt),
                 &data, sizeof(data), &br, NULL))
             {
                 return MCICDA_GetError(wmcda);
@@ -936,11 +1072,21 @@ static DWORD MCICDA_Status(UINT wDevID, DWORD dwFlags, LPMCI_STATUS_PARMS lpParm
             ret = MCI_RESOURCE_RETURNED;
             break;
         case MCI_STATUS_MEDIA_PRESENT:
-            lpParms->dwReturn = (MCICDA_GetStatus(wmcda) == MCI_MODE_OPEN) ?
-                MAKEMCIRESOURCE(FALSE, MCI_FALSE) : MAKEMCIRESOURCE(TRUE, MCI_TRUE);
-            TRACE("MCI_STATUS_MEDIA_PRESENT =%c!\n", LOWORD(lpParms->dwReturn) ? 'Y' : 'N');
-            ret = MCI_RESOURCE_RETURNED;
-            break;
+            if (MCICDA_IsVirtualDisc(wmcda))
+            {
+                lpParms->dwReturn =
+                    MAKEMCIRESOURCE(TRUE, MCI_TRUE);
+
+                ret = MCI_RESOURCE_RETURNED;
+                break;
+            }
+            else {
+                lpParms->dwReturn = (MCICDA_GetStatus(wmcda) == MCI_MODE_OPEN) ?
+                    MAKEMCIRESOURCE(FALSE, MCI_FALSE) : MAKEMCIRESOURCE(TRUE, MCI_TRUE);
+                TRACE("MCI_STATUS_MEDIA_PRESENT =%c!\n", LOWORD(lpParms->dwReturn) ? 'Y' : 'N');
+                ret = MCI_RESOURCE_RETURNED;
+                break;
+            }
         case MCI_STATUS_NUMBER_OF_TRACKS:
             if (!MCICDA_ReadTOC(wmcda, &toc, &br))
                 return MCICDA_GetError(wmcda);
@@ -970,7 +1116,17 @@ static DWORD MCICDA_Status(UINT wDevID, DWORD dwFlags, LPMCI_STATUS_PARMS lpParm
                 break;
             case 0:
                 fmt.Format = IOCTL_CDROM_CURRENT_POSITION;
-                if (!device_io(wmcda->handle, IOCTL_CDROM_READ_Q_CHANNEL, &fmt, sizeof(fmt),
+                if (MCICDA_IsVirtualDisc(wmcda))
+                {
+                    if (!MCICDA_ReadQChannel(
+                        wmcda,
+                        &data,
+                        &br))
+                    {
+                        return MCICDA_GetError(wmcda);
+                    }
+                }
+                else if (!device_io(wmcda->handle, IOCTL_CDROM_READ_Q_CHANNEL, &fmt, sizeof(fmt),
                     &data, sizeof(data), &br, NULL)) {
                     return MCICDA_GetError(wmcda);
                 }
@@ -1209,6 +1365,7 @@ static DWORD MCICDA_Play(UINT wDevID, DWORD dwFlags, LPMCI_PLAY_PARMS lpParms)
 
             if (readok) {
                 wmcda->start += rdInfo.SectorCount;
+                wmcda->currentFrame = wmcda->start;
                 wmcda->stopEvent = CreateEventA(NULL, TRUE, FALSE, NULL);
             }
             if (wmcda->stopEvent != 0)
@@ -1278,7 +1435,6 @@ static DWORD MCICDA_Stop(UINT wDevID, DWORD dwFlags, LPMCI_GENERIC_PARMS lpParms
 {
     WINE_MCICDAUDIO* wmcda = MCICDA_GetOpenDrv(wDevID);
     HANDLE oldcb;
-    DWORD br;
 
     if (wmcda == NULL) return MCIERR_INVALID_DEVICE_ID;
 
@@ -1462,16 +1618,27 @@ static DWORD	MCICDA_SetDoor(UINT wDevID, BOOL open)
     WINE_MCICDAUDIO* wmcda = MCICDA_GetOpenDrv(wDevID);
     DWORD               br;
 
-    TRACE("(%04x, %s) !\n", wDevID, (open) ? "OPEN" : "CLOSE");
+    // TRACE("(%04x, %s) !\n", wDevID, (open) ? "OPEN" : "CLOSE");
 
     if (wmcda == NULL) return MCIERR_INVALID_DEVICE_ID;
 
-    if (!device_io(wmcda->handle,
-        (open) ? IOCTL_STORAGE_EJECT_MEDIA : IOCTL_STORAGE_LOAD_MEDIA,
-        NULL, 0, NULL, 0, &br, NULL))
-        return MCIERR_HARDWARE;
-
+    TRACE("Virtual CD tray %s\n", open ? "opened" : "closed");
     return 0;
+
+    // if (MCICDA_IsVirtualDisc(wmcda))
+    // {
+    //     TRACE("Virtual CD tray %s\n",
+    //         open ? "opened" : "closed");
+
+    //     return 0;
+    // }
+
+    // if (!device_io(wmcda->handle,
+    //     (open) ? IOCTL_STORAGE_EJECT_MEDIA : IOCTL_STORAGE_LOAD_MEDIA,
+    //     NULL, 0, NULL, 0, &br, NULL))
+    //     return MCIERR_HARDWARE;
+
+    // return 0;
 }
 
 /**************************************************************************
