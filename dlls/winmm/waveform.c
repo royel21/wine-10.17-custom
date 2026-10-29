@@ -2361,6 +2361,15 @@ static BOOL WINMM_StartDevicesThread(void)
         g_devices_thread = NULL;
     }
 
+    /* A new thread can't start while we hold the loader lock (e.g. when
+     * called from a DllMain), so waiting for it below would deadlock.
+     * Fail as if there were no device instead. */
+    if(RtlIsCriticalSectionLockedByThread(NtCurrentTeb()->Peb->LoaderLock)){
+        WARN("called with the loader lock held, not starting the devices thread\n");
+        LeaveCriticalSection(&g_devthread_lock);
+        return FALSE;
+    }
+
     TRACE("Starting up devices thread\n");
 
     /* The devices thread holds a reference to the winmm module

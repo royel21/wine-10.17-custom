@@ -371,7 +371,8 @@ static DWORD WINAPI notify_thread( void *p )
         if (quit) break;
         if (notify.send_notify) notify_client(&notify);
     }
-    return 0;
+    /* the thread holds a module reference, it may outlive DRV_FREE (see below) */
+    FreeLibraryAndExitThread( p, 0 );
 }
 
 LRESULT WINAPI DriverProc( DWORD_PTR id, HANDLE driver, UINT msg, LPARAM param1, LPARAM param2 )
@@ -388,12 +389,23 @@ LRESULT WINAPI DriverProc( DWORD_PTR id, HANDLE driver, UINT msg, LPARAM param1,
 
         params.err = &err;
         MIDI_CALL( midi_init, &params );
-        if (err == DRV_SUCCESS) notify_thread_handle = CreateThread( NULL, 0, notify_thread, NULL, 0, NULL );
+        if (err == DRV_SUCCESS)
+        {
+            HMODULE module;
+
+            GetModuleHandleExW( GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (const WCHAR *)notify_thread, &module );
+            if (!(notify_thread_handle = CreateThread( NULL, 0, notify_thread, module, 0, NULL )))
+                FreeLibrary( module );
+        }
         return err;
     }
     case DRV_FREE:
         MIDI_CALL( midi_release, NULL );
-        WaitForSingleObject( notify_thread_handle, INFINITE );
+        /* With the loader lock held (e.g. winmm loaded and freed us from an app's DllMain)
+         * the notify thread can't even have started, waiting for it would deadlock.
+         * midi_release() made it quit, it exits as soon as the lock is released. */
+        if (!RtlIsCriticalSectionLockedByThread( NtCurrentTeb()->Peb->LoaderLock ))
+            WaitForSingleObject( notify_thread_handle, INFINITE );
         CloseHandle( notify_thread_handle );
         notify_thread_handle = NULL;
         return 1;
