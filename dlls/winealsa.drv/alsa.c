@@ -60,7 +60,7 @@ struct alsa_stream
     EDataFlow flow;
     HANDLE event;
 
-    BOOL need_remapping;
+    BOOL need_remapping, upmix_mono;
     int alsa_channels;
     int alsa_channel_map[32];
 
@@ -824,6 +824,7 @@ static NTSTATUS alsa_create_stream(void *args)
 
     stream->need_remapping = map_channels(params->flow, params->fmt, &stream->alsa_channels, stream->alsa_channel_map) == S_OK;
 
+retry_hw_params:
     if((err = snd_pcm_hw_params_any(stream->pcm_handle, stream->hw_params)) < 0){
         WARN("Unable to get hw_params: %d (%s)\n", err, snd_strerror(err));
         params->result = AUDCLNT_E_ENDPOINT_CREATE_FAILED;
@@ -895,6 +896,15 @@ static NTSTATUS alsa_create_stream(void *args)
         WARN("Unable to set buffer size: %d (%s)\n", err, snd_strerror(err));
 
     if((err = snd_pcm_hw_params(stream->pcm_handle, stream->hw_params)) < 0){
+        /* Some ALSA plugins (e.g. Winlator's Android output) advertise mono
+         * but reject it here; retry as stereo and duplicate the samples. */
+        if(params->flow == eRender && stream->alsa_channels == 1 && !stream->upmix_mono){
+            WARN("Unable to set mono hw params: %d (%s), retrying as stereo\n", err, snd_strerror(err));
+            stream->alsa_channels = 2;
+            stream->alsa_channel_map[0] = 0;
+            stream->need_remapping = stream->upmix_mono = TRUE;
+            goto retry_hw_params;
+        }
         WARN("Unable to set hw params: %d (%s)\n", err, snd_strerror(err));
         params->result = AUDCLNT_E_ENDPOINT_CREATE_FAILED;
         goto exit;
@@ -1136,6 +1146,14 @@ static BYTE *remap_channels(struct alsa_stream *stream, BYTE *buf, snd_pcm_ufram
             }
         }
         break;
+    }
+
+    if(stream->upmix_mono){
+        BYTE *tgt_buf = stream->remapping_buf;
+        for(i = 0; i < frames; ++i){
+            memcpy(tgt_buf + bytes_per_sample, tgt_buf, bytes_per_sample);
+            tgt_buf += 2 * bytes_per_sample;
+        }
     }
 
     return stream->remapping_buf;
