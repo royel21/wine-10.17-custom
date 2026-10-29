@@ -388,9 +388,13 @@ HRESULT ddraw_clipper_init(struct ddraw_clipper *clipper)
 
 struct ddraw_clipper *unsafe_impl_from_IDirectDrawClipper(IDirectDrawClipper *iface)
 {
+    struct ddraw_clipper *clipper;
     if (!iface)
         return NULL;
-    assert(iface->lpVtbl == &ddraw_clipper_vtbl);
 
-    return impl_from_IDirectDrawClipper(iface);
+    clipper = impl_from_IDirectDrawClipper(iface);
+    if (!ddraw_clipper_is_valid(clipper))
+        return NULL;
+
+    return clipper;
 }

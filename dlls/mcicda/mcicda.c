@@ -1246,8 +1246,12 @@ static DWORD MCICDA_Play(UINT wDevID, DWORD dwFlags, LPMCI_PLAY_PARMS lpParms)
     }
     else {
         // FIX: If it's a virtual disc, don't call device_io with an invalid handle!
-        if (MCICDA_IsVirtualDisc(wmcda)) {
-            start = FRAME_OF_TOC(toc, toc.FirstTrack);
+        if (MCICDA_IsVirtualDisc(wmcda))
+        {
+            start = wmcda->start;
+
+            TRACE("Virtual seek position=%lu\n", wmcda->start);
+
             if ((ret = MCICDA_SkipDataTracks(wmcda, &start)))
                 return ret;
         }
