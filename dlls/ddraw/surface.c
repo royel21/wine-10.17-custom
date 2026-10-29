@@ -143,14 +143,17 @@ HRESULT ddraw_surface_update_frontbuffer(struct ddraw_surface *surface,
         if (read)
             return DD_OK;
 
-        if (swap_interval)
-            dst_texture = wined3d_swapchain_get_back_buffer(ddraw->wined3d_swapchain, 0);
-        else
-            dst_texture = wined3d_swapchain_get_front_buffer(ddraw->wined3d_swapchain);
+        /* Always go through the back buffer and present instead of drawing to
+         * the front buffer: front buffer rendering isn't supported by the
+         * Vulkan renderer and isn't always shown with GL drivers either. The
+         * swapchain uses DISCARD, so update and present the whole surface. */
+        SetRect(&r, 0, 0, surface->surface_desc.dwWidth, surface->surface_desc.dwHeight);
+        rect = &r;
+        dst_texture = wined3d_swapchain_get_back_buffer(ddraw->wined3d_swapchain, 0);
 
         if (SUCCEEDED(hr = wined3d_device_context_blt(ddraw->immediate_context, dst_texture, 0, rect,
                 ddraw_surface_get_any_texture(surface, DDRAW_SURFACE_READ), surface->sub_resource_idx, rect, 0,
-                NULL, WINED3D_TEXF_POINT)) && swap_interval)
+                NULL, WINED3D_TEXF_POINT)))
         {
             hr = wined3d_swapchain_present(ddraw->wined3d_swapchain, rect, rect, NULL, swap_interval, 0);
             ddraw->flags |= DDRAW_SWAPPED;
