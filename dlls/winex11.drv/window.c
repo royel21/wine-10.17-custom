@@ -1132,7 +1132,9 @@ static void set_style_hints( struct x11drv_win_data *data, DWORD style, DWORD ex
 
     if ((wm_hints = XAllocWMHints()))
     {
-        int WindowLayeredHint = data->layered ? (1 << 16) : 0;
+        /* only per-pixel alpha windows (UpdateLayeredWindow) carry a meaningful
+         * alpha channel; SetLayeredWindowAttributes ones use a 24-bit visual */
+        int WindowLayeredHint = (data->layered && data->use_alpha) ? (1 << 16) : 0;
         wm_hints->flags = InputHint | StateHint | WindowGroupHint | WindowLayeredHint;
         wm_hints->input = !use_take_focus && !(style & WS_DISABLED);
         wm_hints->initial_state = (style & WS_MINIMIZE) ? IconicState : NormalState;
