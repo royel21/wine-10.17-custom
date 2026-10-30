@@ -4852,7 +4852,6 @@ static HRESULT WINAPI MediaEvent_GetEventHandle(IMediaEventEx *iface, OAEVENT *e
     TRACE("graph %p, event %p.\n", graph, event);
 
     *event = (OAEVENT)graph->media_event_handle;
-    WARN("EOSDBG GetEventHandle graph %p -> %p\n", graph, graph->media_event_handle); /* TEMP DEBUG */
     return S_OK;
 }
 
@@ -4886,12 +4885,7 @@ static void notify_video_owner(struct filter_graph *graph)
         owner = (OAHWND)GetActiveWindow();
 
     if (owner)
-    {
-        WARN("EOSDBG posting WM_NULL to video owner %#Ix\n", owner); /* TEMP DEBUG */
         PostMessageW((HWND)owner, WM_NULL, 0, 0);
-    }
-    else
-        WARN("EOSDBG no window to notify\n"); /* TEMP DEBUG */
 }
 
 static HRESULT WINAPI MediaEvent_GetEvent(IMediaEventEx *iface, LONG *code,
@@ -4922,7 +4916,6 @@ static HRESULT WINAPI MediaEvent_GetEvent(IMediaEventEx *iface, LONG *code,
     *param1 = event->param1;
     *param2 = event->param2;
     free(event);
-    WARN("EOSDBG GetEvent graph %p -> code %#lx\n", graph, *code); /* TEMP DEBUG */
 
     LeaveCriticalSection(&graph->event_cs);
 
@@ -5004,7 +4997,6 @@ static HRESULT WINAPI MediaEvent_SetNotifyWindow(IMediaEventEx *iface,
     struct filter_graph *graph = impl_from_IMediaEventEx(iface);
 
     TRACE("graph %p, window %#Ix, message %#lx, lparam %#Ix.\n", graph, window, message, lparam);
-    WARN("EOSDBG SetNotifyWindow graph %p window %#Ix message %#lx\n", graph, window, message); /* TEMP DEBUG */
 
     graph->media_event_window = (HWND)window;
     graph->media_event_message = message;
@@ -5432,11 +5424,6 @@ static HRESULT WINAPI MediaEventSink_Notify(IMediaEventSink *iface, LONG code,
     TRACE("graph %p, code %#lx, param1 %#Ix, param2 %#Ix.\n", graph, code, param1, param2);
 
     EnterCriticalSection(&graph->event_cs);
-
-    /* TEMP DEBUG */
-    WARN("EOSDBG Notify graph %p code %#lx param1 %#Ix, ec_count %d/%d, handle_ec %d, disabled %d, window %p\n",
-            graph, code, param1, graph->EcCompleteCount + (code == EC_COMPLETE), graph->nRenderers,
-            graph->HandleEcComplete, graph->media_events_disabled, graph->media_event_window);
 
     if (code == EC_COMPLETE && graph->HandleEcComplete)
     {

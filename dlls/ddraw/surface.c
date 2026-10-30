@@ -138,6 +138,8 @@ HRESULT ddraw_surface_update_frontbuffer(struct ddraw_surface *surface,
     if (ddraw->swapchain_window && (!(ddraw->cooperative_level & DDSCL_EXCLUSIVE)
             || ddraw->swapchain_window == GetForegroundWindow() || ddraw_gdi_is_front(ddraw)))
     {
+        RECT src_rect, dst_rect;
+
         /* Nothing to do, we control the frontbuffer, or at least the parts we
          * care about. */
         if (read)
@@ -151,11 +153,28 @@ HRESULT ddraw_surface_update_frontbuffer(struct ddraw_surface *surface,
         rect = &r;
         dst_texture = wined3d_swapchain_get_back_buffer(ddraw->wined3d_swapchain, 0);
 
+        /* In windowed mode the primary (and the back buffer) cover the whole
+         * screen, so only present the part under the window's client area. */
+        src_rect = dst_rect = r;
+        if (!(ddraw->cooperative_level & DDSCL_FULLSCREEN))
+        {
+            POINT origin = {0, 0};
+
+            GetClientRect(ddraw->swapchain_window, &dst_rect);
+            ClientToScreen(ddraw->swapchain_window, &origin);
+            src_rect = dst_rect;
+            OffsetRect(&src_rect, origin.x, origin.y);
+            if (!IntersectRect(&src_rect, &src_rect, &r))
+                return DD_OK;
+            dst_rect = src_rect;
+            OffsetRect(&dst_rect, -origin.x, -origin.y);
+        }
+
         if (SUCCEEDED(hr = wined3d_device_context_blt(ddraw->immediate_context, dst_texture, 0, rect,
                 ddraw_surface_get_any_texture(surface, DDRAW_SURFACE_READ), surface->sub_resource_idx, rect, 0,
                 NULL, WINED3D_TEXF_POINT)))
         {
-            hr = wined3d_swapchain_present(ddraw->wined3d_swapchain, rect, rect, NULL, swap_interval, 0);
+            hr = wined3d_swapchain_present(ddraw->wined3d_swapchain, &src_rect, &dst_rect, NULL, swap_interval, 0);
             ddraw->flags |= DDRAW_SWAPPED;
         }
         return hr;

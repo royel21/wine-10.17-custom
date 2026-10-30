@@ -368,15 +368,15 @@ static BOOL MCICDA_ReadTOC(WINE_MCICDAUDIO* wmcda, CDROM_TOC* toc, DWORD* br)
 {
     int i;
 
-    /* leadout */
-    TRACK_DATA* leadout = &toc->TrackData[wmcda->disc->trackCount];
-
     TRACE("MCICDA_ReadTOC called virtual=%d\n",
         MCICDA_IsVirtualDisc(wmcda));
 
 
     if (MCICDA_IsVirtualDisc(wmcda))
     {
+        /* leadout; only valid with a virtual disc, wmcda->disc is NULL otherwise */
+        TRACK_DATA* leadout = &toc->TrackData[wmcda->disc->trackCount];
+
         memset(toc, 0, sizeof(*toc));
         toc->FirstTrack = 1;
         toc->LastTrack = (BYTE)wmcda->disc->trackCount;
