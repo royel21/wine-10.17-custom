@@ -4445,6 +4445,22 @@ static struct gdi_font *select_font( LOGFONTW *lf, FMAT2 dcmat, BOOL can_use_bit
     font->matrix = dcmat;
     font->can_use_bitmap = can_use_bitmap;
     if (!csi.fs.fsCsb[0]) get_nearest_charset( face->family->family_name, face, &csi );
+
+    /* DBCS locales: recent versions of CJK fonts (e.g. MS Gothic) also cover Baltic, Central
+     * European, Cyrillic... Old applications (Macromedia Director projectors) pick one of those
+     * charsets from the enumeration and then draw their Shift-JIS/GBK/Big5 text with it, which
+     * turns it into garbage. A CJK font requested with an unrelated single byte charset in a
+     * CJK locale is used with the locale charset, like with the older versions of the fonts. */
+    if (ansi_cp.MaximumCharacterSize == 2 && csi.ciCharset != ANSI_CHARSET &&
+        csi.ciCharset != SYMBOL_CHARSET && csi.ciCharset != OEM_CHARSET &&
+        csi.ciACP != ansi_cp.CodePage)
+    {
+        CHARSETINFO locale_csi;
+
+        if (translate_charset_info( ULongToPtr(ansi_cp.CodePage), &locale_csi, TCI_SRCCODEPAGE ) &&
+            (face->fs.fsCsb[0] & locale_csi.fs.fsCsb[0]))
+            csi = locale_csi;
+    }
     font->charset = csi.ciCharset;
     font->codepage = csi.ciACP;
 

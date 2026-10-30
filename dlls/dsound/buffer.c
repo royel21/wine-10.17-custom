@@ -1041,6 +1041,11 @@ HRESULT secondarybuffer_create(DirectSoundDevice *device, const DSBUFFERDESC *ds
 
         TRACE("(%p,%p,%p)\n", device, dsbd, buffer);
 
+        /* TEMP SNDDBG */
+        if (wfex) FIXME("SNDDBG dsound buffer tag %u ch %u rate %lu bits %u bytes %lu flags %lx\n",
+                        wfex->wFormatTag, wfex->nChannels, wfex->nSamplesPerSec,
+                        wfex->wBitsPerSample, dsbd->dwBufferBytes, dsbd->dwFlags);
+
 	if (dsbd->dwBufferBytes < DSBSIZE_MIN || dsbd->dwBufferBytes > DSBSIZE_MAX) {
 		WARN("invalid parameter: dsbd->dwBufferBytes = %ld\n", dsbd->dwBufferBytes);
 		return DSERR_INVALIDPARAM; /* FIXME: which error? */

@@ -188,6 +188,7 @@ static DWORD CALLBACK MCICDA_playLoop(void* ptr)
     DSBCAPS caps;
     RAW_READ_INFO rdInfo;
     HRESULT hr = DS_OK;
+    BOOL finished;
 
     memset(&caps, 0, sizeof(caps));
     caps.dwSize = sizeof(caps);
@@ -256,12 +257,23 @@ static DWORD CALLBACK MCICDA_playLoop(void* ptr)
     }
     IDirectSoundBuffer_Stop(wmcda->dsBuf);
 
+    /* the track played to its end (not stopped by MCI_STOP/MCI_PAUSE): like a real
+     * drive on Windows, tell the application, many games wait for this notification
+     * to start the next track or to continue the scene */
+    finished = SUCCEEDED(hr) && endPos == lastPos &&
+               WaitForSingleObject(wmcda->stopEvent, 0) != WAIT_OBJECT_0;
+
     EnterCriticalSection(&wmcda->cs);
     wmcda->playing = FALSE;
     wmcda->paused = FALSE;
     LeaveCriticalSection(&wmcda->cs);
 
     SetEvent(wmcda->stopEvent);
+
+    if (finished) {
+        HANDLE oldcb = InterlockedExchangePointer(&wmcda->hCallback, NULL);
+        if (oldcb) mciDriverNotify(oldcb, wmcda->wNotifyDeviceID, MCI_NOTIFY_SUCCESSFUL);
+    }
 
     /* A design bug in native: the independent CD player called by the
      * MCI has no means to signal end of playing, therefore the MCI
@@ -746,12 +758,10 @@ static DWORD MCICDA_Close(UINT wDevID, DWORD dwParam, LPMCI_GENERIC_PARMS lpParm
     WINE_MCICDAUDIO* wmcda = MCICDA_GetOpenDrv(wDevID);
 
     TRACE("(%04X, %08lX, %p);\n", wDevID, dwParam, lpParms);
-    TRACE(
-        "MCICDA_Close virtual=%d disc=%p\n",
-        MCICDA_IsVirtualDisc(wmcda),
-        wmcda->disc);
 
     if (wmcda == NULL) 	return MCIERR_INVALID_DEVICE_ID;
+
+    TRACE("MCICDA_Close virtual=%d disc=%p\n", MCICDA_IsVirtualDisc(wmcda), wmcda->disc);
 
     MCICDA_Stop(wDevID, MCI_WAIT, NULL);
 
@@ -985,8 +995,10 @@ static BOOL MCICDA_ReadQChannel(WINE_MCICDAUDIO* wmcda, SUB_Q_CHANNEL_DATA* data
             AUDIO_STATUS_PLAY_COMPLETE;
     }
 
+    /* currentFrame is a sector number, the absolute address counts the 2 seconds
+     * (150 frames) lead-in, like the TOC does */
     MCICDA_LbaToMsf(
-        frame,
+        frame + 150,
         data->CurrentPosition.AbsoluteAddress);
 
     MCICDA_LbaToMsf(
@@ -1248,7 +1260,7 @@ static DWORD MCICDA_Play(UINT wDevID, DWORD dwFlags, LPMCI_PLAY_PARMS lpParms)
         // FIX: If it's a virtual disc, don't call device_io with an invalid handle!
         if (MCICDA_IsVirtualDisc(wmcda))
         {
-            start = wmcda->start;
+            start = wmcda->start + 150;
 
             TRACE("Virtual seek position=%lu\n", wmcda->start);
 
@@ -1330,8 +1342,10 @@ static DWORD MCICDA_Play(UINT wDevID, DWORD dwFlags, LPMCI_PLAY_PARMS lpParms)
             IDirectSound_SetCooperativeLevel(wmcda->dsObj, GetDesktopWindow(), DSSCL_PRIORITY);
 
             if (MCICDA_IsVirtualDisc(wmcda)) {
-                wmcda->start = start;
-                wmcda->end = end;
+                /* MCI frames count the 150 frames lead-in, the image is addressed by sector */
+                wmcda->start = start - 150;
+                wmcda->end = end - 150;
+                wmcda->currentFrame = wmcda->start;
             }
             else {
                 /* The "raw" frame is relative to the start of the first track */
@@ -1394,12 +1408,10 @@ static DWORD MCICDA_Play(UINT wDevID, DWORD dwFlags, LPMCI_PLAY_PARMS lpParms)
                 if (SUCCEEDED(hr)) {
                     wmcda->playing = TRUE;
                     wmcda->paused = FALSE;
-                    /* FIXME: implement MCI_WAIT and send notification only in that case */
-                    if (0) {
-                        oldcb = InterlockedExchangePointer(&wmcda->hCallback, NULL);
-                        if (oldcb) mciDriverNotify(oldcb, wmcda->wNotifyDeviceID,
-                            FAILED(hr) ? MCI_NOTIFY_FAILURE : MCI_NOTIFY_SUCCESSFUL);
-                    }
+                    /* MCI_WAIT: don't return before the end of the play (the play
+                     * loop sends the MCI_NOTIFY notification itself) */
+                    if (dwFlags & MCI_WAIT)
+                        WaitForSingleObject(wmcda->stopEvent, INFINITE);
                     return ret;
                 }
 
@@ -1634,8 +1646,11 @@ static DWORD MCICDA_Seek(UINT wDevID, DWORD dwFlags, LPMCI_SEEK_PARMS lpParms)
         seek.F = at % CDFRAMES_PERSEC;
         if (MCICDA_IsVirtualDisc(wmcda))
         {
-            wmcda->start = at;
+            wmcda->start = at >= 150 ? at - 150 : 0;
+            wmcda->currentFrame = wmcda->start;
 
+            if (dwFlags & MCI_NOTIFY)
+                MCICDA_Notify(lpParms->dwCallback, wmcda, MCI_NOTIFY_SUCCESSFUL);
             return 0;
         }
     }
