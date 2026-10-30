@@ -876,6 +876,12 @@ static DWORD MIDI_player(WINE_MCIMIDI* wmm, DWORD dwFlags)
 
     dwRet = midiOutOpen((LPHMIDIOUT)&wmm->hMidi, wmm->wPort, 0L, 0L, CALLBACK_NULL);
     if (dwRet != MMSYSERR_NOERROR) {
+	WARN("midiOutOpen failed: %lu\n", dwRet);
+	/* don't stay in play mode forever, and tell the application */
+	if (dwFlags & MCI_NOTIFY)
+	    oldcb = InterlockedExchangePointer(&wmm->hCallback, NULL);
+	wmm->dwStatus = MCI_MODE_STOP;
+	if (oldcb) mciDriverNotify(oldcb, wmm->wDevID, MCI_NOTIFY_FAILURE);
 	return mmr2mci(dwRet);
     }
 
@@ -915,8 +921,12 @@ static DWORD MIDI_player(WINE_MCIMIDI* wmm, DWORD dwFlags)
 		TRACE("Pulses hi=0x%08lx <> cur=0x%08lx\n", hiPulse, wmm->dwPulse);
 		TRACE("Wait until %lu => %lu ms\n",
 		      tc - wmm->dwStartTicks, togo - wmm->dwStartTicks);
-		if (tc < togo)
-		    Sleep(togo - tc);
+		/* sleep in short steps, so that a stop or close doesn't have to wait
+		 * until the next event, which can be several seconds away */
+		while (tc < togo && ((volatile WINE_MCIMIDI*)wmm)->dwStatus == MCI_MODE_PLAY) {
+		    Sleep(min(togo - tc, 20));
+		    tc = GetTickCount();
+		}
 	    }
 	    wmm->dwPulse = hiPulse;
 	}

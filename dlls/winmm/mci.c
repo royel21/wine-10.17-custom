@@ -874,9 +874,9 @@ static DWORD MCI_SendCommandFrom32(MCIDEVICEID wDevID, UINT16 wMsg, DWORD_PTR dw
     LPWINE_MCIDRIVER	wmd = MCI_GetDriver(wDevID);
 
     if (wmd) {
-        if(wmd->CreatorThread != GetCurrentThreadId())
-            return MCIERR_INVALID_DEVICE_NAME;
-
+        /* don't restrict commands to the thread that opened the device: older games
+         * (written for Win9x, where MCI devices belong to the task) open a song in
+         * one thread and stop/close it from another */
         dwRet = SendDriverMessage(wmd->hDriver, wMsg, dwParam1, dwParam2);
     }
     return dwRet;
@@ -1841,9 +1841,6 @@ static	DWORD MCI_Close(UINT wDevID, DWORD dwParam, LPMCI_GENERIC_PARMS lpParms)
     if (!(wmd = MCI_GetDriver(wDevID))) {
 	return MCIERR_INVALID_DEVICE_ID;
     }
-
-    if(wmd->CreatorThread != GetCurrentThreadId())
-        return MCIERR_INVALID_DEVICE_NAME;
 
     dwRet = MCI_SendCommandFrom32(wDevID, MCI_CLOSE_DRIVER, dwParam, (DWORD_PTR)lpParms);
 
