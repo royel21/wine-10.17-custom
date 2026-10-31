@@ -21,7 +21,9 @@ typedef struct {
   long endLBA;
 
   ULONGLONG fileOffset;
-  DWORD sectorSize;
+  DWORD sectorSize;   /* stride in the file: 2352 raw, 2448 with subchannel data, 2048 cooked */
+
+  wchar_t filePath[MAX_PATH]; /* tracks can live in separate files (multi-file CUE) */
 
 } CDTrack;
 

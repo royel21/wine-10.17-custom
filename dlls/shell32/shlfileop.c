@@ -963,6 +963,13 @@ static void file_entry_init(FILE_ENTRY *file_entry,
         file_entry->szFilename = malloc(file_name_len * sizeof(WCHAR));
         lstrcpyW(file_entry->szFilename, ptr + 1); /* Skip over backslash. */
     }
+    else
+    {
+        /* No backslash, e.g. a bare drive "D:": callers copy and append both parts,
+         * so they must not stay NULL. */
+        file_entry->szDirectory = wcsdup(L"");
+        file_entry->szFilename = wcsdup(file_name);
+    }
 
     file_entry->attributes = attributes;
     file_entry->bFromWildcard = from_wildcard;

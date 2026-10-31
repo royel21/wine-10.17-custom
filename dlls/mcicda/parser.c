@@ -8,6 +8,13 @@ WINE_DEFAULT_DEBUG_CHANNEL(mcicda);
 
 #define CDIMAGE_REGKEY L"SOFTWARE\\Winlator\\WFM\\CurrentCDImagePath"
 
+/* Alcohol 120% / 52% MDS version 1 layout, as documented by CDemu's libmirage */
+#define MDS_HEADER_SIZE 0x58
+#define MDS_SESSION_BLOCK_SIZE 24
+#define MDS_TRACK_BLOCK_SIZE 80
+#define MDS_FOOTER_SIZE 16
+#define MDS_MAX_SIZE (16 * 1024 * 1024)
+
 static long msfToLBA(const char* msf) {
     int m, s, f;
 
@@ -37,27 +44,98 @@ static bool getCurrentCuePath(wchar_t* buffer, DWORD bufferChars) {
     return true;
 }
 
-static void buildBinPath(const wchar_t* cuePath, const char* binFile, wchar_t* outPath) {
-    wchar_t* slash;
-    wchar_t wBin[MAX_PATH];
+static ULONGLONG getFileSize64(const wchar_t* path) {
+    WIN32_FILE_ATTRIBUTE_DATA data;
 
-    wcscpy(outPath, cuePath);
+    if (!GetFileAttributesExW(path, GetFileExInfoStandard, &data) || (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+        return 0;
+    return ((ULONGLONG)data.nFileSizeHigh << 32) | data.nFileSizeLow;
+}
+
+/* a file name relative to the descriptor's folder */
+static void buildPathW(const wchar_t* basePath, const wchar_t* fileName, wchar_t* outPath) {
+    wchar_t* slash;
+
+    lstrcpynW(outPath, basePath, MAX_PATH);
     slash = wcsrchr(outPath, L'\\');
     if (!slash)
         slash = wcsrchr(outPath, L'/');
 
-    MultiByteToWideChar(CP_ACP, 0, binFile, -1, wBin, MAX_PATH);
-
     if (slash)
-        wcscpy(slash + 1, wBin);
+        lstrcpynW(slash + 1, fileName, MAX_PATH - (int)(slash + 1 - outPath));
     else
-        wcscpy(outPath, wBin);
+        lstrcpynW(outPath, fileName, MAX_PATH);
 }
 
+static void buildBinPath(const wchar_t* cuePath, const char* binFile, wchar_t* outPath) {
+    wchar_t wBin[MAX_PATH];
+
+    MultiByteToWideChar(CP_ACP, 0, binFile, -1, wBin, MAX_PATH);
+    buildPathW(cuePath, wBin, outPath);
+}
+
+static bool replaceExtension(wchar_t* path, const wchar_t* ext) {
+    wchar_t* dot = wcsrchr(path, L'.');
+    wchar_t* slash = wcsrchr(path, L'\\');
+
+    if (!dot || (slash && dot < slash))
+        return false;
+    lstrcpynW(dot, ext, MAX_PATH - (int)(dot - path));
+    return true;
+}
+
+static DWORD cueSectorSize(const char* mode) {
+    if (!_stricmp(mode, "MODE1/2048") || !_stricmp(mode, "MODE2/2048"))
+        return 2048;
+    if (!_stricmp(mode, "MODE2/2336"))
+        return 2336;
+    if (!_stricmp(mode, "CDG"))
+        return 2448;
+    return 2352; /* AUDIO, MODE1/2352, MODE2/2352, CDI/2352 */
+}
+
+/* FILE "name" TYPE or FILE name TYPE (unquoted names have no spaces) */
+static bool parseCueFileLine(const char* line, char* fileName) {
+    const char* p = line;
+    const char* end;
+    size_t len;
+
+    while (*p == ' ' || *p == '\t') p++;
+    if (_strnicmp(p, "FILE", 4) || (p[4] != ' ' && p[4] != '\t'))
+        return false;
+    p += 4;
+    while (*p == ' ' || *p == '\t') p++;
+
+    if (*p == '"') {
+        end = strchr(++p, '"');
+    }
+    else {
+        end = p;
+        while (*end && *end != ' ' && *end != '\t' && *end != '\r' && *end != '\n') end++;
+    }
+
+    if (!end || end == p)
+        return false;
+
+    len = min((size_t)(end - p), (size_t)MAX_PATH - 1);
+    memcpy(fileName, p, len);
+    fileName[len] = 0;
+    return true;
+}
+
+/* INDEX times in a CUE are positions inside the track's own FILE, so a CUE with one file per
+ * track (common for games with CD audio) needs every file's length to place the next ones.
+ * PREGAP sectors are part of the disc layout but are not stored in any file. */
 static bool parseCue(const wchar_t* cuePath, VirtualCD* cd) {
     FILE* fp;
     char line[512];
+    wchar_t currentFile[MAX_PATH] = { 0 };
+    long relStart[MAX_CD_TRACKS] = { 0 };
+    long pregap[MAX_CD_TRACKS] = { 0 };
+    long absGap[MAX_CD_TRACKS] = { 0 };
     CDTrack* current = NULL;
+    long base = 0, gaps = 0;
+    int i, j, k;
 
     memset(cd, 0, sizeof(*cd));
     wcscpy(cd->cuePath, cuePath);
@@ -68,82 +146,119 @@ static bool parseCue(const wchar_t* cuePath, VirtualCD* cd) {
 
     while (fgets(line, sizeof(line), fp)) {
         char fileName[MAX_PATH];
+        char mode[32], msf[32];
+        int trackNum, index;
 
-        if (sscanf(line, " FILE \"%259[^\"]\" BINARY", fileName) == 1) {
-            buildBinPath(cuePath, fileName, cd->binPath);
+        if (parseCueFileLine(line, fileName)) {
+            buildBinPath(cuePath, fileName, currentFile);
+            if (!cd->binPath[0])
+                wcscpy(cd->binPath, currentFile);
             continue;
         }
 
-        {
-            int trackNum;
-            char mode[32];
+        if (sscanf(line, " TRACK %d %31s", &trackNum, mode) == 2) {
+            if (cd->trackCount >= MAX_CD_TRACKS || !currentFile[0])
+                break;
 
-            if (sscanf(line, " TRACK %d %31s", &trackNum, mode) == 2) {
-                if (cd->trackCount >= MAX_CD_TRACKS)
-                    break;
+            current = &cd->tracks[cd->trackCount++];
+            memset(current, 0, sizeof(*current));
 
-                current = &cd->tracks[cd->trackCount++];
-                memset(current, 0, sizeof(*current));
-
-                current->trackNumber = trackNum;
-                strcpy(current->mode, mode);
-                current->isAudio = !_stricmp(mode, "AUDIO");
-
-                // Set default sector sizes based on mode
-                if (!_stricmp(mode, "MODE1/2048")) {
-                    current->sectorSize = 2048;
-                }
-                else {
-                    current->sectorSize = 2352; // AUDIO, MODE1/2352, MODE2/2352, etc.
-                }
-
-                continue;
-            }
+            current->trackNumber = trackNum;
+            strcpy(current->mode, mode);
+            current->isAudio = !_stricmp(mode, "AUDIO");
+            current->sectorSize = cueSectorSize(mode);
+            wcscpy(current->filePath, currentFile);
+            continue;
         }
 
-        if (current) {
-            int index;
-            char msf[32];
+        if (!current)
+            continue;
 
-            if (sscanf(line, " INDEX %d %31s", &index, msf) == 2) {
-                long lba = msfToLBA(msf);
+        if (sscanf(line, " INDEX %d %31s", &index, msf) == 2) {
+            long lba = msfToLBA(msf);
 
-                if (index == 0)
-                    current->index0 = lba;
-
-                if (index == 1) {
-                    current->index1 = lba;
-                    current->startLBA = lba;
-                }
+            if (lba < 0)
+                continue;
+            if (index == 0)
+                current->index0 = lba;
+            if (index == 1) {
+                current->index1 = lba;
+                relStart[cd->trackCount - 1] = lba;
             }
+        }
+        else if (sscanf(line, " PREGAP %31s", msf) == 1) {
+            long lba = msfToLBA(msf);
+            if (lba > 0)
+                pregap[cd->trackCount - 1] = lba;
         }
     }
 
     fclose(fp);
-    return cd->trackCount > 0;
+    if (!cd->trackCount)
+        return false;
+
+    /* tracks i..j-1 share one file */
+    for (i = 0; i < cd->trackCount; i = j) {
+        ULONGLONG fileSize, pos = 0;
+        long prevRel = 0, lastSectors, fileSectors;
+        CDTrack* last;
+
+        for (j = i; j < cd->trackCount && !wcscmp(cd->tracks[j].filePath, cd->tracks[i].filePath); j++)
+            ;
+
+        fileSize = getFileSize64(cd->tracks[i].filePath);
+        if (!fileSize) {
+            WARN("missing image file %s\n", debugstr_w(cd->tracks[i].filePath));
+            return false;
+        }
+
+        for (k = i; k < j; k++) {
+            CDTrack* trk = &cd->tracks[k];
+            /* the sectors before this track's INDEX 01 belong to the previous track's layout */
+            DWORD spanSize = k > i ? cd->tracks[k - 1].sectorSize : trk->sectorSize;
+
+            if (relStart[k] < prevRel)
+                relStart[k] = prevRel;
+            pos += (ULONGLONG)(relStart[k] - prevRel) * spanSize;
+            prevRel = relStart[k];
+
+            gaps += pregap[k];
+            absGap[k] = gaps;
+            trk->fileOffset = pos;
+            trk->startLBA = base + gaps + relStart[k];
+        }
+
+        /* the file's last track runs to the end of the file */
+        last = &cd->tracks[j - 1];
+        lastSectors = fileSize > last->fileOffset ? (long)((fileSize - last->fileOffset) / last->sectorSize) : 0;
+        fileSectors = relStart[j - 1] + lastSectors;
+
+        for (k = i; k < j - 1; k++)
+            cd->tracks[k].endLBA = base + absGap[k] + relStart[k + 1];
+        last->endLBA = base + absGap[j - 1] + fileSectors;
+
+        base += fileSectors;
+    }
+
+    return true;
 }
 
 static bool parseCCD(const wchar_t* ccdPath, VirtualCD* cd) {
     wchar_t value[64];
     DWORD leadoutLBA = 0;
-    wchar_t* ext = NULL;
+    ULONGLONG imgSize;
     int i;
 
     memset(cd, 0, sizeof(*cd));
     wcscpy(cd->cuePath, ccdPath);
     wcscpy(cd->binPath, ccdPath);
 
-    ext = wcsrchr(cd->binPath, L'.');
-    if (!ext)
+    if (!replaceExtension(cd->binPath, L".img"))
         return false;
 
-    wcscpy(ext, L".img");
-
-    {
-        DWORD attr = GetFileAttributesW(cd->binPath);
-        if (attr == INVALID_FILE_ATTRIBUTES || (attr & FILE_ATTRIBUTE_DIRECTORY))
-            return false;
-    }
+    imgSize = getFileSize64(cd->binPath);
+    if (!imgSize)
+        return false;
 
     for (i = 1; i <= MAX_CD_TRACKS; i++) {
         wchar_t section[32];
@@ -161,6 +276,7 @@ static bool parseCCD(const wchar_t* ccdPath, VirtualCD* cd) {
 
         trk->trackNumber = i;
         trk->sectorSize = 2352;
+        wcscpy(trk->filePath, cd->binPath);
 
         if (mode == 0) {
             trk->isAudio = TRUE;
@@ -210,6 +326,10 @@ static bool parseCCD(const wchar_t* ccdPath, VirtualCD* cd) {
         }
     }
 
+    /* the image stores every sector from LBA 0 on, 2352 bytes each */
+    if (!leadoutLBA || leadoutLBA > imgSize / 2352)
+        leadoutLBA = (DWORD)(imgSize / 2352);
+
     if (leadoutLBA <= (DWORD)cd->tracks[0].startLBA)
         return false;
 
@@ -226,67 +346,159 @@ static bool parseCCD(const wchar_t* ccdPath, VirtualCD* cd) {
     return true;
 }
 
-static bool finalizeTracks(VirtualCD* cd) {
-    FILE* fp;
-    long fileSize;
-    long totalSectors;
-    int i;
+static uint16_t readU16(const uint8_t* p) {
+    return (uint16_t)(p[0] | (p[1] << 8));
+}
 
-    fp = _wfopen(cd->binPath, L"rb");
-    if (!fp)
-        return false;
+static uint32_t readU32(const uint8_t* p) {
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+}
 
-    fseek(fp, 0, SEEK_END);
-    fileSize = ftell(fp);
-    fclose(fp);
+static uint64_t readU64(const uint8_t* p) {
+    return (uint64_t)readU32(p) | ((uint64_t)readU32(p + 4) << 32);
+}
 
-    // Standard total sectors calculation based on 2352 byte raw blocks or generic estimation
-    totalSectors = fileSize / 2352;
+/* the image file is named in the track's footer; "*.mdf" means "the MDS name with this extension" */
+static void getMdfPath(const wchar_t* mdsPath, const uint8_t* mds, size_t size, const uint8_t* track, wchar_t* mdfPath) {
+    uint32_t footerOffset = readU32(track + 52);
+    wchar_t name[MAX_PATH] = { 0 };
 
-    TRACE("BIN size=%ld bytes\n", fileSize);
-    TRACE("totalSectors=%ld\n", totalSectors);
+    if (readU32(track + 48) > 0 && footerOffset && footerOffset + MDS_FOOTER_SIZE <= size) {
+        uint32_t nameOffset = readU32(mds + footerOffset);
+        bool wide = readU32(mds + footerOffset + 4) != 0;
+        size_t i;
 
-    /* Build track end LBAs safely */
-    for (i = 0; i < cd->trackCount - 1; i++) {
-        if (cd->tracks[i + 1].startLBA > cd->tracks[i].startLBA) {
-            cd->tracks[i].endLBA = cd->tracks[i + 1].startLBA;
-        }
-        else {
-            // Fallback if startLBA isn't sequentially populated right
-            cd->tracks[i].endLBA = cd->tracks[i].startLBA + 300;
-        }
-    }
-
-    // Ensure last track bounds don't cause an overflow
-    if (cd->trackCount > 0) {
-        cd->tracks[cd->trackCount - 1].endLBA = totalSectors;
-    }
-
-    /* Calculate physical file offsets precisely */
-    {
-        ULONGLONG offset = 0;
-
-        for (i = 0; i < cd->trackCount; i++) {
-            CDTrack* trk = &cd->tracks[i];
-
-            trk->fileOffset = offset;
-
-            DWORD sectors = 0;
-            if (i < cd->trackCount - 1) {
-                sectors = cd->tracks[i + 1].startLBA - trk->startLBA;
+        if (nameOffset < size) {
+            if (wide) {
+                for (i = 0; i < MAX_PATH - 1 && nameOffset + i * 2 + 1 < size; i++) {
+                    name[i] = (wchar_t)readU16(mds + nameOffset + i * 2);
+                    if (!name[i])
+                        break;
+                }
             }
             else {
-                sectors = totalSectors - trk->startLBA;
+                char narrow[MAX_PATH] = { 0 };
+                for (i = 0; i < MAX_PATH - 1 && nameOffset + i < size && mds[nameOffset + i]; i++)
+                    narrow[i] = (char)mds[nameOffset + i];
+                MultiByteToWideChar(CP_ACP, 0, narrow, -1, name, MAX_PATH);
             }
-
-            // Safety guard against negative or corrupted sector spreads
-            if ((int)sectors < 0) sectors = 0;
-
-            offset += (ULONGLONG)sectors * trk->sectorSize;
-
-            TRACE("Track %02d mode=%s start=%ld end=%ld sectors=%u offset=%I64u\n",
-                trk->trackNumber, trk->mode, trk->startLBA, trk->endLBA, sectors, trk->fileOffset);
         }
+    }
+
+    if (!name[0] || name[0] == L'*') {
+        lstrcpynW(mdfPath, mdsPath, MAX_PATH);
+        replaceExtension(mdfPath, name[0] == L'*' ? name + 1 : L".mdf");
+    }
+    else buildPathW(mdsPath, name, mdfPath);
+}
+
+static bool parseMDS(const wchar_t* mdsPath, VirtualCD* cd) {
+    ULONGLONG fileSize = getFileSize64(mdsPath);
+    uint8_t* mds;
+    DWORD readSize = 0;
+    HANDLE file;
+    uint16_t sessionCount, s;
+    uint32_t sessionsOffset;
+    bool isDvd;
+
+    memset(cd, 0, sizeof(*cd));
+    wcscpy(cd->cuePath, mdsPath);
+
+    if (fileSize < MDS_HEADER_SIZE || fileSize > MDS_MAX_SIZE)
+        return false;
+
+    file = CreateFileW(mdsPath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+    if (file == INVALID_HANDLE_VALUE)
+        return false;
+
+    mds = HeapAlloc(GetProcessHeap(), 0, (SIZE_T)fileSize);
+    if (!mds || !ReadFile(file, mds, (DWORD)fileSize, &readSize, NULL) || readSize != fileSize) {
+        CloseHandle(file);
+        HeapFree(GetProcessHeap(), 0, mds);
+        return false;
+    }
+    CloseHandle(file);
+
+    if (memcmp(mds, "MEDIA DESCRIPTOR", 16) || mds[16] != 1) {
+        /* version 2 descriptors (newer DAEMON Tools) are encrypted */
+        WARN("unsupported MDS file %s (version %u.%u)\n", debugstr_w(mdsPath), mds[16], mds[17]);
+        HeapFree(GetProcessHeap(), 0, mds);
+        return false;
+    }
+
+    isDvd = readU16(mds + 0x12) >= 0x10;
+    sessionCount = readU16(mds + 0x14);
+    sessionsOffset = readU32(mds + 0x50);
+
+    for (s = 0; s < sessionCount; s++) {
+        uint32_t sessionOffset = sessionsOffset + s * MDS_SESSION_BLOCK_SIZE;
+        const uint8_t* session;
+        uint32_t tracksOffset;
+        long sessionEnd;
+        int firstInSession = cd->trackCount;
+        uint8_t blockCount, b;
+
+        if (sessionOffset + MDS_SESSION_BLOCK_SIZE > fileSize)
+            break;
+
+        session = mds + sessionOffset;
+        sessionEnd = (long)readU32(session + 4);
+        blockCount = session[10];
+        tracksOffset = readU32(session + 20);
+
+        for (b = 0; b < blockCount && cd->trackCount < MAX_CD_TRACKS; b++) {
+            uint32_t trackOffset = tracksOffset + b * MDS_TRACK_BLOCK_SIZE;
+            const uint8_t* block;
+            uint8_t point, mode;
+            CDTrack* trk;
+
+            if (trackOffset + MDS_TRACK_BLOCK_SIZE > fileSize)
+                break;
+
+            block = mds + trackOffset;
+            point = block[4];
+            if (point == 0 || point > 99)
+                continue; /* lead-in entries, not tracks */
+
+            mode = block[0] & 0x0F;
+            trk = &cd->tracks[cd->trackCount++];
+            memset(trk, 0, sizeof(*trk));
+
+            trk->trackNumber = point;
+            trk->isAudio = mode == 0x09;
+            trk->sectorSize = readU16(block + 16);
+            if (!trk->sectorSize)
+                trk->sectorSize = isDvd ? 2048 : 2352 + (block[1] ? 96 : 0);
+            trk->startLBA = (long)readU32(block + 36);
+            trk->index1 = trk->startLBA;
+            trk->fileOffset = readU64(block + 40);
+            strcpy(trk->mode, trk->isAudio ? "AUDIO" : mode == 0x0A ? "MODE1/2352" : "MODE2/2352");
+            getMdfPath(mdsPath, mds, (size_t)fileSize, block, trk->filePath);
+
+            if (!cd->binPath[0])
+                wcscpy(cd->binPath, trk->filePath);
+        }
+
+        /* a track ends where the next one starts, the last one of a session at the session end */
+        for (b = firstInSession; b + 1 < cd->trackCount; b++)
+            cd->tracks[b].endLBA = cd->tracks[b + 1].startLBA;
+        if (cd->trackCount > firstInSession)
+            cd->tracks[cd->trackCount - 1].endLBA = sessionEnd;
+    }
+
+    HeapFree(GetProcessHeap(), 0, mds);
+
+    if (!cd->trackCount || !getFileSize64(cd->binPath))
+        return false;
+
+    /* sanity: a broken session end must not hide the last track */
+    {
+        CDTrack* last = &cd->tracks[cd->trackCount - 1];
+        ULONGLONG mdfSize = getFileSize64(last->filePath);
+        long available = mdfSize > last->fileOffset ? (long)((mdfSize - last->fileOffset) / last->sectorSize) : 0;
+
+        if (last->endLBA <= last->startLBA || last->endLBA - last->startLBA > available)
+            last->endLBA = last->startLBA + available;
     }
 
     return true;
@@ -304,6 +516,8 @@ static inline bool hasEx(wchar_t* path, const wchar_t* targetExt) {
 
 bool LoadCurrentDisc(VirtualCD* cd) {
     wchar_t path[MAX_PATH];
+    bool ok = false;
+    int i;
 
     if (!getCurrentCuePath(path, MAX_PATH)) {
         return false;
@@ -312,20 +526,26 @@ bool LoadCurrentDisc(VirtualCD* cd) {
     TRACE("CDImagePath=%ls\n", path);
 
     if (hasEx(path, L"cue")) {
-        if (!parseCue(path, cd))
-            return false;
+        ok = parseCue(path, cd);
     }
     else if (hasEx(path, L"ccd")) {
-        if (!parseCCD(path, cd))
-            return false;
+        ok = parseCCD(path, cd);
     }
-    else {
-        return false;
+    else if (hasEx(path, L"mds") || hasEx(path, L"mdf")) {
+        /* the file manager stores whichever file of the pair was selected */
+        if (hasEx(path, L"mdf"))
+            replaceExtension(path, L".mds");
+        ok = parseMDS(path, cd);
     }
 
-    // Finalize tracks exactly ONCE to compute sizes, ranges, and byte offsets properly
-    if (!finalizeTracks(cd)) {
+    if (!ok)
         return false;
+
+    for (i = 0; i < cd->trackCount; i++) {
+        CDTrack* trk = &cd->tracks[i];
+        TRACE("Track %02d mode=%s start=%ld end=%ld size=%lu offset=%I64u file=%s\n",
+            trk->trackNumber, trk->mode, trk->startLBA, trk->endLBA, trk->sectorSize,
+            trk->fileOffset, debugstr_w(trk->filePath));
     }
 
     return true;

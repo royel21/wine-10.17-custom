@@ -133,49 +133,71 @@ static BOOL device_io(HANDLE dev, DWORD code, void* inbuffer, DWORD insize, void
 
 static BOOL MCICDA_VirtualRawRead(WINE_MCICDAUDIO* wmcda, RAW_READ_INFO* info, void* buffer, DWORD* bytesRead)
 {
-    FILE* fp;
-    DWORD lba;
-    int i;
+    const wchar_t* openPath = NULL;
+    BYTE* out = buffer;
+    FILE* fp = NULL;
+    DWORD lba, i;
+    int t;
 
     if (!MCICDA_IsVirtualDisc(wmcda))
         return FALSE;
 
-    fp = _wfopen(wmcda->disc->binPath, L"rb");
-    if (!fp)
-        return FALSE;
-
     /* Convert byte offset to logical sector */
     lba = (DWORD)(info->DiskOffset.QuadPart >> 11);
+    *bytesRead = 0;
 
-    for (i = 0; i < wmcda->disc->trackCount; i++)
+    /* Sector by sector: a read can cross into the next track, which may be another file,
+     * and images with subchannel data store 2448 bytes per sector of which only the first
+     * 2352 are audio */
+    for (i = 0; i < info->SectorCount; i++, lba++)
     {
-        CDTrack* trk = &wmcda->disc->tracks[i];
+        CDTrack* trk = NULL;
+        ULONGLONG filePos;
 
-        if (lba >= trk->startLBA && lba < trk->endLBA)
+        for (t = 0; t < wmcda->disc->trackCount; t++)
         {
-            DWORD relSector;
-            ULONGLONG filePos;
-
-            relSector = lba - trk->startLBA;
-
-            filePos = trk->fileOffset + ((ULONGLONG)relSector * trk->sectorSize);
-
-            TRACE("VirtualRawRead LBA=%lu Track=%d Rel=%lu FilePos=%I64u\n",
-                lba, trk->trackNumber, relSector, filePos);
-
-            _fseeki64(fp, filePos, SEEK_SET);
-
-            *bytesRead = fread(buffer, 2352, info->SectorCount, fp) * 2352;
-
-            fclose(fp);
-            return TRUE;
+            if (lba >= wmcda->disc->tracks[t].startLBA && lba < wmcda->disc->tracks[t].endLBA)
+            {
+                trk = &wmcda->disc->tracks[t];
+                break;
+            }
         }
+
+        if (!trk)
+        {
+            if (!i) WARN("No track found for LBA %lu\n", lba);
+            break;
+        }
+
+        if (!openPath || wcscmp(openPath, trk->filePath))
+        {
+            if (fp) fclose(fp);
+            openPath = trk->filePath;
+            if (!(fp = _wfopen(openPath, L"rb")))
+            {
+                WARN("Can't open %s\n", debugstr_w(openPath));
+                break;
+            }
+        }
+
+        filePos = trk->fileOffset + (ULONGLONG)(lba - trk->startLBA) * trk->sectorSize;
+        if (!i)
+            TRACE("VirtualRawRead LBA=%lu Track=%d Count=%lu FilePos=%I64u\n",
+                  lba, trk->trackNumber, info->SectorCount, filePos);
+
+        if (_fseeki64(fp, filePos, SEEK_SET) || fread(out, 1, RAW_SECTOR_SIZE, fp) != RAW_SECTOR_SIZE)
+            break;
+
+        out += RAW_SECTOR_SIZE;
+        *bytesRead += RAW_SECTOR_SIZE;
     }
 
-    WARN("No track found for LBA %lu\n", lba);
+    if (fp) fclose(fp);
 
-    fclose(fp);
-    return FALSE;
+    /* sectors past the end of the image play as silence rather than stale buffer data */
+    if (i < info->SectorCount)
+        memset(out, 0, (SIZE_T)(info->SectorCount - i) * RAW_SECTOR_SIZE);
+    return *bytesRead > 0;
 }
 
 static DWORD CALLBACK MCICDA_playLoop(void* ptr)
