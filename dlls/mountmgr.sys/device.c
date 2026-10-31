@@ -30,6 +30,7 @@
 #include "winuser.h"
 #include "dbt.h"
 #include "unixlib.h"
+#include "image_cd.h"
 
 #include "wine/list.h"
 #include "wine/debug.h"
@@ -1861,10 +1862,21 @@ done:
 }
 
 /* handler for ioctls on the harddisk device */
+/* X: is where the Winlator file manager loads disc images */
+static BOOL is_image_drive(const struct disk_device* dev)
+{
+    struct dos_drive* drive;
+
+    LIST_FOR_EACH_ENTRY(drive, &drives_list, struct dos_drive, entry)
+        if (drive->volume && drive->volume->device == dev) return drive->drive == 'x' - 'a';
+    return FALSE;
+}
+
 static NTSTATUS WINAPI harddisk_ioctl(DEVICE_OBJECT* device, IRP* irp)
 {
     IO_STACK_LOCATION* irpsp = IoGetCurrentIrpStackLocation(irp);
     struct disk_device* dev = device->DeviceExtension;
+    ULONG code = irpsp->Parameters.DeviceIoControl.IoControlCode;
     NTSTATUS status;
 
     TRACE("ioctl %lx insize %lu outsize %lu\n",
@@ -1874,7 +1886,25 @@ static NTSTATUS WINAPI harddisk_ioctl(DEVICE_OBJECT* device, IRP* irp)
 
     EnterCriticalSection(&device_section);
 
-    switch (irpsp->Parameters.DeviceIoControl.IoControlCode)
+    if (is_image_drive(dev))
+    {
+        /* buffered requests share one buffer, direct ones (raw reads) write through the MDL */
+        void* out = (code & 3) == METHOD_BUFFERED ? irp->AssociatedIrp.SystemBuffer
+                  : irp->MdlAddress ? MmGetSystemAddressForMdlSafe(irp->MdlAddress, NormalPagePriority) : NULL;
+        ULONG_PTR info;
+
+        if (image_cd_ioctl(code, irp->AssociatedIrp.SystemBuffer, irpsp->Parameters.DeviceIoControl.InputBufferLength,
+                           out, irpsp->Parameters.DeviceIoControl.OutputBufferLength, &status, &info))
+        {
+            irp->IoStatus.Information = info;
+            irp->IoStatus.Status = status;
+            LeaveCriticalSection(&device_section);
+            IoCompleteRequest(irp, IO_NO_INCREMENT);
+            return status;
+        }
+    }
+
+    switch (code)
     {
     case IOCTL_DISK_GET_DRIVE_GEOMETRY:
     {

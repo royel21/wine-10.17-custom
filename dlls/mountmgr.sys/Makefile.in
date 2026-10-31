@@ -7,10 +7,15 @@ UNIX_LIBS    = $(DISKARBITRATION_LIBS) $(SYSTEMCONFIGURATION_LIBS) $(CORESERVICE
 
 EXTRADLLFLAGS = -Wl,--subsystem,native
 
+# the disc image parser is shared with mcicda
+PARENTSRC = ../mcicda
+
 SOURCES = \
 	cred.c \
 	dbus.c \
 	device.c \
 	diskarb.c \
+	image_cd.c \
 	mountmgr.c \
+	parser.c \
 	unixlib.c

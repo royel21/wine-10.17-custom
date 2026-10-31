@@ -38,3 +38,6 @@ typedef struct {
 } VirtualCD;
 
 bool LoadCurrentDisc(VirtualCD *cd);
+
+/* path of the image loaded in the Winlator file manager, FALSE when none */
+bool GetCurrentDiscPath(wchar_t *buffer, DWORD bufferChars);

@@ -25,7 +25,7 @@ static long msfToLBA(const char* msf) {
     return ((m * 60) + s) * 75 + f;
 }
 
-static bool getCurrentCuePath(wchar_t* buffer, DWORD bufferChars) {
+bool GetCurrentDiscPath(wchar_t* buffer, DWORD bufferChars) {
     HKEY hKey;
     DWORD type;
     LONG result;
@@ -519,7 +519,7 @@ bool LoadCurrentDisc(VirtualCD* cd) {
     bool ok = false;
     int i;
 
-    if (!getCurrentCuePath(path, MAX_PATH)) {
+    if (!GetCurrentDiscPath(path, MAX_PATH)) {
         return false;
     }
 
