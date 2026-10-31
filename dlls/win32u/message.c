@@ -3276,6 +3276,24 @@ static DWORD wait_message( DWORD count, const HANDLE *handles, DWORD timeout, DW
 }
 
 /***********************************************************************
+ *           has_pending_queue_input
+ *
+ * Check whether the queue already has input matching a MsgWaitForMultipleObjectsEx mask.
+ */
+static BOOL has_pending_queue_input( DWORD mask, DWORD flags )
+{
+    struct object_lock lock = OBJECT_LOCK_INIT;
+    const queue_shm_t *queue_shm;
+    UINT bits = 0, status;
+
+    while ((status = get_shared_queue( &lock, &queue_shm )) == STATUS_PENDING)
+        bits = (flags & MWMO_INPUTAVAILABLE) ? queue_shm->wake_bits : queue_shm->changed_bits;
+
+    if (status) return FALSE;
+    return (bits & mask) != 0;
+}
+
+/***********************************************************************
  *           check_queue_masks
  */
 static BOOL check_queue_masks( UINT wake_mask, UINT changed_mask )
@@ -3349,6 +3367,12 @@ DWORD WINAPI NtUserMsgWaitForMultipleObjectsEx( DWORD count, const HANDLE *handl
     /* add the queue to the handle list */
     for (i = 0; i < count; i++) wait_handles[i] = normalize_std_handle( handles[i] );
     wait_handles[count] = get_server_queue_handle();
+
+    /* Report pending queue input before the other handles. A wait-any returns the lowest
+     * signaled index, so an app waiting on a constantly signaled event plus the queue would
+     * otherwise never see server-generated input such as WM_TIMER. */
+    if (count && !(flags & MWMO_WAITALL) && has_pending_queue_input( mask, flags ))
+        return count;
 
     return wait_objects( count+1, wait_handles, timeout,
                          (flags & MWMO_INPUTAVAILABLE) ? mask : 0, mask, flags );
