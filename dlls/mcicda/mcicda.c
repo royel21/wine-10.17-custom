@@ -146,7 +146,6 @@ static BOOL MCICDA_VirtualRawRead(WINE_MCICDAUDIO* wmcda, RAW_READ_INFO* info, v
 
     /* Convert byte offset to logical sector */
     lba = (DWORD)(info->DiskOffset.QuadPart >> 11);
-    TRACE("DiskOffset=%I64d LBA=%lu\n", info->DiskOffset.QuadPart, lba);
 
     for (i = 0; i < wmcda->disc->trackCount; i++)
     {
@@ -380,10 +379,6 @@ static BOOL MCICDA_ReadTOC(WINE_MCICDAUDIO* wmcda, CDROM_TOC* toc, DWORD* br)
 {
     int i;
 
-    TRACE("MCICDA_ReadTOC called virtual=%d\n",
-        MCICDA_IsVirtualDisc(wmcda));
-
-
     if (MCICDA_IsVirtualDisc(wmcda))
     {
         /* leadout; only valid with a virtual disc, wmcda->disc is NULL otherwise */
@@ -524,8 +519,7 @@ static DWORD MCICDA_CalcFrame(WINE_MCICDAUDIO* wmcda, DWORD dwTime)
     DWORD       br;
     BYTE* addr;
 
-    // TRACE("(%p, %08lX, %lu);\n", wmcda, wmcda->dwTimeFormat, dwTime);
-    TRACE("timeFormat=%lu val=%08lx\n", wmcda->dwTimeFormat, dwTime);
+    TRACE("(%p, %08lX, %lu);\n", wmcda, wmcda->dwTimeFormat, dwTime);
 
     switch (wmcda->dwTimeFormat) {
     case MCI_FORMAT_MILLISECONDS:
@@ -560,7 +554,6 @@ static DWORD MCICDA_CalcFrame(WINE_MCICDAUDIO* wmcda, DWORD dwTime)
             addr[3] + MCI_TMSF_FRAME(dwTime);
         break;
     }
-    TRACE("CalcFrame format=%lu value=%08lx\n", wmcda->dwTimeFormat, dwTime);
     return dwFrame;
 }
 
@@ -1279,22 +1272,11 @@ static DWORD MCICDA_Play(UINT wDevID, DWORD dwFlags, LPMCI_PLAY_PARMS lpParms)
         }
     }
 
-    TRACE("Play: format=%lu from=%08lx to=%08lx\n", wmcda->dwTimeFormat, lpParms->dwFrom, lpParms->dwTo);
-
     if (dwFlags & MCI_TO) {
-        TRACE("raw dwTo=%08lx format=%lu\n", lpParms->dwTo, wmcda->dwTimeFormat);
         end = MCICDA_CalcFrame(wmcda, lpParms->dwTo);
-
-        ret = MCICDA_SkipDataTracks(wmcda, &end);
-
-        TRACE("after SkipDataTracks ret=%lu end=%lu\n", ret, end);
-
-
-        if (ret)
-        {
-            TRACE("RETURNING ret=%lu\n", ret);
+        if ((ret = MCICDA_SkipDataTracks(wmcda, &end)))
             return ret;
-        }
+        TRACE("MCI_TO=%08lX -> %lu\n", lpParms->dwTo, end);
     }
     else {
         end = FRAME_OF_TOC(toc, toc.LastTrack + 1) - 1;
@@ -1666,8 +1648,6 @@ static DWORD MCICDA_Seek(UINT wDevID, DWORD dwFlags, LPMCI_SEEK_PARMS lpParms)
 static DWORD	MCICDA_SetDoor(UINT wDevID, BOOL open)
 {
     WINE_MCICDAUDIO* wmcda = MCICDA_GetOpenDrv(wDevID);
-
-    // TRACE("(%04x, %s) !\n", wDevID, (open) ? "OPEN" : "CLOSE");
 
     if (wmcda == NULL) return MCIERR_INVALID_DEVICE_ID;
 

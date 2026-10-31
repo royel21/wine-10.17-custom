@@ -900,11 +900,6 @@ static LRESULT WINMM_OpenDevice(WINMM_Device *device, WINMM_OpenInfo *info,
     LRESULT ret = MMSYSERR_NOMEM;
     HRESULT hr;
 
-    /* TEMP SNDDBG */
-    FIXME("SNDDBG wave%s open tag %u ch %u rate %lu bits %u flags %lx\n", is_out ? "Out" : "In",
-          info->format->wFormatTag, info->format->nChannels, info->format->nSamplesPerSec,
-          info->format->wBitsPerSample, info->flags);
-
     hr = IMMDeviceEnumerator_GetDevice(g_devenum, device->parent->dev_id,
             &device->device);
     if(FAILED(hr)){
@@ -1044,11 +1039,9 @@ static LRESULT WINMM_OpenDevice(WINMM_Device *device, WINMM_OpenInfo *info,
 
     info->handle = device->handle;
 
-    FIXME("SNDDBG wave open ok\n"); /* TEMP SNDDBG */
     return MMSYSERR_NOERROR;
 
 error:
-    FIXME("SNDDBG wave open failed ret %Iu hr %08lx\n", (ULONG_PTR)ret, hr); /* TEMP SNDDBG */
     if(device->client){
         IAudioClient_Release(device->client);
         device->client = NULL;
