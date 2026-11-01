@@ -893,7 +893,10 @@ MMRESULT WINAPI acmFormatTagDetailsW(HACMDRIVER had, PACMFORMATTAGDETAILSW paftd
 
 	    for (padid = MSACM_pFirstACMDriverID; padid; padid = padid->pNextACMDriverID) {
 		/* should check for codec only */
+		/* with a specific tag, only ask drivers that support it: some
+		 * (vorbis.acm) answer with their own tag whatever was asked */
 		if (!(padid->fdwSupport & ACMDRIVERDETAILS_SUPPORTF_DISABLED) &&
+		    (ft == WAVE_FORMAT_UNKNOWN || MSACM_FindFormatTagInCache(padid, ft, NULL)) &&
 		    acmDriverOpen(&had, (HACMDRIVERID)padid, 0) == 0) {
 
 		    memset(&tmp, 0, sizeof(tmp));
@@ -901,7 +904,8 @@ MMRESULT WINAPI acmFormatTagDetailsW(HACMDRIVER had, PACMFORMATTAGDETAILSW paftd
 		    tmp.dwFormatTag = ft;
 
 		    if (MSACM_Message(had, ACMDM_FORMATTAG_DETAILS,
-				      (LPARAM)&tmp, fdwDetails) == MMSYSERR_NOERROR) {
+				      (LPARAM)&tmp, fdwDetails) == MMSYSERR_NOERROR &&
+			(ft == WAVE_FORMAT_UNKNOWN || tmp.dwFormatTag == ft)) {
 			if (mmr == ACMERR_NOTPOSSIBLE ||
 			    paftd->cbFormatSize < tmp.cbFormatSize) {
 			    *paftd = tmp;
