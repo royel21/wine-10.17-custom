@@ -482,8 +482,14 @@ static HRESULT WINAPI dinput_device_Acquire( IDirectInputDevice8W *iface )
     TRACE( "iface %p.\n", iface );
 
     EnterCriticalSection( &impl->crit );
+    /* Windows returns DI_NOEFFECT here, but some games (Choir) re-acquire from
+     * WM_ACTIVATE and treat anything but DI_OK as failure. Under Winlator the
+     * activation arrives after the device is already acquired, so report DI_OK. */
     if (impl->status == STATUS_ACQUIRED)
-        hr = DI_NOEFFECT;
+    {
+        LeaveCriticalSection( &impl->crit );
+        return DI_OK;
+    }
     else if (!impl->user_format.rgodf)
         hr = DIERR_INVALIDPARAM;
     else if ((impl->dwCoopLevel & DISCL_FOREGROUND) && impl->win != GetForegroundWindow())
