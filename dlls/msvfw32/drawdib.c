@@ -49,6 +49,8 @@ typedef struct tagWINE_HDD {
     HBITMAP             hOldDib;	/* Original Dib */
     HBITMAP             hDib;		/* DibSection */
     LPVOID              lpvbits;	/* Buffer for holding decompressed dib */
+    RGBQUAD             colors[256];	/* Entries set by DrawDibChangePalette */
+    BYTE                color_set[256];
     HDRAWDIB            hSelf;
     struct tagWINE_HDD* next;
 } WINE_HDD;
@@ -63,6 +65,28 @@ static int num_colours(const BITMAPINFOHEADER *lpbi)
 }
 
 static WINE_HDD*        HDD_FirstHdd /* = NULL */;
+
+/* Copy the entries changed by DrawDibChangePalette into the color table of
+ * the buffer DIB, so palette fades show up on non-palettized displays. */
+static void apply_changed_colors(WINE_HDD *whdd, int start, int len)
+{
+    int i, first = -1;
+
+    if (!whdd->hMemDC || !whdd->lpbiOut || whdd->lpbiOut->biBitCount > 8) return;
+
+    for (i = start; i <= start + len; i++)
+    {
+        if (i < start + len && whdd->color_set[i])
+        {
+            if (first < 0) first = i;
+        }
+        else if (first >= 0)
+        {
+            SetDIBColorTable(whdd->hMemDC, first, i - first, &whdd->colors[first]);
+            first = -1;
+        }
+    }
+}
 
 static WINE_HDD*       MSVIDEO_GetHddPtr(HDRAWDIB hd)
 {
@@ -264,7 +288,9 @@ BOOL VFWAPI DrawDibBegin(HDRAWDIB hdd,
     {
         /*whdd->lpvbuf = malloc(whdd->lpbiOut->biSizeImage);*/
 
-        whdd->hMemDC = CreateCompatibleDC(hdc);
+        /* SGS.EXE passes a screen DC it has already released */
+        if (!(whdd->hMemDC = CreateCompatibleDC(hdc)))
+            whdd->hMemDC = CreateCompatibleDC(0);
         TRACE("Creating: %ld, %p\n", whdd->lpbiOut->biSize, whdd->lpvbits);
         whdd->hDib = CreateDIBSection(whdd->hMemDC, (BITMAPINFO *)whdd->lpbiOut, DIB_RGB_COLORS, &(whdd->lpvbits), 0, 0);
         if (whdd->hDib) 
@@ -277,6 +303,7 @@ BOOL VFWAPI DrawDibBegin(HDRAWDIB hdd,
             TRACE("Error: %ld\n", GetLastError());
         }
         whdd->hOldDib = SelectObject(whdd->hMemDC, whdd->hDib);
+        apply_changed_colors(whdd, 0, 256);
     }
 
     if (ret) 
@@ -403,7 +430,10 @@ BOOL VFWAPI DrawDibDraw(HDRAWDIB hdd, HDC hdc,
          SelectPalette(hdc, whdd->hpal, FALSE);
     }
 
-    ret = StretchBlt(whdd->hdc, xDst, yDst, dxDst, dyDst, whdd->hMemDC, xSrc, ySrc, dxSrc, dySrc, SRCCOPY);
+    /* Draw to the DC we were given: DDF_SAME_HDC only promises it is compatible
+     * with the one from DrawDibBegin, which may already be released (SGS.EXE
+     * begins on a screen DC and draws to its window DC). */
+    ret = StretchBlt(hdc, xDst, yDst, dxDst, dyDst, whdd->hMemDC, xSrc, ySrc, dxSrc, dySrc, SRCCOPY);
     TRACE("Painting %dx%d at %d,%d from %dx%d at %d,%d -> %d\n",
           dxDst, dyDst, xDst, yDst, dxSrc, dySrc, xSrc, ySrc, ret);
 
@@ -431,7 +461,27 @@ BOOL VFWAPI DrawDibStop(HDRAWDIB hdd) {
  */
 BOOL VFWAPI DrawDibChangePalette(HDRAWDIB hdd, int iStart, int iLen, LPPALETTEENTRY lppe)
 {
-    FIXME("(%p, 0x%08x, 0x%08x, %p), stub\n", hdd, iStart, iLen, lppe);
+    WINE_HDD *whdd;
+    int i;
+
+    TRACE("(%p, %d, %d, %p)\n", hdd, iStart, iLen, lppe);
+
+    whdd = MSVIDEO_GetHddPtr(hdd);
+    if (!whdd) return FALSE;
+
+    if (iStart < 0 || iLen < 0 || iStart + iLen > 256 || !lppe) return FALSE;
+
+    for (i = 0; i < iLen; i++)
+    {
+        whdd->colors[iStart + i].rgbRed = lppe[i].peRed;
+        whdd->colors[iStart + i].rgbGreen = lppe[i].peGreen;
+        whdd->colors[iStart + i].rgbBlue = lppe[i].peBlue;
+        whdd->colors[iStart + i].rgbReserved = 0;
+        whdd->color_set[iStart + i] = 1;
+    }
+
+    if (whdd->hpal) SetPaletteEntries(whdd->hpal, iStart, iLen, lppe);
+    apply_changed_colors(whdd, iStart, iLen);
     return TRUE;
 }
 
