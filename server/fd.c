@@ -2122,15 +2122,6 @@ struct fd *open_fd( struct fd *root, const char *name, struct unicode_str nt_nam
 skip_open_fail:
     fd->nt_name = dup_nt_name( root, nt_name, &fd->nt_namelen );
     fd->unix_name = NULL;
-    if ((path = dup_fd_name( root, name )))
-    {
-        fd->unix_name = realpath( path, NULL );
-        free( path );
-    }
-
-    closed_fd->unix_fd = fd->unix_fd;
-    closed_fd->disp_flags = 0;
-    closed_fd->unix_name = fd->unix_name;
     if (fd->unix_fd != -1)
         fstat( fd->unix_fd, &st );
     *mode = st.st_mode;

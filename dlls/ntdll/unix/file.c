@@ -3720,7 +3720,7 @@ NTSTATUS create_reparse_target( int dirfd, const char *unix_src, int depth, cons
     char *unix_path = NULL, *d;
     char target_path[PATH_MAX];
     int nt_target_len;
-    char *unix_target;
+    char *unix_target = NULL;
     int is_relative;
     NTSTATUS status;
     WCHAR *nt_path;
@@ -3739,10 +3739,16 @@ NTSTATUS create_reparse_target( int dirfd, const char *unix_src, int depth, cons
         strcat( unix_path, "/");
         status = unix_to_nt_file_name( unix_path, &nt_path, FILE_OPEN );
         free( unix_path );
+        unix_path = NULL;
         if (status != STATUS_SUCCESS)
             return status;
         /* re-resolve the unix path for the source */
         status = ntdll_get_unix_file_name( nt_path, &unix_path, FILE_OPEN_IF );
+        if (status != STATUS_SUCCESS && status != STATUS_NO_SUCH_FILE)
+        {
+            free( nt_path );
+            return status;
+        }
     }
     else
     {
@@ -7592,7 +7598,6 @@ NTSTATUS WINAPI NtFlushBuffersFileEx( HANDLE handle, ULONG flags, void *params, 
 static NTSTATUS cancel_io( HANDLE handle, IO_STATUS_BLOCK *io, IO_STATUS_BLOCK *io_status,
                            BOOL only_thread )
 {
-    HANDLE cancel_handle;
     unsigned int status;
 
     SERVER_START_REQ( cancel_async )
