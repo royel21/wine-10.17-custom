@@ -504,6 +504,184 @@ static bool parseMDS(const wchar_t* mdsPath, VirtualCD* cd) {
     return true;
 }
 
+/* DiscJuggler image: the tracks are stored back to back, each preceded by its pregap, and a
+ * descriptor at the end of the file describes them. The layout follows cdirip and CDemu's libmirage. */
+#define CDI_V2  0x80000004
+#define CDI_V3  0x80000005
+#define CDI_V35 0x80000006
+#define CDI_MAX_DESCRIPTOR (16 * 1024 * 1024)
+
+static DWORD cdiSectorSize(uint32_t value) {
+    switch (value) {
+    case 0: return 2048;
+    case 1: return 2336;
+    case 2: return 2352;
+    case 4: return 2448;
+    default: return 0;
+    }
+}
+
+static bool parseCdiDescriptor(const uint8_t* d, size_t size, uint32_t version, const wchar_t* cdiPath, VirtualCD* cd) {
+    static const uint8_t mark[10] = { 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF };
+    ULONGLONG fileOffset = 0;
+    size_t pos = 0;
+    int sessions, s;
+
+#define NEED(n) do { if (pos + (n) > size) return false; } while (0)
+#define SKIP(n) do { NEED(n); pos += (n); } while (0)
+
+    NEED(2);
+    sessions = readU16(d + pos);
+    pos += 2;
+
+    for (s = 0; s < sessions; s++) {
+        int trackCount, t;
+
+        NEED(2);
+        trackCount = readU16(d + pos);
+        pos += 2;
+
+        for (t = 0; t < trackCount; t++) {
+            uint32_t pregap, length, mode, startLba, totalLength;
+            DWORD sectorSize;
+            BOOL extra;
+            CDTrack* trk;
+
+            NEED(4);
+            if (readU32(d + pos)) SKIP(8); /* extra data written by DiscJuggler 3 */
+            SKIP(4);
+
+            NEED(20);
+            if (memcmp(d + pos, mark, 10) || memcmp(d + pos + 10, mark, 10)) {
+                WARN("CDI track %d: start mark not found\n", cd->trackCount + 1);
+                return false;
+            }
+            pos += 20;
+
+            SKIP(4);
+            NEED(1);
+            SKIP(1 + d[pos]); /* file name the image was made from */
+            SKIP(11 + 4 + 4);
+
+            NEED(4);
+            if (readU32(d + pos) == 0x80000000) SKIP(8); /* DiscJuggler 4 */
+            SKIP(4 + 2);
+
+            NEED(8);
+            pregap = readU32(d + pos);
+            length = readU32(d + pos + 4);
+            pos += 8;
+
+            SKIP(6);
+            NEED(4);
+            mode = readU32(d + pos);
+            pos += 4;
+
+            SKIP(12);
+            NEED(8);
+            startLba = readU32(d + pos);
+            totalLength = readU32(d + pos + 4);
+            pos += 8;
+
+            SKIP(16);
+            NEED(4);
+            sectorSize = cdiSectorSize(readU32(d + pos));
+            pos += 4;
+
+            if (!sectorSize || mode > 2) {
+                WARN("CDI track %d: unsupported mode %u / sector size\n", cd->trackCount + 1, mode);
+                return false;
+            }
+
+            SKIP(29);
+            if (version != CDI_V2) {
+                SKIP(5);
+                NEED(4);
+                extra = readU32(d + pos) == 0xFFFFFFFF;
+                pos += 4;
+                if (extra) SKIP(78); /* DiscJuggler 3.00.780 and up */
+            }
+
+            if (cd->trackCount < MAX_CD_TRACKS) {
+                trk = &cd->tracks[cd->trackCount++];
+                memset(trk, 0, sizeof(*trk));
+
+                trk->trackNumber = cd->trackCount;
+                trk->isAudio = mode == 0;
+                strcpy(trk->mode, trk->isAudio ? "AUDIO" : mode == 1 ? "MODE1/2352" : "MODE2/2352");
+                /* the CDI start address counts the 150 sectors of the first pregap */
+                trk->startLBA = (long)(startLba + pregap) - 150;
+                trk->index1 = trk->startLBA;
+                trk->endLBA = trk->startLBA + (long)length;
+                trk->sectorSize = sectorSize;
+                trk->fileOffset = fileOffset + (ULONGLONG)pregap * sectorSize;
+                lstrcpynW(trk->filePath, cdiPath, MAX_PATH);
+            }
+            fileOffset += (ULONGLONG)totalLength * sectorSize;
+        }
+
+        /* end of session */
+        SKIP(4 + 8);
+        if (version != CDI_V2) SKIP(1);
+    }
+
+#undef SKIP
+#undef NEED
+    return cd->trackCount > 0;
+}
+
+static bool parseCDI(const wchar_t* cdiPath, VirtualCD* cd) {
+    ULONGLONG fileSize = getFileSize64(cdiPath), header;
+    LARGE_INTEGER pos;
+    uint8_t footer[8], *descriptor;
+    uint32_t version, offset;
+    DWORD readSize = 0;
+    HANDLE file;
+    bool ok = false;
+
+    memset(cd, 0, sizeof(*cd));
+    wcscpy(cd->cuePath, cdiPath);
+    wcscpy(cd->binPath, cdiPath);
+
+    if (fileSize < 8)
+        return false;
+
+    file = CreateFileW(cdiPath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+    if (file == INVALID_HANDLE_VALUE)
+        return false;
+
+    pos.QuadPart = fileSize - 8;
+    if (!SetFilePointerEx(file, pos, NULL, FILE_BEGIN) || !ReadFile(file, footer, 8, &readSize, NULL) || readSize != 8) {
+        CloseHandle(file);
+        return false;
+    }
+
+    version = readU32(footer);
+    offset = readU32(footer + 4);
+    if (version != CDI_V2 && version != CDI_V3 && version != CDI_V35) {
+        WARN("not a CDI image %s (version %#x)\n", debugstr_w(cdiPath), version);
+        CloseHandle(file);
+        return false;
+    }
+
+    /* version 3.5 counts the descriptor offset from the end of the file */
+    header = version == CDI_V35 ? fileSize - offset : offset;
+    if (offset > fileSize || header >= fileSize - 8 || fileSize - header > CDI_MAX_DESCRIPTOR) {
+        CloseHandle(file);
+        return false;
+    }
+
+    descriptor = HeapAlloc(GetProcessHeap(), 0, (SIZE_T)(fileSize - header));
+    pos.QuadPart = header;
+    if (descriptor && SetFilePointerEx(file, pos, NULL, FILE_BEGIN) &&
+        ReadFile(file, descriptor, (DWORD)(fileSize - header), &readSize, NULL) && readSize == fileSize - header)
+        ok = parseCdiDescriptor(descriptor, (size_t)(fileSize - header), version, cdiPath, cd);
+
+    CloseHandle(file);
+    HeapFree(GetProcessHeap(), 0, descriptor);
+    return ok;
+}
+
 static inline wchar_t* getFileExtension(wchar_t* path) {
     wchar_t* ext = wcsrchr(path, L'.');
     return ext && *ext++ != L'\0' ? ext : NULL;
@@ -512,6 +690,40 @@ static inline wchar_t* getFileExtension(wchar_t* path) {
 static inline bool hasEx(wchar_t* path, const wchar_t* targetExt) {
     wchar_t* ext = getFileExtension(path);
     return ext && wcsicmp(ext, targetExt) == 0;
+}
+
+/* every raw data sector starts with the sync pattern, audio sectors don't */
+static bool trackHasSyncPattern(const CDTrack* trk) {
+    static const uint8_t sync[12] = { 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00 };
+    long probes[3], length = trk->endLBA - trk->startLBA;
+    bool found = false;
+    HANDLE file;
+    int i;
+
+    file = CreateFileW(trk->filePath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+    if (file == INVALID_HANDLE_VALUE)
+        return true; /* can't tell, keep what the descriptor says */
+
+    probes[0] = 0;
+    probes[1] = length > 16 ? 16 : 0;
+    probes[2] = length > 2 ? length / 2 : 0;
+
+    for (i = 0; i < 3 && !found; i++) {
+        LARGE_INTEGER pos;
+        uint8_t header[12];
+        DWORD readSize = 0;
+
+        pos.QuadPart = trk->fileOffset + (ULONGLONG)probes[i] * trk->sectorSize;
+        if (!SetFilePointerEx(file, pos, NULL, FILE_BEGIN) || !ReadFile(file, header, sizeof(header), &readSize, NULL) ||
+            readSize != sizeof(header)) {
+            found = true; /* can't tell */
+            break;
+        }
+        found = !memcmp(header, sync, sizeof(sync));
+    }
+
+    CloseHandle(file);
+    return found;
 }
 
 bool LoadCurrentDisc(VirtualCD* cd) {
@@ -537,9 +749,24 @@ bool LoadCurrentDisc(VirtualCD* cd) {
             replaceExtension(path, L".mds");
         ok = parseMDS(path, cd);
     }
+    else if (hasEx(path, L"cdi")) {
+        ok = parseCDI(path, cd);
+    }
 
     if (!ok)
         return false;
+
+    /* some dumps label the audio tracks MODE1/2352 in the descriptor: a game asking to play
+     * them would then only get data tracks skipped, check the sectors themselves */
+    for (i = 0; i < cd->trackCount; i++) {
+        CDTrack* trk = &cd->tracks[i];
+
+        if (!trk->isAudio && trk->sectorSize >= 2352 && !trackHasSyncPattern(trk)) {
+            WARN("track %d is labeled %s but holds audio\n", trk->trackNumber, trk->mode);
+            trk->isAudio = true;
+            strcpy(trk->mode, "AUDIO");
+        }
+    }
 
     for (i = 0; i < cd->trackCount; i++) {
         CDTrack* trk = &cd->tracks[i];
