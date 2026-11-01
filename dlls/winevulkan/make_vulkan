@@ -1835,7 +1835,8 @@ class VkStruct(Sequence):
 
         # Those structs seem to be broken in spec, they are specified as
         # returned only, but documented as input structs.
-        if name in ["VkPipelineShaderStageRequiredSubgroupSizeCreateInfo"]:
+        # VkPhysicalDeviceVulkan14Properties has client provided copy layout arrays.
+        if name in ["VkPipelineShaderStageRequiredSubgroupSizeCreateInfo", "VkPhysicalDeviceVulkan14Properties"]:
             returnedonly = False
 
         # Those structs don't have returnedonly in spec, but they could (should?).
