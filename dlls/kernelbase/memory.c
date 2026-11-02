@@ -1005,18 +1005,15 @@ static BOOL fixed_mem_padding;
 static void *padded_fixed_base( HANDLE heap, const void *ptr )
 {
     DWORD *base = (DWORD *)((char *)ptr - FIXED_MEM_PAD);
-    BOOL padded = FALSE;
+    MEMORY_BASIC_INFORMATION info;
+    BOOL padded;
 
-    if (!fixed_mem_padding) return NULL;
-    __TRY
-    {
-        padded = *base == FIXED_MEM_PAD_MAGIC;
-    }
-    __EXCEPT_PAGE_FAULT
-    {
+    if (!fixed_mem_padding || !ptr) return NULL;
+    /* check the pad is readable instead of catching a fault, faults are slow and fragile under emulators */
+    if (VirtualQuery( base, &info, sizeof(info) ) != sizeof(info) || info.State != MEM_COMMIT ||
+        (info.Protect & (PAGE_NOACCESS | PAGE_GUARD)) || !(info.Protect & 0xff))
         return NULL;
-    }
-    __ENDTRY
+    padded = *base == FIXED_MEM_PAD_MAGIC;
     if (!padded || !HeapValidate( heap, HEAP_NO_SERIALIZE, base )) return NULL;
     return base;
 }
