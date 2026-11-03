@@ -10,7 +10,7 @@ run:
 
 Need ubuntu 24.04 (windows subsystem linux)
 
-and run build.sh will install all requirement and compiled wine into a wine-10.17.wcp for installation.
+and run build.sh will install all requirement and compiled wine into a wine-11.6.wcp for installation.
 
 ## Use those flags with build.sh "./build.sh --flag"
 - --deps will install all dependency, have to run with sudo
