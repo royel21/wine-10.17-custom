@@ -613,6 +613,29 @@ BOOL WINAPI DECLSPEC_HOTPATCH VirtualUnlock( void *addr, SIZE_T size )
 }
 
 
+/* Write to our own process directly. The server writes through /proc or
+ * ptrace, which a binary translator's write protection can't see, so it
+ * would keep running stale translated code for the patched bytes. */
+static NTSTATUS write_process_memory( HANDLE process, void *addr, const void *buffer,
+                                      SIZE_T size, SIZE_T *bytes_written )
+{
+    if (process != GetCurrentProcess())
+        return NtWriteVirtualMemory( process, addr, buffer, size, bytes_written );
+
+    __TRY
+    {
+        memcpy( addr, buffer, size );
+    }
+    __EXCEPT_PAGE_FAULT
+    {
+        return NtWriteVirtualMemory( process, addr, buffer, size, bytes_written );
+    }
+    __ENDTRY
+    if (bytes_written) *bytes_written = size;
+    return STATUS_SUCCESS;
+}
+
+
 /***********************************************************************
  *             WriteProcessMemory    (kernelbase.@)
  */
@@ -639,7 +662,7 @@ BOOL WINAPI DECLSPEC_HOTPATCH WriteProcessMemory( HANDLE process, void *addr, co
     case PAGE_EXECUTE_READWRITE:
     case PAGE_EXECUTE_WRITECOPY:
         /* already writable */
-        if ((status = NtWriteVirtualMemory( process, addr, buffer, size, bytes_written ))) break;
+        if ((status = write_process_memory( process, addr, buffer, size, bytes_written ))) break;
         send_cross_process_notification( list, CrossProcessFlushCache, addr, size, 0 );
         NtFlushInstructionCache( process, addr, size );
         break;
@@ -659,7 +682,7 @@ BOOL WINAPI DECLSPEC_HOTPATCH WriteProcessMemory( HANDLE process, void *addr, co
                                          base_addr, region_size, 2, prot, status );
         if (status) break;
 
-        status = NtWriteVirtualMemory( process, addr, buffer, size, bytes_written );
+        status = write_process_memory( process, addr, buffer, size, bytes_written );
         if (!status)
         {
             send_cross_process_notification( list, CrossProcessFlushCache, addr, size, 0 );
