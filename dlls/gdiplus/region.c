@@ -2377,12 +2377,13 @@ static GpStatus combine_regions_to_spans(const struct region_element *left, cons
     {
         for (x = bounds.left; stat == Ok && x < bounds.right; )
         {
-            /* Update the current left and right spans */
+            /* Update the current left and right spans. Clipping to the bounds can
+             * leave several empty spans at an edge, so more than one may be done. */
 
-            if (cur_left && ((x >= cur_left->x[1] && y == cur_left->y) || y > cur_left->y))
+            while (cur_left && ((x >= cur_left->x[1] && y == cur_left->y) || y > cur_left->y))
                 cur_left = (++i_left < spans_left.length) ? &spans_left.spans[i_left] : NULL;
 
-            if (cur_right && ((x >= cur_right->x[1] && y == cur_right->y) || y > cur_right->y))
+            while (cur_right && ((x >= cur_right->x[1] && y == cur_right->y) || y > cur_right->y))
                 cur_right = (++i_right < spans_right.length) ? &spans_right.spans[i_right] : NULL;
 
             assert(!cur_left || cur_left->y >= y);
