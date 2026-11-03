@@ -3110,8 +3110,10 @@ static NTSTATUS map_image_into_view( struct file_view *view, const UNICODE_STRIN
         /* in that case Windows simply maps in the whole file */
 
         total_size = min( total_size, ROUND_SIZE( 0, st.st_size, page_mask ));
+        /* read the file instead of mapping it: making a file mapping executable below can fail,
+         * e.g. on noexec mounts such as Android shared storage, and the result is not checked */
         if (map_file_into_view( view, fd, 0, total_size, 0, VPROT_COMMITTED | VPROT_READ | VPROT_WRITECOPY,
-                                removable ) != STATUS_SUCCESS) goto done;
+                                TRUE ) != STATUS_SUCCESS) goto done;
 
         /* check that all sections are loaded at the right offset */
         if (nt->OptionalHeader.FileAlignment != nt->OptionalHeader.SectionAlignment) goto done;
