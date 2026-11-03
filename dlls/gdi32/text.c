@@ -1505,7 +1505,27 @@ BOOL WINAPI GetTextExtentPoint32W( HDC hdc, const WCHAR *str, INT count, SIZE *s
  */
 BOOL WINAPI GetTextExtentPoint32A( HDC hdc, const char *str, INT count, SIZE *size )
 {
-    return GetTextExtentExPointA( hdc, str, count, 0, NULL, NULL, size );
+    BOOL ret = GetTextExtentExPointA( hdc, str, count, 0, NULL, NULL, size );
+
+    /* Director (DIRAPI.dll) searches for a wrap position by measuring byte counts, and loops
+     * forever between the two halves of a double byte character that still fits. Report a
+     * string ending in half a character as too wide, so it wraps before that character. */
+    if (ret && size)
+    {
+        INT i = 0;
+
+        while (i < count)
+        {
+            if (!IsDBCSLeadByte( str[i] )) i++;
+            else if (i + 1 < count) i += 2;
+            else
+            {
+                size->cx += 0x4000;
+                break;
+            }
+        }
+    }
+    return ret;
 }
 
 /***********************************************************************
