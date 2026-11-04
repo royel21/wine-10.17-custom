@@ -3240,8 +3240,10 @@ static NTSTATUS find_builtin_without_file( const WCHAR *name, UNICODE_STRING *ne
 
     if (!is_prefix_bootstrap)
     {
+        /* Winlator only copies a fixed list of dlls into the prefix, without this one. */
+        if (!wcsicmp( name, L"wmaudsdk.dll" )) name = L"wmaudsdk.dll";
         /* 16-bit files can't be loaded from the prefix */
-        if (!name[1] || wcscmp( name + wcslen(name) - 2, L"16" )) return status;
+        else if (!name[1] || wcscmp( name + wcslen(name) - 2, L"16" )) return status;
     }
 
     if (!get_env_var( L"WINEBUILDDIR", 20 + 2 * wcslen(name) + wcslen(pe_dir), new_name ))

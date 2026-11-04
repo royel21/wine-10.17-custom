@@ -1612,6 +1612,7 @@ enable_wlanui
 enable_wldap32
 enable_wldp
 enable_wmadmod
+enable_wmaudsdk
 enable_wmasf
 enable_wmi
 enable_wmilib_sys
@@ -23242,6 +23243,7 @@ wine_fn_config_makefile dlls/wldap32/tests enable_tests
 wine_fn_config_makefile dlls/wldp enable_wldp
 wine_fn_config_makefile dlls/wldp/tests enable_tests
 wine_fn_config_makefile dlls/wmadmod enable_wmadmod
+wine_fn_config_makefile dlls/wmaudsdk enable_wmaudsdk
 wine_fn_config_makefile dlls/wmasf enable_wmasf
 wine_fn_config_makefile dlls/wmi enable_wmi
 wine_fn_config_makefile dlls/wmilib.sys enable_wmilib_sys
