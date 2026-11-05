@@ -1458,7 +1458,7 @@ NTSTATUS query_unix_drive(void* buff, SIZE_T insize, SIZE_T outsize, IO_STATUS_B
         const int label_len = 256;
         DWORD type;
         DWORD size = sizeof(reg_label);
-        value_name[0] = letter - 32;
+        value_name[0] = input->letter;
         value_name[1] = ':';
         value_name[2] = 0;
 
@@ -1470,6 +1470,7 @@ NTSTATUS query_unix_drive(void* buff, SIZE_T insize, SIZE_T outsize, IO_STATUS_B
             }
             RegCloseKey(key);
         }
+
         device_type = volume->device->type;
         fs_type = get_mountmgr_fs_type(volume->fs_type);
         serial = volume->serial;
