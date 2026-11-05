@@ -1452,27 +1452,23 @@ NTSTATUS query_unix_drive(void* buff, SIZE_T insize, SIZE_T outsize, IO_STATUS_B
 
     if (volume)
     {
-        TRACE("letter: %c\n", letter);
-        if (letter == 'x')
-        {
-            HKEY key;
-            WCHAR value_name[3];
-            WCHAR reg_label[MAX_PATH];
-            const int label_len = 256;
-            DWORD type;
-            DWORD size = sizeof(reg_label);
-            value_name[0] = letter - 32;
-            value_name[1] = ':';
-            value_name[2] = 0;
+        HKEY key;
+        WCHAR value_name[3];
+        WCHAR reg_label[MAX_PATH];
+        const int label_len = 256;
+        DWORD type;
+        DWORD size = sizeof(reg_label);
+        value_name[0] = letter - 32;
+        value_name[1] = ':';
+        value_name[2] = 0;
 
-            if (!RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"Software\\Wine\\Labels", 0, KEY_QUERY_VALUE, &key))
+        if (!RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"Software\\Wine\\Labels", 0, KEY_QUERY_VALUE, &key))
+        {
+            if (!RegQueryValueExW(key, value_name, NULL, &type, (BYTE*)reg_label, &size) && type == REG_SZ)
             {
-                if (!RegQueryValueExW(key, value_name, NULL, &type, (BYTE*)reg_label, &size) && type == REG_SZ)
-                {
-                    lstrcpynW(volume->label, reg_label, label_len);
-                }
-                RegCloseKey(key);
+                lstrcpynW(volume->label, reg_label, label_len);
             }
+            RegCloseKey(key);
         }
         device_type = volume->device->type;
         fs_type = get_mountmgr_fs_type(volume->fs_type);
